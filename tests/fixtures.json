@@ -1,0 +1,47 @@
+{
+  "_comment": "Golden corpus for bench.py. Each fixture replays a WAV through the REAL live.py pipeline and scores it. 'ref' = reference transcript (relative to bakeoff/); 'terms' = file of IT terms expected in the output (recall). Add more fixtures here as we dogfood — record a clip, write its reference once, append an entry.",
+  "fixtures": [
+    {
+      "name": "script-read-1",
+      "wav": "recordings/test.wav",
+      "ref": "reference.txt",
+      "terms": "terms.txt",
+      "note": "Elias reading the 21-IT-term script, take 1"
+    },
+    {
+      "name": "script-read-2",
+      "wav": "recordings/test2.wav",
+      "ref": "reference.txt",
+      "terms": "terms.txt",
+      "note": "same script, take 2 with natural sentence pauses"
+    },
+    {
+      "name": "coding",
+      "wav": "tests/corpus/coding.wav",
+      "ref": "tests/corpus/coding.ref.txt",
+      "terms": "terms.txt",
+      "note": "natural coding narration, terms sprinkled (refs recognizer-bootstrapped + spot-corrected)"
+    },
+    {
+      "name": "commands",
+      "wav": "tests/corpus/commands.wav",
+      "ref": "tests/corpus/commands.ref.txt",
+      "terms": "terms.txt",
+      "note": "short command one-liners"
+    },
+    {
+      "name": "messy",
+      "wav": "tests/corpus/messy.wav",
+      "ref": "tests/corpus/messy.ref.txt",
+      "terms": "terms.txt",
+      "note": "ordinary speech, NO tech terms — over-correction test (injected should stay 0)"
+    },
+    {
+      "name": "global-vocab",
+      "wav": "tests/corpus/global-vocab.wav",
+      "ref": "tests/corpus/global-vocab.ref.txt",
+      "terms": "tests/corpus/global-vocab.terms.txt",
+      "note": "G2 payoff fixture — sentences USING global-pack jargon (web socket->WebSocket, oh llama->Ollama...). Guards that the default-on pack keeps landing terms; controls (a llama, type a script) stay. Recall gated against the canonical terms file."
+    }
+  ]
+}

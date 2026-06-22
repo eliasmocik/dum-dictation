@@ -1,0 +1,62 @@
+{
+  "_comment": "Annotated recordings for analyze_failures.py. Per recording: verbatim 'spoken' text (what Elias read aloud, spoken forms), and 'terms' = the term events {say (spoken form), want (canonical desired output)}. 'repo_vocab':true analyzes with the auto-repo pack on (HOVOR_REPO_VOCAB). Audio is local-only; the script skips recordings whose wav is absent. Grow this as the corpus grows.",
+  "recordings": [
+    {
+      "name": "probe-g0",
+      "wav": "recordings/probe.wav",
+      "spoken": "engine x is down so restart the server. run cube control to get the pods. deploy it on local host port three thousand. the cube root of nine is three. let's grab a coffee after the meeting. the quick brown fox jumps over the lazy dog. push the branch then open a pull request. engine x keeps crashing under load.",
+      "terms": [
+        {"say": "engine x", "want": "nginx"},
+        {"say": "cube control", "want": "kubectl"},
+        {"say": "local host", "want": "localhost"}
+      ]
+    },
+    {
+      "name": "global-vocab",
+      "wav": "recordings/global-vocab.wav",
+      "spoken": "restart engine x then tail the logs. run cube control to scale the deployment. deploy it on local host first. bundle the assets with web pack. run the tests using pie test. scale the cluster with kuber netes. write the handler in java script. store the documents in mongo db. use dynamo db for the session table. open a web socket for live updates. trigger the deploy with a web hook. push the code to git hub. connect through wire guard. add the auth check as middle ware. run the model locally with oh llama. transcribe the audio with para keet. the engine uses sherpa onnx under the hood. we also tried whisper cpp for comparison. the streaming model is a zip former. let's grab a coffee and talk about the plan. the quick brown fox jumps over the lazy dog. i saw a llama at the zoo last weekend. i need to type a script for the video tomorrow.",
+      "terms": [
+        {"say": "engine x", "want": "nginx"},
+        {"say": "cube control", "want": "kubectl"},
+        {"say": "local host", "want": "localhost"},
+        {"say": "web pack", "want": "webpack"},
+        {"say": "pie test", "want": "pytest"},
+        {"say": "kuber netes", "want": "Kubernetes"},
+        {"say": "java script", "want": "JavaScript"},
+        {"say": "mongo db", "want": "MongoDB"},
+        {"say": "dynamo db", "want": "DynamoDB"},
+        {"say": "web socket", "want": "WebSocket"},
+        {"say": "web hook", "want": "webhook"},
+        {"say": "git hub", "want": "GitHub"},
+        {"say": "wire guard", "want": "WireGuard"},
+        {"say": "middle ware", "want": "middleware"},
+        {"say": "oh llama", "want": "Ollama"},
+        {"say": "para keet", "want": "Parakeet"},
+        {"say": "sherpa onnx", "want": "sherpa-onnx"},
+        {"say": "whisper cpp", "want": "whisper.cpp"},
+        {"say": "zip former", "want": "Zipformer"}
+      ]
+    },
+    {
+      "name": "repo-vocab",
+      "wav": "recordings/repo-vocab.wav",
+      "repo_vocab": true,
+      "spoken": "call build pipeline then run the phonetic corrector. the phonetic corrector loads load phrase aliases from the vocab dir. find model dir returns the parakeet path. the overlay typer applies the min edit script. check the age stable count before the stable prefix. clean punct runs before the phonetic stage. set hovor vocab dir to point at the pack. build parakeet then call event bus. let's grab a coffee and talk about the weekend. the quick brown fox jumps over the lazy dog.",
+      "terms": [
+        {"say": "build pipeline", "want": "build_pipeline"},
+        {"say": "phonetic corrector", "want": "PhoneticCorrector"},
+        {"say": "load phrase aliases", "want": "load_phrase_aliases"},
+        {"say": "find model dir", "want": "find_model_dir"},
+        {"say": "overlay typer", "want": "OverlayTyper"},
+        {"say": "min edit script", "want": "min_edit_script"},
+        {"say": "age stable count", "want": "age_stable_count"},
+        {"say": "stable prefix", "want": "stable_prefix"},
+        {"say": "clean punct", "want": "clean_punct"},
+        {"say": "phonetic stage", "want": "PhoneticStage"},
+        {"say": "hovor vocab dir", "want": "HOVOR_VOCAB_DIR"},
+        {"say": "build parakeet", "want": "build_parakeet"},
+        {"say": "event bus", "want": "EventBus"}
+      ]
+    }
+  ]
+}

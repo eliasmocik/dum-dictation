@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# record-session — capture EVERYTHING needed to diagnose dictation lag, synchronized.
+#
+# Produces one timestamped folder under sessions/ holding:
+#   screen.mp4    — screen + mic video (ffmpeg avfoundation), so the felt lag is visible
+#   trace.jsonl   — hi-res latency events (onset / preview / lock / commit breakdown)
+#   events.jsonl  — the app's correction + commit events (SEAM 3)
+#   seg_*.wav     — the exact audio the model heard for each committed sentence
+#   live.log      — everything the app printed (previews, [OK] commits, warnings)
+#   report.txt    — the auto-generated latency analysis (also printed to screen)
+#
+# Usage:
+#   scripts/record-session                 # daily-driver flags: --double-cmd --overlay --llm
+#   scripts/record-session --snappy        # tuned cadence preset (STEP/MIN_SEG/MIN_SIL)
+#   scripts/record-session --snappy --eager  # + lock word 1 off one preview (snappier start)
+#   scripts/record-session --no-llm        # same, LLM correction off (isolate its cost)
+#   scripts/record-session --plain         # commit-only paste (no overlay) — Apple-like baseline
+#   scripts/record-session --mic 1         # any extra live.py flags (--eager, --mic …) pass through
+#
+# While recording: dictate normally into your usual target (VS Code terminal etc.).
+# Double-tap RIGHT Command to start/stop dictation as always. Press Ctrl+C in THIS
+# terminal when done — it stops the video cleanly and prints the report.
+#
+# First run prompts for Screen Recording permission for your terminal app
+# (System Settings > Privacy & Security > Screen Recording). Grant it, relaunch.
+set -euo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+DIR="sessions/$STAMP"
+mkdir -p "$DIR"
+
+# avfoundation device indices on Elias's Mac: 2 = "Capture screen 0", 0 = MacBook Air mic.
+# These shift when cameras/displays change — override with SCREEN_IDX / MIC_IDX env, or
+# re-list: ffmpeg -f avfoundation -list_devices true -i ""
+SCREEN_IDX="${SCREEN_IDX:-2}"
+MIC_IDX="${MIC_IDX:-0}"
+
+# Daily-driver flags by default; let switches below remap them.
+FLAGS=(--double-cmd --overlay --llm)
+PASSTHRU=()
+for a in "$@"; do
+  case "$a" in
+    --no-llm)  FLAGS=(--double-cmd --overlay) ;;
+    --plain)   FLAGS=(--double-cmd --llm) ;;          # commit-only paste, no overlay
+    --snappy)                                         # the tuned-responsiveness preset
+      export HOVOR_STEP="${HOVOR_STEP:-0.15}"         # preview cadence (was 0.30)
+      export HOVOR_MIN_SEG="${HOVOR_MIN_SEG:-0.20}"   # first-preview gate (was 0.40)
+      export HOVOR_MIN_SIL="${HOVOR_MIN_SIL:-0.45}"   # silence-to-commit (was 0.60)
+      ;;
+    *)         PASSTHRU+=("$a") ;;
+  esac
+done
+
+echo "==> session: $DIR"
+echo "==> flags  : ${FLAGS[*]} ${PASSTHRU[*]:-}"
+echo "==> tuning : STEP=${HOVOR_STEP:-0.20(default)}  MIN_SEG=${HOVOR_MIN_SEG:-0.20(default)}  MIN_SIL=${HOVOR_MIN_SIL:-0.45(default)}"
+
+# 1) start screen+mic recording in the background
+echo "==> starting screen+mic capture (screen=$SCREEN_IDX mic=$MIC_IDX)..."
+ffmpeg -y -hide_banner -loglevel warning \
+  -f avfoundation -framerate 30 -i "${SCREEN_IDX}:${MIC_IDX}" \
+  -c:v h264_videotoolbox -b:v 4000k -pix_fmt yuv420p \
+  -c:a aac -b:a 128k \
+  "$DIR/screen.mp4" &
+FFMPEG_PID=$!
+# epoch when capture began — lets analyze_session map a trace event's `wall` to a
+# video timestamp (video_t = trace.wall - this), so frames can be pulled at any event.
+date +%s.%N > "$DIR/video_start.epoch"
+
+cleanup() {
+  echo ""
+  echo "==> stopping capture..."
+  # ask ffmpeg to finalize the mp4 (q on stdin would need -nostdin off; SIGINT is clean)
+  kill -INT "$FFMPEG_PID" 2>/dev/null || true
+  wait "$FFMPEG_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+sleep 1   # let ffmpeg warm up / trip the permission prompt before the app grabs the mic
+
+# 2) run the dictation app with tracing + WAV dump + event sink; tee its stdout to live.log
+echo "==> dictation running. Dictate normally; double-tap RIGHT ⌘ to toggle."
+echo "==> press Ctrl+C HERE when finished."
+HOVOR_EVENTS="$DIR/events.jsonl" \
+  .venv/bin/python live.py "${FLAGS[@]}" "${PASSTHRU[@]:-}" \
+    --trace "$DIR/trace.jsonl" --dump-wav "$DIR" 2>&1 | tee "$DIR/live.log" || true
+
+# 3) Ctrl+C reaches here -> cleanup() finalizes the video, then analyze
+cleanup
+trap - EXIT INT TERM
+
+echo "==> analyzing..."
+.venv/bin/python analyze_session.py "$DIR" | tee "$DIR/report.txt"
+echo ""
+echo "==> done. Folder: $DIR"
+echo "    video : $DIR/screen.mp4"
+echo "    report: $DIR/report.txt"

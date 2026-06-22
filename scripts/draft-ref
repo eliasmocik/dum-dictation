@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# draft-ref <wav> — offline-transcribe a clip into a DRAFT reference for the bench corpus.
+# Writes <wav-without-ext>.ref.txt using the full-utterance Parakeet (the accuracy ceiling),
+# so you only have to FIX the few wrong words instead of typing the whole thing.
+#
+# Corpus-growth workflow:
+#   scripts/record.sh tests/corpus/coding.wav 30   # record ~30s (mic 0 = MacBook Air)
+#   scripts/draft-ref tests/corpus/coding.wav      # -> tests/corpus/coding.ref.txt (draft)
+#   # edit coding.ref.txt to the VERBATIM truth (what you actually said)
+#   # add an entry to tests/fixtures.json (name/wav/ref/terms)
+#   scripts/test --update                          # accept the new fixture into the baseline
+set -euo pipefail
+cd "$(dirname "$0")/.."
+wav="${1:?usage: scripts/draft-ref <wav>}"
+out="${wav%.*}.ref.txt"
+.venv/bin/python - "$wav" "$out" <<'PY'
+import sys, soundfile as sf
+from live import build_parakeet, find_model_dir, transcribe, SR
+wav, out = sys.argv[1], sys.argv[2]
+a, sr = sf.read(wav, dtype="float32")
+if a.ndim > 1:
+    a = a[:, 0]
+assert sr == SR, f"need {SR} Hz mono, got {sr}"
+rec = build_parakeet(find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*"))
+txt = transcribe(rec, a).strip()
+open(out, "w").write(txt + "\n")
+print(f"\ndraft -> {out}\n{txt}")
+PY
+echo
+echo "Now EDIT ${out} to the verbatim truth, add it to tests/fixtures.json, then: scripts/test --update"

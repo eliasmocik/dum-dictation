@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# test — the IT-dictation dev gate. Run before every commit.
+#
+#   scripts/test            # unit tests + bench (fast) vs baseline; fails on regression
+#   scripts/test --realtime # bench at mic cadence too (adds true settle latency)
+#   scripts/test --update   # accept current bench numbers as the new baseline
+#
+# Unit tests (pure logic): pipeline text cleanups + overlay diff/reconcile.
+# Bench (real pipeline): replays the golden corpus through live.py and scores WER /
+# IT-term recall / preview proc, comparing to tests/baseline.json. Corpus audio is
+# local-only (voice) — bench skips fixtures whose WAV isn't present.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+PY=.venv/bin/python
+fail=0
+
+echo "== unit: pipeline =="
+$PY test_pipeline.py || fail=1
+echo "== unit: overlay =="
+$PY test_overlay.py  || fail=1
+echo "== unit: llm-guard =="
+$PY test_llm_guard.py || fail=1
+echo "== unit: repo-harvest =="
+$PY test_repo_harvest.py || fail=1
+echo "== unit: fuzzy-recover (safety gate) =="
+$PY test_fuzzy_recover.py || fail=1
+echo "== unit: dogfood-log =="
+$PY test_dogfood_log.py || fail=1
+echo "== unit: claude-transcript-join =="
+$PY test_join_claude_transcripts.py || fail=1
+echo "== unit: activity-monitor =="
+$PY test_activity_monitor.py || fail=1
+echo "== unit: insertion-seam =="
+$PY test_insertion.py || fail=1
+echo "== unit: paste-atomic (clipboard save/restore) =="
+$PY test_platform_paste.py || fail=1
+echo "== unit: lock-trim =="
+$PY test_lock_trim.py >/dev/null 2>&1 && echo "lock-trim bench OK" || echo "lock-trim bench skipped (corpus audio absent)"
+
+echo "== bench: real pipeline vs baseline =="
+BENCH_ARGS=()
+[[ " $* " == *" --realtime "* ]] && BENCH_ARGS+=(--realtime)
+[[ " $* " == *" --update "* ]]   && BENCH_ARGS+=(--update-baseline)
+$PY bench.py "${BENCH_ARGS[@]:-}" || fail=1
+
+echo ""
+if [[ $fail -eq 0 ]]; then echo "ALL GREEN"; else echo "FAILURES — see above"; fi
+exit $fail

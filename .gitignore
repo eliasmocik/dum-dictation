@@ -1,0 +1,25 @@
+# Python env + caches
+.venv/
+__pycache__/
+*.pyc
+
+# Models — downloaded by ./setup, never committed (large)
+models/
+
+# Local-only dictation history + telemetry (your voice/text — never committed)
+dogfood/
+sessions/
+recordings/
+*.jsonl
+
+# Recorded audio + bench replay artifacts
+*.wav
+tests/corpus/
+tests/.bench-out/
+
+# Bench/analysis outputs
+results/
+
+# Secrets
+.env
+*.env

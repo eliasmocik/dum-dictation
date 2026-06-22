@@ -1,0 +1,49 @@
+# global-tech.aliases — curated GLOBAL tech-vocab phrase-alias pack (GLOBAL-VOCAB-PLAN.md G2)
+# Format: spoken form => CanonicalForm   (left matched case-insensitively, word-bounded)
+# Rule: distinctive MISHEARD jargon only, multi-word-when-spoken. NOT common English words.
+# Left side = the form Parakeet emits (verify on the payoff recording, §6/§7). Drop any that the
+# recognizer already gets right (the alias would just never fire = dead weight).
+#
+# Group 1 — VERIFIED on Elias's mic (G0, 2026-06-17): these fire today.
+engine x      => nginx
+cube control  => kubectl
+cube ctl      => kubectl
+local host    => localhost
+
+# Group 2 — confirmed word list (Elias, 2026-06-17); spoken forms to verify on the payoff recording.
+web pack      => webpack
+pie test      => pytest
+kuber netes   => Kubernetes
+java script   => JavaScript
+mongo DB      => MongoDB
+dynamo DB     => DynamoDB
+web socket    => WebSocket
+web hook      => webhook
+git hub       => GitHub
+wire guard    => WireGuard
+middle ware   => middleware
+oh llama      => Ollama
+para keet     => Parakeet
+sherpa onnx   => sherpa-onnx
+whisper cpp   => whisper.cpp
+zip former    => Zipformer
+
+# Group 2b — TRUE spoken forms captured from the 2026-06-17 payoff recording (§7). The guessed
+# forms above missed because Parakeet emits these instead; both are kept (insurance across contexts).
+sherpa onyx   => sherpa-onnx
+nemo DB       => DynamoDB
+o lama        => Ollama
+web webpack   => webpack
+
+# Group 3 — captured from dogfood telemetry (correction_pair / user.verdict, 2026-06-20). Distinctive
+# non-word mishears of jargon the recognizer drops; the user manually fixed these post-commit.
+ugres         => Postgres
+postgress     => Postgres
+
+# Group 4 — "VS Code" the editor. Parakeet usually gets it right ("VS Code" x28 in telemetry) but emits
+# two distinctive mishears: the letters split as separate tokens ("V S Code"/"V S code", x4) and the
+# acronym as one capitalized token ("Vs Code"). Both forms aliased. The "vs code" form is SAFE despite
+# "vs"=versus: across the whole dogfood corpus every "vs"+"code" adjacency was the editor (0 versus usage
+# — in speech "versus" transcribes as "versus", not "vs"). Verified on Elias's mic (2026-06-21).
+v s code      => VS Code
+vs code       => VS Code

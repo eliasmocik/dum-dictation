@@ -1,0 +1,29 @@
+# IT-dictation — pinned runtime + test dependencies (macOS, Apple Silicon, Python 3.12).
+# Versions match the development environment. `./setup` installs these into .venv.
+
+# Speech recognition engine (Parakeet via ONNX)
+sherpa-onnx==1.13.2
+
+# On-device LLM for homophone/correction stage (MLX, Apple Silicon)
+mlx-lm==0.31.3
+
+# Audio capture + WAV I/O
+sounddevice==0.5.5
+soundfile==0.14.0
+numpy==2.4.6
+
+# Global hotkey + synthetic keystrokes (double-tap left Cmd; overlay typing)
+pynput==1.8.2
+
+# macOS native APIs: Quartz (CGEvent keystrokes), AppKit/Cocoa (NSPasteboard, AX)
+pyobjc-core==12.2
+pyobjc-framework-Cocoa==12.2
+pyobjc-framework-Quartz==12.2
+
+# Correction-pipeline + test/bench support
+rapidfuzz==3.14.5
+jellyfish==1.2.1
+jiwer==4.0.0
+
+# Model download (used by ./setup)
+huggingface-hub==1.19.0

@@ -1,0 +1,17 @@
+{
+  "name": "hovor-telemetry",
+  "displayName": "Hovor Dictation Telemetry",
+  "description": "Measures EXACT post-commit edits to Hovor dictation inside VS Code, closing the AX-blind telemetry gap. Observation only — never inserts or changes text.",
+  "version": "0.1.0",
+  "publisher": "hovor",
+  "private": true,
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "hovor.telemetry.status", "title": "Hovor: Dictation Telemetry Status" }
+    ]
+  }
+}
