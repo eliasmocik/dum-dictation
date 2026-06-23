@@ -920,7 +920,7 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
     gesture stays hardcoded (double-tap LEFT ⌥) — out of scope for v1.
 
     `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "cmd_l" (default,
-    reproduces today's behavior exactly), "cmd_r", "alt_r", or "fn".
+    reproduces today's behavior exactly), "cmd_r", or "fn".
     `mode`:
       * "toggle" — a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
         key between — so single presses and modifier+key shortcuts are untouched) flips
@@ -985,12 +985,14 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
             app.stop()                        # release => stop + commit
 
     if mode == "push":
-        log(f"PUSH-TO-DICTATE: HOLD {desc['label']} to talk, release to stop + commit. "
-            "double-tap LEFT ⌥ = flag last dictation. Ctrl+C to quit.")
+        log(f"dictate: HOLD {desc['label']} to talk, release to stop + commit (push)")
+        log("double-tap left ⌥ — report a bad transcription")
+        log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     else:
-        log(f"{desc['label']} = start/stop dictation; double-tap LEFT ⌥ = flag last dictation "
-            "as a problem. Ctrl+C to quit.")
+        log(f"dictate: {desc['label']} — start/stop (toggle)")
+        log("double-tap left ⌥ — report a bad transcription")
+        log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press)
     listener.start()
     try:

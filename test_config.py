@@ -37,12 +37,25 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
     def test_round_trip(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.json"
-            cfg = {"mic": "Studio Mic", "hotkey_key": "alt_r", "hotkey_mode": "push"}
+            cfg = {"mic": "Studio Mic", "hotkey_key": "cmd_r", "hotkey_mode": "push"}
             config.save_config(cfg, p)
             self.assertTrue(p.exists())
             loaded = config.load_config(p)
             self.assertEqual(loaded["mic"], "Studio Mic")
-            self.assertEqual(loaded["hotkey_key"], "alt_r")
+            self.assertEqual(loaded["hotkey_key"], "cmd_r")
+            self.assertEqual(loaded["hotkey_mode"], "push")
+
+    def test_retired_hotkey_key_degrades_to_default(self):
+        # An old config that saved a now-retired key (alt_r, removed when ⌥ became
+        # the report-a-bug-only gesture) must degrade gracefully to the default key,
+        # not crash. Other valid fields are preserved.
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            p.write_text(json.dumps(
+                {"mic": "Studio Mic", "hotkey_key": "alt_r", "hotkey_mode": "push"}))
+            loaded = config.load_config(p)
+            self.assertEqual(loaded["hotkey_key"], config.DEFAULT_KEY)
+            self.assertEqual(loaded["mic"], "Studio Mic")
             self.assertEqual(loaded["hotkey_mode"], "push")
 
     def test_save_only_known_fields(self):
@@ -135,8 +148,8 @@ class TestModeAndKeyPickers(unittest.TestCase):
         self.assertIn("(recommended)", out.getvalue())
 
     def test_key_numbered(self):
-        # entry 2 in CURATED_KEYS is alt_r
-        self.assertEqual(config.pick_key(_feed("2"), io.StringIO()), "alt_r")
+        # entry 2 in CURATED_KEYS is cmd_r
+        self.assertEqual(config.pick_key(_feed("2"), io.StringIO()), "cmd_r")
 
 
 class TestWizardNoRegression(unittest.TestCase):
@@ -162,12 +175,12 @@ class TestWizardNoRegression(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.json"
             devices = [(0, "Mic A"), (1, "Mic B"), (2, "Mic C")]
-            # mic 3, mode push (2), key alt_r (2)
+            # mic 3, mode push (2), key cmd_r (2)
             cfg = config.run_wizard(devices, default_idx=0,
                                     input_fn=_feed("3", "2", "2"), out=io.StringIO(), path=p)
             self.assertEqual(cfg["mic"], "Mic C")
             self.assertEqual(cfg["hotkey_mode"], "push")
-            self.assertEqual(cfg["hotkey_key"], "alt_r")
+            self.assertEqual(cfg["hotkey_key"], "cmd_r")
 
     def test_wizard_no_save(self):
         cfg = config.run_wizard([(0, "Mic A")], 0,

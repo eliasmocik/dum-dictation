@@ -37,7 +37,6 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 # default reproduces today's hardcoded behavior exactly: double-tap LEFT ⌘.
 CURATED_KEYS = [
     {"key": "cmd_l",  "label": "double-tap left ⌘ (Command)",  "gesture": "double", "pynput": "cmd_l"},
-    {"key": "alt_r",  "label": "double-tap right ⌥ (Option)",  "gesture": "double", "pynput": "alt_r"},
     {"key": "cmd_r",  "label": "double-tap right ⌘ (Command)", "gesture": "double", "pynput": "cmd_r"},
     {"key": "fn",     "label": "fn key",                            "gesture": "single", "pynput": "function"},
 ]
@@ -255,4 +254,5 @@ def run_wizard(devices, default_idx, input_fn=None, out=None, path=CONFIG_PATH, 
         out.write(f"\nSaved to {path}. Launching dum...\n")
     desc = key_descriptor(key)
     out.write(f"  mic={mic or 'system default'}  trigger={desc['label']}  mode={mode}\n")
+    out.write("  report a bad transcription: double-tap left ⌥ (Option)\n")
     return cfg
