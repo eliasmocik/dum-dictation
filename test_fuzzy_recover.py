@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SAFETY GATE for constrained fuzzy symbol recovery (HOVOR_FUZZY_SYMBOLS feature).
+SAFETY GATE for constrained fuzzy symbol recovery (DUM_FUZZY_SYMBOLS feature).
 
 Locks the recovery rule's safety properties so a future broadening can't silently start
 over-correcting prose. The benchmark (fuzzy_recovery_spike.py) measures yield on real audio;
@@ -54,18 +54,18 @@ for src in NEG:
     passed += 1
     print(f"ok  untouched {src!r}")
 
-# FuzzySymbolStage: OFF by default, ON only with HOVOR_FUZZY_SYMBOLS=1
+# FuzzySymbolStage: OFF by default, ON only with DUM_FUZZY_SYMBOLS=1
 stage = FuzzySymbolStage(PAIRS)
-os.environ.pop("HOVOR_FUZZY_SYMBOLS", None)
+os.environ.pop("DUM_FUZZY_SYMBOLS", None)
 out, _ = stage.run("Find model deer returns the path.", {})
 assert out == "Find model deer returns the path.", f"stage must be OFF by default, got {out!r}"
 passed += 1
 print("ok  FuzzySymbolStage OFF by default (no recovery)")
-os.environ["HOVOR_FUZZY_SYMBOLS"] = "1"
+os.environ["DUM_FUZZY_SYMBOLS"] = "1"
 out, _ = stage.run("Find model deer returns the path.", {})
 assert out == "find_model_dir returns the path.", f"stage must be ON with flag, got {out!r}"
 passed += 1
-print("ok  FuzzySymbolStage ON with HOVOR_FUZZY_SYMBOLS=1")
-os.environ.pop("HOVOR_FUZZY_SYMBOLS", None)
+print("ok  FuzzySymbolStage ON with DUM_FUZZY_SYMBOLS=1")
+os.environ.pop("DUM_FUZZY_SYMBOLS", None)
 
 print(f"\nALL {passed} CHECKS PASSED")

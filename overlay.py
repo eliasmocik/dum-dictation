@@ -240,15 +240,15 @@ class OverlayTyper:
         self.dry = dry
         # quiet dry mode still records ops (tests read them) but skips the per-op print —
         # used by bench/replay so the regression output isn't buried in keystroke logs.
-        self.quiet = (os.environ.get("HOVOR_OVERLAY_QUIET") == "1") if quiet is None else quiet
+        self.quiet = (os.environ.get("DUM_OVERLAY_QUIET") == "1") if quiet is None else quiet
         self.max_backspace = max_backspace
         # Phase 2: smart cursor-edit. When on, exact (commit-time) reconciles use
         # min_edit_script + apply_edits (in-place surgical edits) instead of the
         # cursor-at-end backspace-retype. DEFAULT ON (Decision B1, feel-checked clean in
-        # VS Code + terminal 2026-06-17); set HOVOR_MIN_EDIT=0 to fall back to the
+        # VS Code + terminal 2026-06-17); set DUM_MIN_EDIT=0 to fall back to the
         # backspace-retype path. The travel cap + min_edit_script's None fragmentation
         # bail still fall back per-reconcile when an edit isn't a clean in-place win.
-        self.min_edit = (os.environ.get("HOVOR_MIN_EDIT", "1") != "0") if min_edit is None else min_edit
+        self.min_edit = (os.environ.get("DUM_MIN_EDIT", "1") != "0") if min_edit is None else min_edit
         self.max_travel = max_travel  # cap on total arrow-key movement before falling back
         self.platform = platform      # if set, type via it (layout-independent on mac)
         self.typed = ""

@@ -1,4 +1,4 @@
-# Testing system — IT-dictation
+# Testing system — dum dictation
 
 The dev gate. Run before every commit:
 

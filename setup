@@ -5,7 +5,7 @@
 #
 # Creates .venv, installs pinned deps, downloads the Parakeet speech model and
 # pre-pulls the on-device correction LLM, then prints the macOS permissions you
-# must grant. After it finishes, run ./hovor-it.
+# must grant. After it finishes, run ./dum.
 #
 # macOS, Apple Silicon, Python 3.12.
 set -euo pipefail
@@ -67,5 +67,5 @@ echo "==> 5/5  Import sanity check"
 "$PY" -c "import sherpa_onnx, mlx_lm, sounddevice, pynput; print('    ok: core imports succeed')"
 
 echo ""
-echo "Done. Now run:  ./hovor-it"
+echo "Done. Now run:  ./dum"
 echo "(double-tap the LEFT Command key to start/stop dictation)"

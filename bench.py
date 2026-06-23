@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bench.py — regression bench for the IT-dictation pipeline.
+bench.py — regression bench for the dum dictation pipeline.
 
 Replays each golden fixture (tests/fixtures.json) through the REAL live.py loop
 (VAD -> previews -> lock-trim -> corrections -> commit, via LiveDictation.replay),
@@ -20,7 +20,7 @@ Compares against tests/baseline.json and FAILS (exit 1) on regression beyond tol
   .venv/bin/python bench.py --update-baseline   # accept current numbers as the baseline
 """
 import os, sys, json, re
-os.environ.setdefault("HOVOR_OVERLAY_QUIET", "1")   # silence dry-overlay keystroke logs
+os.environ.setdefault("DUM_OVERLAY_QUIET", "1")   # silence dry-overlay keystroke logs
 from pathlib import Path
 import jiwer
 

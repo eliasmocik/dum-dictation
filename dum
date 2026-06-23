@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hovor-it — launch the IT-dictation daily-driver.
+# dum — launch the dum dictation daily-driver.
 #
 # Double-tap the LEFT Command key to start/stop dictation (globally), with the
 # word-by-word overlay + eager first-word lock + the homophone LLM layer on.
@@ -10,42 +10,42 @@
 # lock-and-trim caps preview proc ~70ms), app-aware overlay (live-type in editors/terminals,
 # paste in rich-text apps), 1B homophone model. STABLE start (word 1 appears once two previews
 # agree — no morphing). Add --eager for the instant-but-self-correcting start instead.
-# Override with HOVOR_* env (STEP/MIN_SIL/LLM_MODEL/…); HOVOR_LOCK_TRIM=0 reverts to the old
+# Override with DUM_* env (STEP/MIN_SIL/LLM_MODEL/…); DUM_LOCK_TRIM=0 reverts to the old
 # growing-window decode.
 #
-#   ./hovor-it                      # system default mic
-#   HOVOR_MIC="MacBook Air" ./hovor-it    # pick a mic by name (robust to index shifts)
-#   ./hovor-it --mic 1              # or by index (see: .venv/bin/python live.py --list-devices)
+#   ./dum                      # system default mic
+#   DUM_MIC="MacBook Air" ./dum    # pick a mic by name (robust to index shifts)
+#   ./dum --mic 1              # or by index (see: .venv/bin/python live.py --list-devices)
 #
 # First run needs Microphone + Accessibility + Input Monitoring granted to the
 # terminal app (System Settings > Privacy & Security), then relaunch.
 cd "$(dirname "$0")" || exit 1
-# Default mic = the built-in MacBook Air mic. Override per-run with HOVOR_MIC="Other Mic"
-# ./hovor-it, or --mic <idx> (both still win — :=only sets when HOVOR_MIC is unset).
-: "${HOVOR_MIC:=MacBook Air}"
-export HOVOR_MIC
+# Default mic = the built-in MacBook Air mic. Override per-run with DUM_MIC="Other Mic"
+# ./dum, or --mic <idx> (both still win — :=only sets when DUM_MIC is unset).
+: "${DUM_MIC:=MacBook Air}"
+export DUM_MIC
 # Dogfood log: append every committed sentence (raw / fixed / changed / app / llm) so the
 # real mistranscriptions can be mined later to seed Milestone B vocab packs. Local-only
-# (gitignored — it's your dictation history). Override/disable with HOVOR_EVENTS=.
-: "${HOVOR_EVENTS:=dogfood/events.jsonl}"
-export HOVOR_EVENTS
-mkdir -p "$(dirname "$HOVOR_EVENTS")"
+# (gitignored — it's your dictation history). Override/disable with DUM_EVENTS=.
+: "${DUM_EVENTS:=dogfood/events.jsonl}"
+export DUM_EVENTS
+mkdir -p "$(dirname "$DUM_EVENTS")"
 # Dogfood MASTER switch (Elias): ONE flag turns the whole capture stack on — dogfood logging, audio
 # retention, keystroke proxy, correction pairs, and fuzzy-symbol recovery. All LOCAL-ONLY (dogfood/
-# is gitignored). Each piece is still individually reversible per-run, e.g. HOVOR_KEEP_AUDIO=0
-# ./hovor-it, HOVOR_DOGFOOD_LOG=0 ./hovor-it, HOVOR_FUZZY_SYMBOLS=0 ./hovor-it. Disable everything:
-# HOVOR_DOGFOOD_FULL=0 ./hovor-it. See DOGFOOD.md for exactly what is captured. Analyze later with:
+# is gitignored). Each piece is still individually reversible per-run, e.g. DUM_KEEP_AUDIO=0
+# ./dum, DUM_DOGFOOD_LOG=0 ./dum, DUM_FUZZY_SYMBOLS=0 ./dum. Disable everything:
+# DUM_DOGFOOD_FULL=0 ./dum. See DOGFOOD.md for exactly what is captured. Analyze later with:
 #   .venv/bin/python scripts/analyze_user_corrections.py dogfood/sessions/*.jsonl
-: "${HOVOR_DOGFOOD_FULL:=1}"; export HOVOR_DOGFOOD_FULL
-# Announce each VS Code commit to the hovor-telemetry extension over ~/.hovor/vscode-bridge.jsonl, so
+: "${DUM_DOGFOOD_FULL:=1}"; export DUM_DOGFOOD_FULL
+# Announce each VS Code commit to the dum-telemetry extension over ~/.dum/vscode-bridge.jsonl, so
 # dictation into a real editor DOCUMENT gets the exact post-commit edit (capture_method=vscode-ext)
 # instead of only the keystroke proxy. Harmless if the extension isn't installed. (The Claude Code
 # prompt is covered separately by scripts/join_claude_transcripts.py — that needs no bridge.)
-# Reversible per-run: HOVOR_VSCODE_BRIDGE=0 ./hovor-it
-: "${HOVOR_VSCODE_BRIDGE:=1}"; export HOVOR_VSCODE_BRIDGE
-# Strip filler words (uh/um/hmm/…) from the preview + committed text. Verbatim: HOVOR_STRIP_FILLERS=0 ./hovor-it
-: "${HOVOR_STRIP_FILLERS:=1}"; export HOVOR_STRIP_FILLERS
+# Reversible per-run: DUM_VSCODE_BRIDGE=0 ./dum
+: "${DUM_VSCODE_BRIDGE:=1}"; export DUM_VSCODE_BRIDGE
+# Strip filler words (uh/um/hmm/…) from the preview + committed text. Verbatim: DUM_STRIP_FILLERS=0 ./dum
+: "${DUM_STRIP_FILLERS:=1}"; export DUM_STRIP_FILLERS
 # Decapitalize stray boundary capitals on a closed safe-word set (the/and/it/…) when not a real
-# sentence start — the CAP face of the over-eager-boundary bug. Verbatim/off: HOVOR_DECAP_CAPS=0 ./hovor-it
-: "${HOVOR_DECAP_CAPS:=1}"; export HOVOR_DECAP_CAPS
+# sentence start — the CAP face of the over-eager-boundary bug. Verbatim/off: DUM_DECAP_CAPS=0 ./dum
+: "${DUM_DECAP_CAPS:=1}"; export DUM_DECAP_CAPS
 exec .venv/bin/python live.py --double-cmd --overlay --llm "$@"

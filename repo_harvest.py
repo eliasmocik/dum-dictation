@@ -171,7 +171,7 @@ def _git(args, cwd):
 
 
 def _cache_root():
-    return Path(os.environ.get("HOVOR_CACHE") or (Path.home() / ".cache" / "hovor" / "vocab"))
+    return Path(os.environ.get("DUM_CACHE") or (Path.home() / ".cache" / "dum" / "vocab"))
 
 
 def ensure_repo_pack(cwd=None, min_freq=3, top_k=500):

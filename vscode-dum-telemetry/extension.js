@@ -1,9 +1,9 @@
-// Hovor Dictation Telemetry — VS Code extension (Phase 1, measurement only).
+// dum dictation Telemetry — VS Code extension (Phase 1, measurement only).
 //
-// WHY: in VS Code (Electron) macOS accessibility can't read the editor, so Hovor's post-commit
+// WHY: in VS Code (Electron) macOS accessibility can't read the editor, so dum's post-commit
 // "did the user fix it?" signal falls back to a keystroke proxy that can't tell a correction from
 // normal coding. This extension closes that gap using the one thing only an extension has: the
-// document model. When Hovor inserts a dictation it announces {commit_id, text} over a file bridge;
+// document model. When dum inserts a dictation it announces {commit_id, text} over a file bridge;
 // we locate the inserted span, watch it for a window, and write the EXACT edit distance back as a
 // user.refix event (capture_method="vscode-ext") that analyze_user_corrections.py joins by commit_id.
 //
@@ -14,7 +14,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const BRIDGE = path.join(os.homedir(), ".hovor", "vscode-bridge.jsonl");
+const BRIDGE = path.join(os.homedir(), ".dum", "vscode-bridge.jsonl");
 const WINDOW_MS = 20000;        // must match dogfood_log OBSERVE_WINDOW_S
 const LOCATE_BACK = 4000;       // how far back from the cursor to search for the inserted text
 
@@ -140,9 +140,9 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument(onDocChange),
-    vscode.commands.registerCommand("hovor.telemetry.status", () => {
+    vscode.commands.registerCommand("dum.telemetry.status", () => {
       vscode.window.showInformationMessage(
-        `Hovor telemetry — announced ${stats.announced}, observed ${stats.observed}, ` +
+        `dum telemetry — announced ${stats.announced}, observed ${stats.observed}, ` +
         `written ${stats.written}, missed ${stats.missed}. Bridge: ${BRIDGE}`);
     }),
     { dispose: () => clearInterval(poll) }

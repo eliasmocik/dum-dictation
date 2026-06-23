@@ -3,7 +3,7 @@
 SEAM 2 — vocab as a pluggable data source.
 
 Base vocab (free, shipped) loads from base files. Additional vocab packs load from
-an optional extra directory (env HOVOR_VOCAB_DIR). Paid/closed vocab packs are then
+an optional extra directory (env DUM_VOCAB_DIR). Paid/closed vocab packs are then
 just .txt files dropped into that dir — no code change. The free core never depends
 on the extra dir existing.
 """
@@ -28,7 +28,7 @@ def load_terms(base_files, extra_dir=None):
 
     for f in base_files:
         _add(f)
-    extra_dir = extra_dir or os.environ.get("HOVOR_VOCAB_DIR")
+    extra_dir = extra_dir or os.environ.get("DUM_VOCAB_DIR")
     if extra_dir and Path(extra_dir).is_dir():
         for f in sorted(Path(extra_dir).glob("*.txt")):
             _add(f)
@@ -36,7 +36,7 @@ def load_terms(base_files, extra_dir=None):
 
 
 def load_phrase_aliases(extra_dir=None):
-    """Load phrase-alias packs (*.aliases) from extra_dir (or $HOVOR_VOCAB_DIR).
+    """Load phrase-alias packs (*.aliases) from extra_dir (or $DUM_VOCAB_DIR).
 
     Each line is `spoken form => CanonicalForm`; blank lines, #comments and
     malformed lines (no `=>`, empty side) are skipped. The spoken form (left
@@ -47,7 +47,7 @@ def load_phrase_aliases(extra_dir=None):
     tuples; empty when no packs are present. Value mechanism for the tech-vocab
     dictionary (GLOBAL-VOCAB-PLAN.md G1a) — additive, never replaces the base."""
     out = []
-    extra_dir = extra_dir or os.environ.get("HOVOR_VOCAB_DIR")
+    extra_dir = extra_dir or os.environ.get("DUM_VOCAB_DIR")
     if not (extra_dir and Path(extra_dir).is_dir()):
         return out
     for f in sorted(Path(extra_dir).glob("*.aliases")):

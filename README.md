@@ -1,12 +1,15 @@
-# IT-dictation
+# dum dictation — the smartest dictating tool.
+
+**Type with your words. Everywhere. Accurately. Privately.**
 
 Apple Dictation, but better for technical work — accurate **technical vocabulary**,
 **capitalization** and **punctuation**, and it runs **fully on-device**. No cloud, no account,
 no network. You speak, it types into whatever app is focused.
 
-Built for dictating code, commands, and tech prose: it gets `git`, `kubectl`, `nginx`,
-`PostgreSQL`, `TanStack Query`, and friends right where a general-purpose dictation engine
-hears "get hub" or "engine x".
+Built **for vibecoders**: dictating code, commands, and tech prose, it gets `git`, `kubectl`,
+`nginx`, `PostgreSQL`, `TanStack Query`, and friends right where a general-purpose dictation
+engine hears "get hub" or "engine x". The bar is **"I forgot I was using it"** — no garbage, so
+you can think clearly.
 
 ## Requirements
 
@@ -37,7 +40,7 @@ reopen the terminal so they take effect:
 ## Usage
 
 ```sh
-./hovor-it
+./dum
 ```
 
 - **Double-tap the LEFT Command (⌘) key** to start dictating; double-tap again to stop.
@@ -47,8 +50,8 @@ reopen the terminal so they take effect:
 Pick a microphone:
 
 ```sh
-HOVOR_MIC="MacBook Air" ./hovor-it     # by name (robust to device-index shifts)
-./hovor-it --mic 1                     # by index (list: .venv/bin/python live.py --list-devices)
+DUM_MIC="MacBook Air" ./dum     # by name (robust to device-index shifts)
+./dum --mic 1                     # by index (list: .venv/bin/python live.py --list-devices)
 ```
 
 ## Privacy

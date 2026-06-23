@@ -12,7 +12,7 @@ Before changing anything, establish a known-good baseline:
    ```
    It must end with `ALL GREEN`.
 2. **Manual mic feel-check** (subjective: the gate can't judge how it *feels*). Launch
-   `./hovor-it` and dictate a couple of sentences into a scratch document — see
+   `./dum` and dictate a couple of sentences into a scratch document — see
    [`tests/FEEL-CHECK.md`](tests/FEEL-CHECK.md) and [`smoke-test.md`](smoke-test.md) for the
    read-aloud lines. You're watching for: snappy word-by-word reveal, no wrong-word flicker,
    and above all **no corrupted or lost text**.
@@ -41,7 +41,7 @@ scripts/test --update     # accept current bench numbers as the new baseline
 - Correctness must not regress: aim for `inject=0` everywhere, with term recall and WER matching
   the baseline.
 - A `proc_med` (median preview latency) flag is usually **CPU-contention noise** — e.g. the
-  bench running while `./hovor-it` is also live — not a code regression. Re-run the bench alone
+  bench running while `./dum` is also live — not a code regression. Re-run the bench alone
   to confirm before treating it as real.
 
 ## Known-bugs watch list
@@ -57,7 +57,7 @@ scripts/test --update     # accept current bench numbers as the new baseline
 
 ## Useful env toggles
 
-Most behavior is overridable per-run via `HOVOR_*` env vars (see the header comments in
-`hovor-it` and `live.py`). A few common ones: `HOVOR_MIC` (mic by name/index),
-`HOVOR_LLM_MODEL` (swap the correction LLM), `HOVOR_VOCAB_DIR` (extra vocab packs),
-`HOVOR_DOGFOOD_FULL=0` (disable all local capture).
+Most behavior is overridable per-run via `DUM_*` env vars (see the header comments in
+`dum` and `live.py`). A few common ones: `DUM_MIC` (mic by name/index),
+`DUM_LLM_MODEL` (swap the correction LLM), `DUM_VOCAB_DIR` (extra vocab packs),
+`DUM_DOGFOOD_FULL=0` (disable all local capture).

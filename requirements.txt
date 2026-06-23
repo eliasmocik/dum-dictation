@@ -1,4 +1,4 @@
-# IT-dictation — pinned runtime + test dependencies (macOS, Apple Silicon, Python 3.12).
+# dum dictation — pinned runtime + test dependencies (macOS, Apple Silicon, Python 3.12).
 # Versions match the development environment. `./setup` installs these into .venv.
 
 # Speech recognition engine (Parakeet via ONNX)

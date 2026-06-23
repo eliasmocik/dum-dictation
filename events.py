@@ -5,7 +5,7 @@ SEAM 3 — correction-event hook.
 Surfaces correction events so a CLOSED personalisation agent can observe them later
 (it learns from what gets fixed). The free core only emits; it never depends on a
 subscriber. Today: in-process callbacks + an optional append-only JSONL sink
-(env HOVOR_EVENTS). Later: the same emit() also pushes over a Unix socket the
+(env DUM_EVENTS). Later: the same emit() also pushes over a Unix socket the
 closed agent connects to — no change to call sites.
 
 Event schema (one JSON object per line; `ts` = epoch seconds, added by emit()):

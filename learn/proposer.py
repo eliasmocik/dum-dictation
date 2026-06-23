@@ -9,7 +9,7 @@ curates manually via the analyzer's "top correction pairs" report. Defining the 
 V2 is a *query over history*, not a re-instrumentation.
 
 Pipeline side: approved proposals feed `pipeline.PersonalCorrectionStage` (the inert V1 seam),
-gated by HOVOR_PERSONAL_CORRECTIONS.
+gated by DUM_PERSONAL_CORRECTIONS.
 
 Governing rule (PRODUCT-VISION.md): General vs Personal. A learner here proposes PERSONAL
 corrections for one user; it must NEVER auto-promote a user's idiolect (e.g. "JITHUB" -> "GitHub")

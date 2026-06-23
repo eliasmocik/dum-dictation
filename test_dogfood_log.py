@@ -20,9 +20,9 @@ def check(cond, msg):
 
 
 # --- 1. commit event schema ---
-os.environ["HOVOR_DOGFOOD_LOG"] = "0"          # construct without touching disk
+os.environ["DUM_DOGFOOD_LOG"] = "0"          # construct without touching disk
 dl._ax_window_title = lambda: "pipeline.py — bakeoff"   # deterministic (no GUI focus in tests)
-log = dl.DogfoodLogger(path="/tmp/hovor_dogfood_test.jsonl")
+log = dl.DogfoodLogger(path="/tmp/dum_dogfood_test.jsonl")
 _STAGES = [{"type": "correction.applied", "stage": "phonetic",
             "before": "get push", "after": "git push", "ms": 0.4}]
 cid, evt = log.commit_event("get push", "git push", app="Code",
@@ -66,8 +66,8 @@ import tempfile
 import numpy as np
 _sig = (np.arange(8000, dtype="float32") % 100) / 100.0          # deterministic 0.5s @ 16k
 with tempfile.TemporaryDirectory() as _ad:
-    os.environ["HOVOR_DOGFOOD_LOG"] = "1"
-    os.environ["HOVOR_KEEP_AUDIO"] = "1"
+    os.environ["DUM_DOGFOOD_LOG"] = "1"
+    os.environ["DUM_KEEP_AUDIO"] = "1"
     _ax_real = dl._ax_focused_value
     dl._ax_focused_value = lambda: None                          # keep observer thread instant/quiet
     alog = dl.DogfoodLogger(path=os.path.join(_ad, "dogfood", "sessions", "s.jsonl"))
@@ -78,15 +78,15 @@ with tempfile.TemporaryDirectory() as _ad:
           f"audio_ref populated (seconds + sha256): {ref}")
     check(os.path.exists(ref["path"]) and ref["path"].endswith(".wav"), "utterance WAV written to disk")
 
-    # disabled: HOVOR_KEEP_AUDIO=0 -> no file, audio_ref stays None
-    os.environ["HOVOR_KEEP_AUDIO"] = "0"
+    # disabled: DUM_KEEP_AUDIO=0 -> no file, audio_ref stays None
+    os.environ["DUM_KEEP_AUDIO"] = "0"
     blog = dl.DogfoodLogger(path=os.path.join(_ad, "dogfood2", "sessions", "s.jsonl"))
     blog.log_commit("hi", "hi", app="Code", mode="overlay", audio=_sig, sr=16000)
     cb = [json.loads(l) for l in open(blog.path) if l.strip() and json.loads(l)["type"] == "commit"][0]
-    check(cb["audio_ref"] is None, "audio_ref None when HOVOR_KEEP_AUDIO=0 (no clip saved)")
+    check(cb["audio_ref"] is None, "audio_ref None when DUM_KEEP_AUDIO=0 (no clip saved)")
 
     # size-prune: 3 clips, cap ~1.5 clips -> oldest dropped, 1 kept
-    os.environ["HOVOR_KEEP_AUDIO"] = "1"
+    os.environ["DUM_KEEP_AUDIO"] = "1"
     plog = dl.DogfoodLogger(path=os.path.join(_ad, "dogfood3", "sessions", "s.jsonl"))
     for i in range(3):
         plog.log_commit(f"c{i}", f"c{i}", app="Code", mode="overlay", audio=_sig, sr=16000)
@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory() as _ad:
 
 # --- 1d. exit-flush: close() wakes pending observers fast (no quit-too-soon loss) ---
 with tempfile.TemporaryDirectory() as _fd:
-    os.environ["HOVOR_DOGFOOD_LOG"] = "1"
+    os.environ["DUM_DOGFOOD_LOG"] = "1"
     _ax_real2 = dl._ax_focused_value
     dl._ax_focused_value = lambda: None
     flog = dl.DogfoodLogger(path=os.path.join(_fd, "dogfood", "sessions", "s.jsonl"), window_s=30)
@@ -111,7 +111,7 @@ with tempfile.TemporaryDirectory() as _fd:
     check(len(_rx) == 1 and _elapsed < 5,
           f"close() flushes pending observer fast (elapsed {_elapsed:.2f}s, refix written {len(_rx)})")
     dl._ax_focused_value = _ax_real2
-os.environ["HOVOR_DOGFOOD_LOG"] = "0"                            # restore for later sections
+os.environ["DUM_DOGFOOD_LOG"] = "0"                            # restore for later sections
 
 # --- 2. edit-distance + 3. accepted-unchanged detection ---
 acc = dl.edit_signal("git push origin main", "so I ran git push origin main and it worked")
@@ -120,7 +120,7 @@ rep = dl.edit_signal("git push origin main", "git pull origin main")
 check(not rep["accepted_unchanged"] and rep["edit_distance"] == 2,
       f"push->pull -> dist 2 (got {rep['edit_distance']})")
 check(0 < rep["normalized"] < 0.2, "normalized rate small for a 2-char edit")
-dl.KEEP_CORRECTIONS = True            # Step 7: this now defaults to HOVOR_DOGFOOD_FULL (off in tests)
+dl.KEEP_CORRECTIONS = True            # Step 7: this now defaults to DUM_DOGFOOD_FULL (off in tests)
 rep = dl.edit_signal("git push origin main", "git pull origin main")
 check(rep.get("correction_pair") == {"committed_span": "push", "corrected_span": "pull"},
       f"correction_pair = minimal changed token (got {rep.get('correction_pair')})")
@@ -146,7 +146,7 @@ cp = bleed.get("correction_pair") or {}
 check("earlier" not in cp.get("corrected_span", "") and "after" not in cp.get("corrected_span", "")
       and "control" in cp.get("corrected_span", ""),
       f"edit_signal: neighbour bleed trimmed from correction_pair (got {cp})")
-# --- 2b. classify_correction: separate genuine corrections from Hovor's own insertion corruption ---
+# --- 2b. classify_correction: separate genuine corrections from dum's own insertion corruption ---
 # The capture layer faithfully records what landed in the field, but that can be a real user fix, a
 # scramble (the overlay corrupting its OWN output, Part C), neighbour bleed, or trivial punct/case
 # noise. Misclassifying scramble/bleed as a "user correction" was the bug that made the telemetry
@@ -158,7 +158,7 @@ for a, b in [("cloud code", "Claude Code"), ("thing", "VSCODE"), ("Jetson", "Rad
              ("git hub", "GitHub"), ("web socket", "WebSocket"), ("sherpa onnx", "sherpa-onnx"),
              ("deploy to postgress", "deploy to PostgreSQL")]:
     check(_CC(a, b) == "clean", f"classify_correction: genuine '{a}'->'{b}' = clean (kept as learning signal)")
-# scrambles (same letters, sequence/spacing churned) — Hovor's insertion-corruption bug, NOT a fix
+# scrambles (same letters, sequence/spacing churned) — dum's insertion-corruption bug, NOT a fix
 for a, b in [("it. Uh Get service SH SSHD worked. However,", "it U.h get Sesvice s SHSHD worked, .HHwever,,"),
              ("tool. Uh however", "too.l Uhhhoweve"), ("of brew", "ofbBre")]:
     check(_CC(a, b) == "scramble", f"classify_correction: scramble '{a}'->'{b}' = scramble (overlay corruption)")
@@ -317,7 +317,7 @@ s_cp = auc.summarize([
 check(s_cp["top_correction_pairs"][0] == {"committed": "postgress", "corrected": "PostgreSQL", "n": 2},
       "analyzer: repeated correction pairs surfaced (committed->corrected, counted)")
 
-# Part B: insertion-corruption classifier — Hovor scrambling its own output (overlay reconcile bug)
+# Part B: insertion-corruption classifier — dum scrambling its own output (overlay reconcile bug)
 # is NOT a user correction. Signature = near-identical chars + broken word segmentation.
 check(auc.is_insertion_corruption("tool. Uh however", "too.l Uhhhoweve")
       and auc.is_insertion_corruption("of brew", "ofbBre"),
@@ -373,7 +373,7 @@ check(s8["by_app_capture"]["Code"]["keystroke"] == 1 and s8["by_app_capture"]["C
 
 # --- 6. flag-as-problem hotkey: writes user.verdict for the last commit; analyzer surfaces it ---
 with tempfile.TemporaryDirectory() as _gd:
-    os.environ["HOVOR_DOGFOOD_LOG"] = "1"
+    os.environ["DUM_DOGFOOD_LOG"] = "1"
     _ax_real3 = dl._ax_focused_value
     dl._ax_focused_value = lambda: None
     glog = dl.DogfoodLogger(path=os.path.join(_gd, "dogfood", "sessions", "s.jsonl"))
@@ -390,25 +390,25 @@ with tempfile.TemporaryDirectory() as _gd:
     s_fl = auc.summarize(rows_g)
     check(len(s_fl["flagged_problems"]) == 1 and s_fl["flagged_problems"][0]["raw"] == "the bug is here",
           "analyzer: flagged problem surfaced with its raw text for manual review")
-os.environ["HOVOR_DOGFOOD_LOG"] = "0"
+os.environ["DUM_DOGFOOD_LOG"] = "0"
 
-# --- 7. master switch: HOVOR_DOGFOOD_FULL drives the per-feature defaults; individual flags override ---
-for _k in ("HOVOR_DOGFOOD_LOG", "HOVOR_KEEP_AUDIO", "HOVOR_KEYSTROKE_PROXY"):
+# --- 7. master switch: DUM_DOGFOOD_FULL drives the per-feature defaults; individual flags override ---
+for _k in ("DUM_DOGFOOD_LOG", "DUM_KEEP_AUDIO", "DUM_KEYSTROKE_PROXY"):
     os.environ.pop(_k, None)
 _full_save = dl.DOGFOOD_FULL
 dl.DOGFOOD_FULL = True
-lg_full = dl.DogfoodLogger(path="/tmp/hovor_full_on.jsonl")
+lg_full = dl.DogfoodLogger(path="/tmp/dum_full_on.jsonl")
 check(lg_full.enabled and lg_full.keep_audio and lg_full.keystroke_proxy,
-      "HOVOR_DOGFOOD_FULL on -> log + audio + keystroke proxy all default ON")
+      "DUM_DOGFOOD_FULL on -> log + audio + keystroke proxy all default ON")
 dl.DOGFOOD_FULL = False
-lg_off = dl.DogfoodLogger(path="/tmp/hovor_full_off.jsonl")
+lg_off = dl.DogfoodLogger(path="/tmp/dum_full_off.jsonl")
 check(not lg_off.enabled and not lg_off.keep_audio and not lg_off.keystroke_proxy,
-      "HOVOR_DOGFOOD_FULL off (shipped) -> log + audio + keystroke proxy all default OFF")
-os.environ["HOVOR_KEEP_AUDIO"] = "1"                      # individual override wins over the profile
-lg_ov = dl.DogfoodLogger(path="/tmp/hovor_full_ov.jsonl")
+      "DUM_DOGFOOD_FULL off (shipped) -> log + audio + keystroke proxy all default OFF")
+os.environ["DUM_KEEP_AUDIO"] = "1"                      # individual override wins over the profile
+lg_ov = dl.DogfoodLogger(path="/tmp/dum_full_ov.jsonl")
 check(lg_ov.keep_audio and not lg_ov.enabled,
-      "individual flag (HOVOR_KEEP_AUDIO=1) overrides the OFF profile; others stay off")
-os.environ.pop("HOVOR_KEEP_AUDIO", None)
+      "individual flag (DUM_KEEP_AUDIO=1) overrides the OFF profile; others stay off")
+os.environ.pop("DUM_KEEP_AUDIO", None)
 dl.DOGFOOD_FULL = _full_save
 
 print(f"\nALL {passed} CHECKS PASSED")

@@ -14,7 +14,7 @@ change that could affect the live overlay, and a few times a week while dogfoodi
 Launch the real daily driver and put the cursor in a **scratch** doc (never real work):
 
 ```
-./hovor-it
+./dum
 ```
 
 Test in **both** surfaces — they take different overlay paths:

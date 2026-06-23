@@ -10,7 +10,7 @@ This keeps the LLM off the latency path for the easy 95%.
 Local model via MLX (Apple Silicon). Default: Llama-3.2-1B-Instruct-4bit (~700MB,
 downloaded once to the HF cache) — chosen over the 3B for ~2.5x lower commit latency
 at equal task accuracy (constrained output + IT-term filter). Override with
-HOVOR_LLM_MODEL. Long-term on Mac this is replaceable by Apple's on-device
+DUM_LLM_MODEL. Long-term on Mac this is replaceable by Apple's on-device
 FoundationModels (free, no download) behind the same interface.
 
 Mandate is deliberately narrow: fix ONLY misheard tech terms, never rephrase. The model
@@ -24,8 +24,8 @@ import os, queue, re, threading, time
 # Default homophone-fix model. 1B (vs 3B) is ~2.5x faster (~350ms vs ~900ms) and, with the
 # constrained "wrong->right" output + IT-term validation filter, at least as accurate on the
 # narrow task — so it stays on the latency path without the ~1s commit stall. Override with
-# HOVOR_LLM_MODEL (e.g. the 3B for max accuracy on a faster machine).
-DEFAULT_LLM_MODEL = os.environ.get("HOVOR_LLM_MODEL", "mlx-community/Llama-3.2-1B-Instruct-4bit")
+# DUM_LLM_MODEL (e.g. the 3B for max accuracy on a faster machine).
+DEFAULT_LLM_MODEL = os.environ.get("DUM_LLM_MODEL", "mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 def _key(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())

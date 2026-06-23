@@ -18,7 +18,7 @@ import dogfood_log as dl          # single source of truth for the committed->co
 
 _WS = re.compile(r"\s+")
 
-# committed->corrected diff kinds that are NOT a user correction (Hovor's own insertion scramble or a
+# committed->corrected diff kinds that are NOT a user correction (dum's own insertion scramble or a
 # neighbour-commit bleed) — excluded from the user-correction rate and from vocab candidates, surfaced
 # separately as an OVERLAY-CORRUPTION (Part C) bug signal. See dogfood_log.classify_correction.
 _CORRUPTION_KINDS = {"scramble", "bleed"}
@@ -52,7 +52,7 @@ def _norm(w):
 
 
 def is_insertion_corruption(committed_span, corrected_span):
-    """True when a committed->corrected pair is NOT a user correction but Hovor's own insertion
+    """True when a committed->corrected pair is NOT a user correction but dum's own insertion
     scramble or a neighbour-commit bleed. Thin wrapper over dogfood_log.classify_correction (the single
     source of truth, also used live and tested) — kept as a named predicate for the report's vocab/
     high-edit filters. See classify_correction for the full taxonomy (clean/trivial/scramble/bleed)."""
@@ -84,7 +84,7 @@ def mishear_pairs(raw, fixed):
     return pairs
 
 
-# capture-quality rank: a commit can get >1 user.refix (Hovor's keystroke proxy AND an exact reader —
+# capture-quality rank: a commit can get >1 user.refix (dum's keystroke proxy AND an exact reader —
 # the VS Code extension for editor docs, or the Claude transcript join for the Claude Code prompt).
 # Keep the highest-quality one. claude-transcript/vscode-ext/ax are exact; keystroke is a proxy;
 # unavailable is no signal.
@@ -137,7 +137,7 @@ def summarize(events):
     clean = [(c, r) for c, r in ok if r.get("normalized", 0) <= DIVERGENCE_NORMALIZED]
     diverged = [(c, r) for c, r in ok if r.get("normalized", 0) > DIVERGENCE_NORMALIZED]
 
-    # Within the rate-eligible (clean) set, separate a GENUINE user correction from Hovor's OWN
+    # Within the rate-eligible (clean) set, separate a GENUINE user correction from dum's OWN
     # insertion scramble / neighbour-commit bleed. The capture layer records both faithfully, but the
     # latter is NOT a user edit — counting its edit_distance in the correction rate was exactly the bug
     # that made the telemetry untrustworthy (it reported the overlay corrupting its own output as the
@@ -279,7 +279,7 @@ def summarize(events):
     # PER-APP OVERLAY SCRAMBLE — the overlay-everywhere experiment's scorecard (2026-06-22 flip). For
     # each app, restricted to its OVERLAY commits (paste can't scramble): how many we could actually
     # OBSERVE (exact read-back — ax / vscode-ext / claude-transcript), how many of those were a SCRAMBLE
-    # (Hovor's own insertion char-shuffle, kind=='scramble'; 'bleed' is accumulation, not the bug), the
+    # (dum's own insertion char-shuffle, kind=='scramble'; 'bleed' is accumulation, not the bug), the
     # rate on the observable subset, and how many were BLIND (no read-back — e.g. Electron apps where AX
     # can't see). `blind` is the honesty column: a high-blind app's 0 scrambles means UNMEASURED, not
     # clean. Scrambles seen via AX can include an AX-read-mid-edit artifact, so the rate is an UPPER bound.
@@ -420,7 +420,7 @@ def print_report(s):
     print(f"  observable (captured) : {c['observable']}")
     print(f"    - rate-eligible     : {c['rate_eligible']}  (real-correction signal — rates use these)")
     print(f"        · user fixes    : {c.get('user_corrections', '?')}  (genuine corrections, in the rate)")
-    print(f"        · overlay-corrupt: {c.get('overlay_corruption', 0)}  (Hovor scramble/bleed — EXCLUDED from the rate, see below)")
+    print(f"        · overlay-corrupt: {c.get('overlay_corruption', 0)}  (dum scramble/bleed — EXCLUDED from the rate, see below)")
     print(f"    - field-diverged    : {c['diverged']}  (field changed wholesale = accumulation, EXCLUDED from rates)")
     print(f"  unobservable          : {c['unobservable']}  "
           f"(AX-unavailable {c['unavailable_ax']}, no-signal {c['no_signal']})")
@@ -513,7 +513,7 @@ def print_report(s):
     print("\n  top repeated USER corrections (committed -> corrected) — vocab/alias candidates:")
     print("    (classify General vs Personal before adding to packs — see PRODUCT-VISION.md)")
     if not cps:
-        print("    (none captured yet — needs AX-readable edits with HOVOR_KEEP_CORRECTIONS on)")
+        print("    (none captured yet — needs AX-readable edits with DUM_KEEP_CORRECTIONS on)")
     for p in cps:
         print(f"    {p['n']:>3}x  {p['committed']!r} -> {p['corrected']!r}")
     corr = s.get("suspected_corruption", [])
@@ -544,7 +544,7 @@ def main(argv):
     for a in (argv or ["dogfood/sessions/*.jsonl"]):
         paths.extend(glob.glob(a))
     if not paths:
-        print("no dogfood logs found. Run: HOVOR_DOGFOOD_LOG=1 ./hovor-it"); return 0
+        print("no dogfood logs found. Run: DUM_DOGFOOD_LOG=1 ./dum"); return 0
     print_report(summarize(load(paths)))
     return 0
 

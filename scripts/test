@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test — the IT-dictation dev gate. Run before every commit.
+# test — the dum dictation dev gate. Run before every commit.
 #
 #   scripts/test            # unit tests + bench (fast) vs baseline; fails on regression
 #   scripts/test --realtime # bench at mic cadence too (adds true settle latency)

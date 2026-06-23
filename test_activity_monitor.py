@@ -76,21 +76,21 @@ m4b = ActivityMonitor(frontmost_fn=lambda: "Code", keystrokes=False)
 m4b.record_key("backspace")
 check(len(m4b._keys) == 0, "record_key no-op when keystrokes disabled")
 
-# --- self-typing exclusion: Hovor's own insertion/reconcile keystrokes are NOT counted ---
+# --- self-typing exclusion: dum's own insertion/reconcile keystrokes are NOT counted ---
 m6 = ActivityMonitor(frontmost_fn=lambda: None, keystrokes=False)
 m6._cur_app = "Code"
 m6._apps.append((t0, "Code"))
-# Hovor inserts/reconciles at +1.0s..+1.3s (backspaces + retype) -> must be ignored
+# dum inserts/reconciles at +1.0s..+1.3s (backspaces + retype) -> must be ignored
 m6.mark_self_typing(t0 + 1.0, t0 + 1.3)
 for _ in range(8):
-    m6._keys.append((t0 + 1.1, "backspace", "Code"))   # Hovor's reconcile backspaces (synthetic)
-m6._keys.append((t0 + 1.2, "other", "Code"))           # Hovor's retype (synthetic)
+    m6._keys.append((t0 + 1.1, "backspace", "Code"))   # dum's reconcile backspaces (synthetic)
+m6._keys.append((t0 + 1.2, "other", "Code"))           # dum's retype (synthetic)
 # the USER then really edits at +6s
 for _ in range(2):
     m6._keys.append((t0 + 6.0, "backspace", "Code"))
 w6 = m6.window(t0, t0 + 20, commit_app="Code")
 check(w6["keystroke_summary"]["backspaces"] == 2 and w6["keystroke_summary"]["other_keys"] == 0,
-      "self-typing excluded: only the 2 real user backspaces counted, Hovor's 8+1 ignored")
+      "self-typing excluded: only the 2 real user backspaces counted, dum's 8+1 ignored")
 
 # pad covers async event delivery just after the marked interval
 m7 = ActivityMonitor(frontmost_fn=lambda: None, keystrokes=False)

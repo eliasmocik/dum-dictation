@@ -14,7 +14,7 @@ Hard constraints (deliberately tight — this is a kill-or-keep probe):
     (those are the regular alias's job).
   - target is always a known (say -> want) pair from the loaded vocab; never an open dictionary.
 
-If later promoted to the live pipeline, gate behind HOVOR_FUZZY_RECOVER (off by default). For now it
+If later promoted to the live pipeline, gate behind DUM_FUZZY_RECOVER (off by default). For now it
 is import-only and exercised solely by fuzzy_recovery_spike.py.
 """
 import re

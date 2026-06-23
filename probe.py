@@ -13,10 +13,10 @@ This is test scaffolding, not product code — it ships nothing into the tool.
 Usage:
     .venv/bin/python probe.py <wav>
     # to also test loading from a pack instead of hardcoded (G1a re-prove):
-    HOVOR_VOCAB_DIR=/path/to/pack .venv/bin/python probe.py <wav>
+    DUM_VOCAB_DIR=/path/to/pack .venv/bin/python probe.py <wav>
 """
 import os, sys, json
-os.environ.setdefault("HOVOR_OVERLAY_QUIET", "1")   # silence dry-overlay keystroke logs
+os.environ.setdefault("DUM_OVERLAY_QUIET", "1")   # silence dry-overlay keystroke logs
 from pathlib import Path
 
 from live import (build_parakeet, find_model_dir, build_pipeline, load_terms,
@@ -32,13 +32,13 @@ def main():
         print(f"no such wav: {wav}")
         return 1
 
-    ev_path = Path("/tmp/hovor_probe.events.jsonl")
+    ev_path = Path("/tmp/dum_probe.events.jsonl")
     ev_path.unlink(missing_ok=True)
 
-    # picks up HOVOR_VOCAB_DIR if set (None -> falls through to the env var in load_terms)
+    # picks up DUM_VOCAB_DIR if set (None -> falls through to the env var in load_terms)
     terms = load_terms([HERE / "terms.txt"], None)
     print(f"loaded {len(terms)} IT terms"
-          + (f"  (+pack {os.environ['HOVOR_VOCAB_DIR']})" if os.environ.get("HOVOR_VOCAB_DIR") else "  (no pack)"))
+          + (f"  (+pack {os.environ['DUM_VOCAB_DIR']})" if os.environ.get("DUM_VOCAB_DIR") else "  (no pack)"))
     print("building model (once)...")
     rec = build_parakeet(find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*"))
     pipe = build_pipeline(terms)

@@ -21,7 +21,7 @@ Capability + context:
     target = {"app","surface",...}  # optional per-call hint about where text is going, when known
 
 Concrete backends (built out in Phase 1, see LIVE-PREVIEW-PLAN.md):
-  * IMKBackend          — macOS marked text via the Hovor IMK over IPC (supports_marked_text=True)
+  * IMKBackend          — macOS marked text via the dum IMK over IPC (supports_marked_text=True)
   * OverlayBackend      — the existing synthetic keystroke overlay (VS Code fallback)
   * PasteBackend        — clipboard paste at commit (universal last-resort; no live preview)
 """
@@ -56,7 +56,7 @@ class InsertionBackend:
 
 
 class IMKBackend(InsertionBackend):
-    """macOS marked-text backend — drives the Hovor IMK input method (spikes/imk-hovor) over IPC.
+    """macOS marked-text backend — drives the dum IMK input method (spikes/imk-dum) over IPC.
     INSERTION ONLY. Built in spike Checkpoint 2; stub for now so the interface + wiring exist."""
 
     name = "imk"
@@ -65,13 +65,13 @@ class IMKBackend(InsertionBackend):
         return True
 
     def start_preview(self, text, target=None):
-        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> Hovor IMK)")
+        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> dum IMK)")
 
     def update_preview(self, text, target=None):
-        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> Hovor IMK)")
+        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> dum IMK)")
 
     def commit(self, text, target=None):
-        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> Hovor IMK)")
+        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> dum IMK)")
 
     def cancel(self, target=None):
-        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> Hovor IMK)")
+        raise NotImplementedError("IMK backend: wired in spike Checkpoint 2 (IPC -> dum IMK)")

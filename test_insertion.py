@@ -23,7 +23,7 @@ check(base.supports_marked_text() is False, "base backend: no marked text by def
 imk = insertion.IMKBackend()
 check(isinstance(imk, insertion.InsertionBackend), "IMKBackend is an InsertionBackend")
 check(imk.supports_marked_text() is True, "IMKBackend advertises marked-text support")
-# insertion-only stub until spike Checkpoint 2 (IPC -> Hovor IMK)
+# insertion-only stub until spike Checkpoint 2 (IPC -> dum IMK)
 for meth in ("start_preview", "update_preview", "commit"):
     try:
         getattr(imk, meth)("x")

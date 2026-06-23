@@ -18,13 +18,13 @@ already saved, so each flagged item is fully reviewable offline. List them anyti
 
 ## On / off
 
-- **One master switch: `HOVOR_DOGFOOD_FULL`.** Set it and the whole capture stack turns on —
+- **One master switch: `DUM_DOGFOOD_FULL`.** Set it and the whole capture stack turns on —
   dogfood logging, audio retention, keystroke proxy, correction pairs, and fuzzy-symbol recovery.
 - **Default OFF** at the code level (every piece defaults off → shipped builds are privacy-first).
-- The `./hovor-it` launcher sets `HOVOR_DOGFOOD_FULL=1` for your dogfood sessions.
-- **Each piece still overrides individually**, e.g. `HOVOR_KEEP_AUDIO=0 ./hovor-it`,
-  `HOVOR_KEYSTROKE_PROXY=0 ./hovor-it`, `HOVOR_KEEP_CORRECTIONS=0 ./hovor-it`,
-  `HOVOR_FUZZY_SYMBOLS=0 ./hovor-it`. Disable everything: `HOVOR_DOGFOOD_FULL=0 ./hovor-it`.
+- The `./dum` launcher sets `DUM_DOGFOOD_FULL=1` for your dogfood sessions.
+- **Each piece still overrides individually**, e.g. `DUM_KEEP_AUDIO=0 ./dum`,
+  `DUM_KEYSTROKE_PROXY=0 ./dum`, `DUM_KEEP_CORRECTIONS=0 ./dum`,
+  `DUM_FUZZY_SYMBOLS=0 ./dum`. Disable everything: `DUM_DOGFOOD_FULL=0 ./dum`.
 
 ## Where it's stored (LOCAL ONLY)
 
@@ -53,9 +53,9 @@ ones where post-commit edit-capture is blind (VS Code, terminal). The commit rec
 `audio_ref` (path + sha256 + seconds) pointing at the clip.
 
 - **Default ON** in the dogfood profile (it's your own voice, local-only). Turn off per run with
-  `HOVOR_KEEP_AUDIO=0 ./hovor-it`.
+  `DUM_KEEP_AUDIO=0 ./dum`.
 - **Auto-pruned at session start** by BOTH caps, whichever bites first: older than **30 days** OR
-  total over **2 GB** (oldest first). Override: `HOVOR_AUDIO_MAX_DAYS`, `HOVOR_AUDIO_MAX_GB`. A
+  total over **2 GB** (oldest first). Override: `DUM_AUDIO_MAX_DAYS`, `DUM_AUDIO_MAX_GB`. A
   pruning `audio.prune` event is logged so dropped coverage is never silent.
 - Written **after** the text is on screen, so it never adds to perceived dictation latency.
 - **Shipped builds flip this OFF / opt-in** — audio is the most sensitive signal; only the dogfood
@@ -80,8 +80,8 @@ app, recorded on each `user.refix` for the ~20s after a commit:
 - **`correction_pair`** (when AX-readable) — the **minimal changed-token diff** `committed -> corrected`
   (e.g. `postgress -> PostgreSQL`), NOT the whole field. This is the core learning signal and the
   vocab/alias-candidate source. Verbatim changed text => **default ON in dogfood** (your own text,
-  local-only), `HOVOR_KEEP_CORRECTIONS=0` to disable (keeps the distance, drops the verbatim pair).
-- Disable the keystroke proxy per run: `HOVOR_KEYSTROKE_PROXY=0 ./hovor-it` (app-switch timeline stays).
+  local-only), `DUM_KEEP_CORRECTIONS=0` to disable (keeps the distance, drops the verbatim pair).
+- Disable the keystroke proxy per run: `DUM_KEYSTROKE_PROXY=0 ./dum` (app-switch timeline stays).
 - **Shipped builds flip the keystroke proxy AND correction_pair OFF / opt-in.** Dogfood-only default-on.
 
 ## Privacy guarantees
@@ -100,7 +100,7 @@ Reports first an **exhaustive edit-capture breakdown** — total commits = obser
 (unobservable = AX-unavailable + no-signal) + **coverage %** — then, **only on the observable subset**,
 accepted-unchanged %, avg edit distance, User Correction Rate, corrections per 100 words. Plus
 (always available) top repeated mishears and rate by app / repo / feature flags, and a
-`HOVOR_FUZZY_SYMBOLS` on-vs-off comparison. Every correction-rate number is explicitly labelled
+`DUM_FUZZY_SYMBOLS` on-vs-off comparison. Every correction-rate number is explicitly labelled
 observable-only, so a "10% correction rate" at 20% coverage can't be mistaken for one at 90% coverage.
 
 ## Known limitation

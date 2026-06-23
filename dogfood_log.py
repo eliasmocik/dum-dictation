@@ -2,7 +2,7 @@
 """
 Always-on (opt-in) dogfood logger for the USER CORRECTION RATE metric. Local-only, privacy-conscious.
 
-Default OFF. Enable with HOVOR_DOGFOOD_LOG=1. Writes one JSONL file per session under
+Default OFF. Enable with DUM_DOGFOOD_LOG=1. Writes one JSONL file per session under
 dogfood/sessions/ (the whole dogfood/ tree is gitignored — it's your dictation history; delete with
 `rm -rf dogfood/sessions`). Two event types, joinable by commit_id:
 
@@ -19,7 +19,7 @@ dogfood/sessions/ (the whole dogfood/ tree is gitignored — it's your dictation
              the output, or move on?". capture_method (ax|keystroke|unavailable) + the AX edit signal
              where readable (edit_distance/normalized/accepted_unchanged + correction_pair, the
              minimal changed-token diff committed->corrected — the learning signal, opt-out via
-             HOVOR_KEEP_CORRECTIONS), PLUS (every app) the activity timeline: commit_app,
+             DUM_KEEP_CORRECTIONS), PLUS (every app) the activity timeline: commit_app,
              app_switches[{t_rel,app}], final_app,
              stayed_in_commit_app, switched_away_s, and a CONTENT-FREE keystroke_summary
              {backspaces,deletes,nav_keys,other_keys} gated to the commit app. AX whole-field reads
@@ -44,13 +44,13 @@ SCHEMA_VERSION = 5          # bumped per shape change: 2=stages_fired embedded; 
                             # 5=surface buckets (terminals->"shell", VS Code family->coarse "vscode"
                             #   refined post-hoc to editor/vscode-terminal/claude-code by the analyzer)
 REDACT_MAX = 200            # max chars of any captured text span stored
-OBSERVE_WINDOW_S = float(os.environ.get("HOVOR_DOGFOOD_WINDOW", "20"))
+OBSERVE_WINDOW_S = float(os.environ.get("DUM_DOGFOOD_WINDOW", "20"))
 MODEL_NAME = "parakeet-tdt-0.6b-v3-int8"
 # Audio retention (dogfood profile): save each utterance so any failure can be replayed/re-run
 # offline in EVERY app (Layer-1 ground truth). Pruned oldest-first at session start by BOTH caps,
 # whichever hits first. Local-only (dogfood/ is gitignored). See DOGFOOD.md.
-AUDIO_MAX_DAYS = float(os.environ.get("HOVOR_AUDIO_MAX_DAYS", "30"))
-AUDIO_MAX_GB = float(os.environ.get("HOVOR_AUDIO_MAX_GB", "2"))
+AUDIO_MAX_DAYS = float(os.environ.get("DUM_AUDIO_MAX_DAYS", "30"))
+AUDIO_MAX_GB = float(os.environ.get("DUM_AUDIO_MAX_GB", "2"))
 
 
 def _env_on(name, default):
@@ -59,14 +59,14 @@ def _env_on(name, default):
     return default if v is None else v not in ("0", "", "false")
 
 
-# HOVOR_DOGFOOD_FULL = the dogfood MASTER switch. One flag turns the whole capture stack on (log,
+# DUM_DOGFOOD_FULL = the dogfood MASTER switch. One flag turns the whole capture stack on (log,
 # audio, keystroke proxy, correction pairs, fuzzy-symbol recovery). Each piece still has its own
 # env override. Shipped builds leave it off => every piece defaults OFF (privacy-first); the
-# ./hovor-it launcher sets it for dogfood sessions.
-DOGFOOD_FULL = os.environ.get("HOVOR_DOGFOOD_FULL", "0") not in ("0", "", "false")
+# ./dum launcher sets it for dogfood sessions.
+DOGFOOD_FULL = os.environ.get("DUM_DOGFOOD_FULL", "0") not in ("0", "", "false")
 # correction_pair = the verbatim changed-token diff committed->corrected (the core learning signal).
-# Default = the profile (ON in dogfood, OFF/opt-in shipped); HOVOR_KEEP_CORRECTIONS overrides.
-KEEP_CORRECTIONS = _env_on("HOVOR_KEEP_CORRECTIONS", DOGFOOD_FULL)
+# Default = the profile (ON in dogfood, OFF/opt-in shipped); DUM_KEEP_CORRECTIONS overrides.
+KEEP_CORRECTIONS = _env_on("DUM_KEEP_CORRECTIONS", DOGFOOD_FULL)
 
 _WS = re.compile(r"\s+")
 
@@ -140,8 +140,8 @@ def feature_flags():
         return os.environ.get(name, "0") not in ("0", "", "false")
     return {
         "global_vocab": True,                              # shipped pack is always loaded
-        "repo_vocab": on("HOVOR_REPO_VOCAB"),
-        "fuzzy_symbols": on("HOVOR_FUZZY_SYMBOLS"),
+        "repo_vocab": on("DUM_REPO_VOCAB"),
+        "fuzzy_symbols": on("DUM_FUZZY_SYMBOLS"),
         "llm": "--llm" in " ".join(__import__("sys").argv),
     }
 
@@ -278,7 +278,7 @@ def classify_correction(committed_span, corrected_span):
                      low-signal rather than guessed either way.
       * 'scramble' — the overlay/AX captured a CHARACTER-SHUFFLE of the same text: letters preserved,
                      sequence/spacing churned (`service SH SSHD`->`Sesvice s SHSHD`, `tool. Uh`->
-                     `too.l Uhhh`). This is Hovor's own terminal/TUI insertion-corruption bug (Part C),
+                     `too.l Uhhh`). This is dum's own terminal/TUI insertion-corruption bug (Part C),
                      or an AX read taken mid-edit — NEVER a user correction.
       * 'bleed'    — a neighbour commit merged in at an edge (accumulation): the committed text
                      survives intact inside a notably longer corrected text (`Everything else...`->
@@ -351,7 +351,7 @@ def edit_signal(inserted, final_value):
             out["correction_pair"] = {"committed_span": _truncate(pair[0]),
                                       "corrected_span": _truncate(pair[1])}
             # tag what KIND of diff this is so downstream metrics can trust it: a genuine correction
-            # vs Hovor's own insertion scramble vs neighbour-commit bleed. Re-derivable from the pair
+            # vs dum's own insertion scramble vs neighbour-commit bleed. Re-derivable from the pair
             # (the analyzer recomputes for historical logs), stored here so live logs self-describe.
             out["pair_kind"] = classify_correction(pair[0], pair[1])
     return out
@@ -400,20 +400,20 @@ class _EditObserver:
 
 class DogfoodLogger:
     def __init__(self, path=None, window_s=OBSERVE_WINDOW_S, frontmost_fn=None):
-        # Each flag defaults to the dogfood profile (HOVOR_DOGFOOD_FULL); its own env var overrides.
+        # Each flag defaults to the dogfood profile (DUM_DOGFOOD_FULL); its own env var overrides.
         # => one master switch on in dogfood, everything OFF when shipped.
-        self.enabled = _env_on("HOVOR_DOGFOOD_LOG", DOGFOOD_FULL)
-        self.keep_audio = _env_on("HOVOR_KEEP_AUDIO", DOGFOOD_FULL)
-        self.keystroke_proxy = _env_on("HOVOR_KEYSTROKE_PROXY", DOGFOOD_FULL)
-        # announce editor commits to a running Hovor VS Code extension (exact post-commit edit
+        self.enabled = _env_on("DUM_DOGFOOD_LOG", DOGFOOD_FULL)
+        self.keep_audio = _env_on("DUM_KEEP_AUDIO", DOGFOOD_FULL)
+        self.keystroke_proxy = _env_on("DUM_KEYSTROKE_PROXY", DOGFOOD_FULL)
+        # announce editor commits to a running dum VS Code extension (exact post-commit edit
         # capture from the document model -> closes the AX-blind VS Code telemetry gap). OFF unless
-        # the extension is installed and HOVOR_VSCODE_BRIDGE=1.
-        self.vscode_bridge = _env_on("HOVOR_VSCODE_BRIDGE", False)
+        # the extension is installed and DUM_VSCODE_BRIDGE=1.
+        self.vscode_bridge = _env_on("DUM_VSCODE_BRIDGE", False)
         self.session = f"{int(time.time())}-{os.getpid()}"
         self.cwd = os.getcwd()
         self.repo = repo_root(self.cwd)
         self.flags = feature_flags()
-        self.path = Path(path or os.environ.get("HOVOR_DOGFOOD_PATH")
+        self.path = Path(path or os.environ.get("DUM_DOGFOOD_PATH")
                          or (Path(self.cwd) / "dogfood" / "sessions" / f"dictation-{self.session}.jsonl"))
         self._audio_dir = self.path.parent.parent / "audio"     # dogfood/audio/<session>/
         self._n = 0
@@ -539,13 +539,13 @@ class DogfoodLogger:
             pass
 
     def _announce_vscode(self, cid, text):
-        """Best-effort: tell a running Hovor VS Code extension we just inserted `text` for commit
+        """Best-effort: tell a running dum VS Code extension we just inserted `text` for commit
         `cid`, so it can measure the EXACT post-commit edit from the document model (the AX-blind VS
-        Code gap). One JSON line to ~/.hovor/vscode-bridge.jsonl, which the extension tails; it writes
+        Code gap). One JSON line to ~/.dum/vscode-bridge.jsonl, which the extension tails; it writes
         its own user.refix (capture_method=vscode-ext) into sessions_dir. Fully guarded — the bridge
         must never affect dictation."""
         try:
-            d = Path.home() / ".hovor"
+            d = Path.home() / ".dum"
             d.mkdir(parents=True, exist_ok=True)
             with open(d / "vscode-bridge.jsonl", "a") as f:
                 f.write(json.dumps({"commit_id": cid, "text": text, "ts": time.time(),
@@ -572,7 +572,7 @@ class DogfoodLogger:
                 pass
 
     def mark_self_typing(self, t0, t1):
-        """Tell the activity monitor that Hovor was inserting/reconciling text in [t0, t1] so its
+        """Tell the activity monitor that dum was inserting/reconciling text in [t0, t1] so its
         own synthetic keystrokes aren't counted as user edits. No-op if no monitor. Guarded."""
         if self._monitor is not None:
             try:

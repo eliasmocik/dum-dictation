@@ -48,11 +48,11 @@ Built and ordered in `live.py`:
 2. **Phonetic / phrase-alias correction** — the technical-vocab layer. A shipped global pack
    (`packs/*.aliases`, always on) maps misheard spoken forms to canonical tech terms
    (`engine x` → `nginx`, `cube control` → `kubectl`), plus optional user/repo packs via
-   `HOVOR_VOCAB_DIR`. Aliases are *additive* and word-bounded.
+   `DUM_VOCAB_DIR`. Aliases are *additive* and word-bounded.
 3. **External corrector seam** — an inert boundary where an out-of-process corrector can plug in
-   over stdio; disabled unless `HOVOR_EXTERNAL_CORRECTOR` points at an executable.
+   over stdio; disabled unless `DUM_EXTERNAL_CORRECTOR` points at an executable.
 4. **Personal-correction seam** — a defined-but-inert passthrough for future per-user learned
-   corrections; gated by `HOVOR_PERSONAL_CORRECTIONS`, no-op by default.
+   corrections; gated by `DUM_PERSONAL_CORRECTIONS`, no-op by default.
 5. **Fuzzy-symbol recovery** — best-effort recovery of distinctive identifiers (gated).
 6. **Protected words** — guards canonical forms from being re-mangled.
 7. **Sentence capitalization** — re-capitalizes real sentence starts last, after the alias/LLM
@@ -62,7 +62,7 @@ There is also an **on-device LLM stage** (`llm_stage.py`): a 4-bit Llama-3.2-1B 
 [`mlx_lm`](https://github.com/ml-explore/mlx) on Apple Silicon, used for homophone-class fixes
 (`grep`/`grab`, `git`/`get`). It is guarded so it only edits when confident and is built lazily
 on the consumer thread. Model id defaults to `mlx-community/Llama-3.2-1B-Instruct-4bit`,
-overridable with `HOVOR_LLM_MODEL`.
+overridable with `DUM_LLM_MODEL`.
 
 ## Insertion: overlay vs paste
 
@@ -84,8 +84,8 @@ keystrokes, AppKit `NSPasteboard`, Accessibility reads).
 
 `dogfood_log.py` + `events.py` + `activity_monitor.py` form an **opt-in, local-only** seam that
 measures how often dictated text gets manually corrected — the signal used to find vocab gaps.
-It is off by default at the engine level (the `./hovor-it` launcher turns it on for development),
+It is off by default at the engine level (the `./dum` launcher turns it on for development),
 writes only to the gitignored `dogfood/` tree, and makes no network calls. The optional VS Code
-extension in `vscode-hovor-telemetry/` closes the editor-coverage gap by reporting post-commit
+extension in `vscode-dum-telemetry/` closes the editor-coverage gap by reporting post-commit
 edits from the document model; it only observes, never inserts. Full detail and the privacy
 controls are in [`DOGFOOD.md`](DOGFOOD.md).

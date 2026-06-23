@@ -5,7 +5,7 @@ SEAM 1 — correction pipeline with an external-corrector boundary.
 The correction layer is an ordered list of stages. Built-in stages (phonetic,
 LLM) are free. After them sits ExternalCorrectorStage: a boundary where a CLOSED
 "advanced Layer 3" corrector can plug in later as a separate helper process over
-stdio — defined now, disabled until HOVOR_EXTERNAL_CORRECTOR points to an executable.
+stdio — defined now, disabled until DUM_EXTERNAL_CORRECTOR points to an executable.
 
 Each stage returns (text, events); events flow to the EventBus (SEAM 3).
 """
@@ -40,7 +40,7 @@ def capitalize_sentences(text):
 # --- filler / disfluency removal (General cleanup — everyone says "uh") --------------------------
 # A curated set of STANDALONE disfluency tokens, removed from BOTH the live preview and the committed
 # text so they never reach the screen or the field. WHOLE-token match only (never substrings:
-# "umbrella" / "ahead" / "error" are safe). Toggled via HOVOR_STRIP_FILLERS, gated at the live.py call
+# "umbrella" / "ahead" / "error" are safe). Toggled via DUM_STRIP_FILLERS, gated at the live.py call
 # sites — these helpers are pure (always strip) so they're directly testable. Distinct from
 # live.HALLUCINATIONS (which drops a commit that is ENTIRELY filler); this removes a filler wherever it sits.
 # Includes the nasal-grunt variants Parakeet actually emits — esp. "mm" / "hm" (it writes a nasal
@@ -91,7 +91,7 @@ def drop_fillers(words, at_start=False):
 # when the word is NOT a real sentence start. The closed set IS the entire name-protection guarantee —
 # adding any word that could plausibly be a name/variable would break it. Measured on the real
 # 1,300-commit dogfood corpus: the cross-commit decap fires ~101×, ~97%+ correct continuations, and the
-# curated set touches zero proper nouns. Pure + idempotent. Toggled via HOVOR_DECAP_CAPS (default ON in
+# curated set touches zero proper nouns. Pure + idempotent. Toggled via DUM_DECAP_CAPS (default ON in
 # the launcher); gated at the live.py call sites. Distinct from the period face ("…a lot more. Smooth")
 # which is separate boundary/MIN_SIL work and deliberately left alone here (fix the capital, not the dot).
 SAFE_LOWER = frozenset({
@@ -180,7 +180,7 @@ class SentenceCapStage(Stage):
 class FuzzySymbolStage(Stage):
     """COMMIT-ONLY constrained fuzzy symbol recovery (Path 3 spike → flagged feature). Recovers
     recognizer near-misses that resolve to a KNOWN symbol's spoken form ("find model deer" ->
-    find_model_dir). OFF unless HOVOR_FUZZY_SYMBOLS=1; never added to the live-preview path. Does
+    find_model_dir). OFF unless DUM_FUZZY_SYMBOLS=1; never added to the live-preview path. Does
     NOT broaden the matching rule — all logic is the proven fuzzy_recover.recover() (multi-word
     anchors, one near-miss, known-symbol target). Index is built once at construction."""
     name = "fuzzysym"
@@ -188,10 +188,10 @@ class FuzzySymbolStage(Stage):
         self._pairs = alias_pairs or []
         self._index = _fuzzy_index(self._pairs) if self._pairs else None
     def run(self, text, ctx):
-        # ON when HOVOR_FUZZY_SYMBOLS is truthy, or (unset) when the dogfood master HOVOR_DOGFOOD_FULL is.
-        fz = os.environ.get("HOVOR_FUZZY_SYMBOLS")
+        # ON when DUM_FUZZY_SYMBOLS is truthy, or (unset) when the dogfood master DUM_DOGFOOD_FULL is.
+        fz = os.environ.get("DUM_FUZZY_SYMBOLS")
         on = (fz not in ("0", "", "false")) if fz is not None \
-            else (os.environ.get("HOVOR_DOGFOOD_FULL", "0") not in ("0", "", "false"))
+            else (os.environ.get("DUM_DOGFOOD_FULL", "0") not in ("0", "", "false"))
         if not self._pairs or not on:
             return text, []
         after, _events = _fuzzy_recover(text, self._pairs, index=self._index)
@@ -217,7 +217,7 @@ class LLMStage(Stage):
         return after, _ev(self.name, text, after)
 
 class ExternalCorrectorStage(Stage):
-    """THE PAID SEAM. If HOVOR_EXTERNAL_CORRECTOR is set to a command, call it per
+    """THE PAID SEAM. If DUM_EXTERNAL_CORRECTOR is set to a command, call it per
     sentence over stdio: send `{"text","context"}\\n`, read `{"text"}\\n` back.
     Any failure (or no command) => passthrough, so the free core can never break."""
     name = "external"
@@ -244,13 +244,13 @@ class PersonalCorrectionStage(Stage):
     LEARNED from THIS user's telemetry (the correction_pair stream -> learn/proposer.py -> approved
     personal aliases), e.g. this user's "JITHUB" -> "GitHub" (see PRODUCT-VISION.md, the General-vs-
     Personal rule). In V1 there is no learner and no data, so this is a strict passthrough — defined
-    now so V2 is purely additive: it slots in here, gated by HOVOR_PERSONAL_CORRECTIONS, and can never
+    now so V2 is purely additive: it slots in here, gated by DUM_PERSONAL_CORRECTIONS, and can never
     break the free core (exactly like ExternalCorrectorStage). Populated only in V2."""
     name = "personal"
     def __init__(self, corrections=None):
         self.corrections = corrections or {}   # {spoken_form: canonical}; empty in V1, filled by V2
     def run(self, text, ctx):
-        if not self.corrections or os.environ.get("HOVOR_PERSONAL_CORRECTIONS", "0") in ("0", "", "false"):
+        if not self.corrections or os.environ.get("DUM_PERSONAL_CORRECTIONS", "0") in ("0", "", "false"):
             return text, []                     # seam present, inert until V2 supplies learned data
         # V2 applies learned per-user corrections here (phrase-alias style). Intentionally unbuilt.
         return text, []

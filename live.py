@@ -11,7 +11,7 @@ This is the real-time sibling of prototype.py: the prototype proved the loop on
 WAV files (silence-split + growing-window streaming + dictionary correction);
 this drives the exact same core from a live microphone and types into whatever
 app is focused — made for dictating into the VS Code terminal to drive Claude
-Code. It reuses hovor's paste-at-cursor + beep trick.
+Code. It reuses dum's paste-at-cursor + beep trick.
 
 Design notes:
   * The audio callback only ENQUEUES frames; a single consumer thread does all
@@ -39,14 +39,14 @@ Run (overlay DRY — prints the type/backspace ops, types nothing; safe to watch
     .venv/bin/python live.py --overlay --no-paste
 Options: --overlay  --llm  --mic <idx|name>  --list-devices  --margin <dB>
 
-Env (shared with hovor where it makes sense):
-    HOVOR_MIC / DICTATE_MIC   mic index or name substring (default: system default)
-    HOVOR_HOTKEY              global toggle key (default <ctrl>+<alt>+d)
-    HOVOR_VAD_MARGIN         dB above noise floor counted as speech (default 12)
-    HOVOR_MIN_SIL            seconds of silence that ends a sentence (default 0.6)
-    HOVOR_VOCAB_DIR          extra *.txt vocab packs       (SEAM 2)
-    HOVOR_EVENTS             append-only JSONL event sink   (SEAM 3)
-    HOVOR_EXTERNAL_CORRECTOR paid corrector command (stdio) (SEAM 1; unset = off)
+Env (shared with dum where it makes sense):
+    DUM_MIC / DICTATE_MIC   mic index or name substring (default: system default)
+    DUM_HOTKEY              global toggle key (default <ctrl>+<alt>+d)
+    DUM_VAD_MARGIN         dB above noise floor counted as speech (default 12)
+    DUM_MIN_SIL            seconds of silence that ends a sentence (default 0.6)
+    DUM_VOCAB_DIR          extra *.txt vocab packs       (SEAM 2)
+    DUM_EVENTS             append-only JSONL event sink   (SEAM 3)
+    DUM_EXTERNAL_CORRECTOR paid corrector command (stdio) (SEAM 1; unset = off)
 """
 import os
 import queue
@@ -84,55 +84,55 @@ BLOCK_S = 0.10                       # mic callback granularity
 #   — the 0.15-was-saturating worry no longer holds with a bounded window),
 # MIN_SEG 0.40->0.20 (first preview starts sooner -> first word appears sooner),
 # MIN_SIL 0.60->0.45 (shorter pause to commit; never observed clipping mid-sentence).
-STEP_S = float(os.environ.get("HOVOR_STEP", 0.10))  # preview re-transcribe cadence (lower = snappier overlay, more compute)
-MIN_SIL_S = float(os.environ.get("HOVOR_MIN_SIL", 0.45))   # silence that ends a sentence
-MIN_SEG_S = float(os.environ.get("HOVOR_MIN_SEG", 0.20))  # ignore blips shorter than this; also gates first preview
+STEP_S = float(os.environ.get("DUM_STEP", 0.10))  # preview re-transcribe cadence (lower = snappier overlay, more compute)
+MIN_SIL_S = float(os.environ.get("DUM_MIN_SIL", 0.45))   # silence that ends a sentence
+MIN_SEG_S = float(os.environ.get("DUM_MIN_SEG", 0.20))  # ignore blips shorter than this; also gates first preview
 # Max backspaces a LIVE (mid-speech) overlay correction may make. Small edits — the eager
 # word-0 flash fix, a 1-word tweak early in the sentence — apply live; a big tail rewrite
 # (the model revised an early word once many words are typed) would thrash the whole line,
 # so it's deferred to the single commit reconcile that happens anyway. ~2 words of chars.
-STREAM_FIX_MAX = int(os.environ.get("HOVOR_STREAM_FIX_MAX", 12))
+STREAM_FIX_MAX = int(os.environ.get("DUM_STREAM_FIX_MAX", 12))
 # First-word policy: prefer a CONFIRMED word (two previews agree -> no wrong-word flash),
 # but if nothing has been shown yet after this many seconds of audio, show the current best
 # guess anyway so the first word never stalls. 0.0 = pure eager (instant but flashy);
 # higher = wait longer for confidence. --eager sets this to 0.
-EAGER_AFTER = float(os.environ.get("HOVOR_EAGER_AFTER", 0.5))
+EAGER_AFTER = float(os.environ.get("DUM_EAGER_AFTER", 0.5))
 # Milestone B step 2: run the instant deterministic corrector (phrase/dictionary aliases,
 # no LLM) on each PREVIEW too, not just at commit, so known IT mishears (engine x->nginx,
 # qctl->kubectl) come out right as words appear instead of being fixed only at the end.
 # Conservative — reuses the precision-first PhoneticCorrector, so ordinary words are left
 # alone. The LLM homophone layer stays commit-only (too slow per preview). 0 = previews
 # raw (old behaviour, corrected only at commit).
-PREVIEW_FIX = os.environ.get("HOVOR_PREVIEW_FIX", "1") != "0"
+PREVIEW_FIX = os.environ.get("DUM_PREVIEW_FIX", "1") != "0"
 # Strip standalone filler/disfluency words (uh, um, hmm, ...) from BOTH the live preview and the
-# committed text (General cleanup — everyone says "uh"). DEFAULT ON; HOVOR_STRIP_FILLERS=0 = verbatim.
+# committed text (General cleanup — everyone says "uh"). DEFAULT ON; DUM_STRIP_FILLERS=0 = verbatim.
 # Helpers are in pipeline (strip_fillers / drop_fillers); the one-tick "don't eat a real word that
 # starts like a filler" gate falls out of the preview's per-tick re-transcription (see drop_fillers).
-STRIP_FILLERS = os.environ.get("HOVOR_STRIP_FILLERS", "1") != "0"
+STRIP_FILLERS = os.environ.get("DUM_STRIP_FILLERS", "1") != "0"
 # Decapitalize a stray boundary capital on a closed set of safe words (the/and/it/...) when it is NOT a
 # real sentence start — the visible CAP face of the over-eager-boundary bug ("make The switch", or a
-# continuation segment typed inline as "The window size"). DEFAULT ON; HOVOR_DECAP_CAPS=0 = verbatim/off.
+# continuation segment typed inline as "The window size"). DEFAULT ON; DUM_DECAP_CAPS=0 = verbatim/off.
 # Justified by the measured ~97%+ correct rate over 1,300 real commits (pipeline.decap_interior; the
 # closed SAFE_LOWER set is the name protection). Cross-commit state lives in self._prev_ended_sentence.
-DECAP_CAPS = os.environ.get("HOVOR_DECAP_CAPS", "1") != "0"
+DECAP_CAPS = os.environ.get("DUM_DECAP_CAPS", "1") != "0"
 # Hold an in-progress MULTI-WORD vocab alias off the live overlay until it resolves, so a phrase
 # like "V S code" reveals as "VS Code" in ONE shot instead of typing the literal letters and then
 # retyping when the alias fires. Pure display gate (overlay.hold_alias_prefix on the revealed
 # prefix); the committed text + commit reconcile are UNCHANGED (it's the backstop). The held term
 # appears a beat later (when the recognizer finishes the phrase) but correct, never retyped.
-# DEFAULT ON; HOVOR_HOLD_ALIAS_PREFIX=0 = old eager-then-retype behaviour.
-HOLD_ALIAS_PREFIX = os.environ.get("HOVOR_HOLD_ALIAS_PREFIX", "1") != "0"
+# DEFAULT ON; DUM_HOLD_ALIAS_PREFIX=0 = old eager-then-retype behaviour.
+HOLD_ALIAS_PREFIX = os.environ.get("DUM_HOLD_ALIAS_PREFIX", "1") != "0"
 # Lock-and-trim (incremental decoding): cap the LIVE preview re-transcription window so its
 # cost stays ~constant on long sentences — the cause of "words arrive in big chunks". A tail
 # word whose audio ended more than LOCK_MARGIN_S before the live edge is locked and its audio
 # trimmed out of future previews (Parakeet won't revise a word with that much right-context).
 # commit() still transcribes the FULL sentence, so the final text keeps full accuracy — the
-# trim only bounds the live draft. 0 in HOVOR_LOCK_TRIM => old growing-window behaviour.
+# trim only bounds the live draft. 0 in DUM_LOCK_TRIM => old growing-window behaviour.
 # A carry-over CONTEXT buffer of audio BEFORE the lock point is still decoded each preview
 # (for acoustic left-context, so trimmed-tail words don't garble/recapitalize) but is not
 # re-displayed. Live window = context + margin + recent => bounded, ~150ms proc on any length.
-LOCK_TRIM = os.environ.get("HOVOR_LOCK_TRIM", "1") != "0"
-LOCK_MARGIN_S = float(os.environ.get("HOVOR_LOCK_MARGIN", 1.5))
+LOCK_TRIM = os.environ.get("DUM_LOCK_TRIM", "1") != "0"
+LOCK_MARGIN_S = float(os.environ.get("DUM_LOCK_MARGIN", 1.5))
 # Phase 1 one-by-one reveal (DEV-PLAN). Reveal a word on screen once its right boundary sits
 # DISPLAY_MARGIN_S behind the live edge (age-based, from lock-trim word timestamps), instead of
 # waiting for two previews to agree — which is what caused the freeze-then-dump word clumps.
@@ -141,15 +141,15 @@ LOCK_MARGIN_S = float(os.environ.get("HOVOR_LOCK_MARGIN", 1.5))
 # perceived-speed lever in this band; 0.7 is the snappier pick at equal feel. 1.0 is marginally
 # cleaner on the bench (lower defer) if ever revisited. The real "correct words sooner" lever is
 # recognizer biasing (Phase 4/5), which will move this knee — so this is deliberately not over-tuned.
-DISPLAY_MARGIN_S = min(float(os.environ.get("HOVOR_DISPLAY_MARGIN", 0.7)), LOCK_MARGIN_S)
-LOCK_CONTEXT_S = float(os.environ.get("HOVOR_LOCK_CONTEXT", 3.0))
-MIN_SPEECH_S = float(os.environ.get("HOVOR_MIN_SPEECH", 0.25))  # need this much real speech to commit (drops noise blips)
+DISPLAY_MARGIN_S = min(float(os.environ.get("DUM_DISPLAY_MARGIN", 0.7)), LOCK_MARGIN_S)
+LOCK_CONTEXT_S = float(os.environ.get("DUM_LOCK_CONTEXT", 3.0))
+MIN_SPEECH_S = float(os.environ.get("DUM_MIN_SPEECH", 0.25))  # need this much real speech to commit (drops noise blips)
 MAX_SEG_S = 12.0                     # force-commit runaway sentences (bounds compute)
 PREROLL_S = 0.20                     # keep this much pre-speech audio so onsets aren't clipped
-VAD_MARGIN_DB = float(os.environ.get("HOVOR_VAD_MARGIN", 12.0))  # dB over noise floor = speech
+VAD_MARGIN_DB = float(os.environ.get("DUM_VAD_MARGIN", 12.0))  # dB over noise floor = speech
 
-HOTKEY = os.environ.get("HOVOR_HOTKEY", "<ctrl>+<alt>+d")
-DOUBLE_TAP_GAP = float(os.environ.get("HOVOR_DOUBLE_GAP", 0.40))  # max s between the two taps
+HOTKEY = os.environ.get("DUM_HOTKEY", "<ctrl>+<alt>+d")
+DOUBLE_TAP_GAP = float(os.environ.get("DUM_DOUBLE_GAP", 0.40))  # max s between the two taps
 
 # Live overlay routing: overlay-by-DEFAULT on every app. It streams cleanly in native text views,
 # Electron apps, and browser inputs — feel-checked across TextEdit/Notes/ChatGPT/Mail/Safari/Discord/
@@ -158,7 +158,7 @@ DOUBLE_TAP_GAP = float(os.environ.get("HOVOR_DOUBLE_GAP", 0.40))  # max s betwee
 # wrong; the one genuinely-measured corruption is the terminal-TUI async-echo scramble (~1.5%, accepted).
 # The overlay can't read the screen, so it still drifts on a field that mutates underneath it — the known
 # such surfaces are terminal TUIs (accepted) and canvas/non-standard web editors (e.g. Google Docs).
-# Force any app to commit-only clipboard paste with HOVOR_OVERLAY_APPS_OFF=app1,app2 (the kill-switch).
+# Force any app to commit-only clipboard paste with DUM_OVERLAY_APPS_OFF=app1,app2 (the kill-switch).
 # Names match macOS process names (frontmost_app); routing is by APP, so a whole browser is on or off,
 # not per web-page.
 DEFAULT_OVERLAY_BLOCK = set()    # apps forced to paste by default — none proven-bad-by-name yet (seam)
@@ -166,10 +166,10 @@ DEFAULT_OVERLAY_BLOCK = set()    # apps forced to paste by default — none prov
 
 def overlay_block_apps():
     """Apps the live overlay must NOT drive (routed to commit-only paste): the default-empty seam
-    above plus the HOVOR_OVERLAY_APPS_OFF kill-switch. This is the inverse of the retired allowlist —
+    above plus the DUM_OVERLAY_APPS_OFF kill-switch. This is the inverse of the retired allowlist —
     overlay is now the default everywhere and this names the rare surfaces that scramble."""
     block = set(DEFAULT_OVERLAY_BLOCK)
-    off = os.environ.get("HOVOR_OVERLAY_APPS_OFF")
+    off = os.environ.get("DUM_OVERLAY_APPS_OFF")
     if off:
         block |= {a.strip().lower() for a in off.split(",") if a.strip()}
     return block
@@ -257,7 +257,7 @@ class LiveDictation:
         self.pipe = pipe
         self.bus = bus
         self.platform = platform or get_platform()   # OS-specific I/O behind one interface
-        # opt-in (HOVOR_DOGFOOD_LOG=1); no-op otherwise. frontmost_app feeds the activity monitor
+        # opt-in (DUM_DOGFOOD_LOG=1); no-op otherwise. frontmost_app feeds the activity monitor
         # (app-switch timeline) so post-commit "fixed vs moved on" can be told apart.
         self.dogfood = DogfoodLogger(frontmost_fn=self.platform.frontmost_app)
         self.do_paste = do_paste
@@ -425,7 +425,7 @@ class LiveDictation:
     def _overlay_safe(self, app):
         """Should THIS sentence use the live overlay (vs commit-only paste)? Overlay-by-DEFAULT on
         every app; paste only when the overlay is disabled or the focused app is blocklisted
-        (HOVOR_OVERLAY_APPS_OFF / DEFAULT_OVERLAY_BLOCK). If the platform can't name apps, keep the
+        (DUM_OVERLAY_APPS_OFF / DEFAULT_OVERLAY_BLOCK). If the platform can't name apps, keep the
         overlay on (can't blocklist what we can't name)."""
         if self.overlay is None:
             return False
@@ -537,7 +537,7 @@ class LiveDictation:
             eager_revised = eager_used and _norm_phrase(ov_eager) != _norm_phrase(fw_final)
             commit_app = ov_focus
             t_apply0 = time.monotonic()
-            apply_wall0 = time.time()        # wall-clock start of Hovor's own insertion/reconcile
+            apply_wall0 = time.time()        # wall-clock start of dum's own insertion/reconcile
             for e in evs:
                 self.bus.emit(e)
             # commit-level record: every committed sentence (corrected or not) with
@@ -564,7 +564,7 @@ class LiveDictation:
             elif self.do_paste:
                 self.platform.paste(fixed + " ")
             apply_ms = (time.monotonic() - t_apply0) * 1000.0
-            # tell the dogfood activity monitor when Hovor was typing, so its OWN synthetic keystrokes
+            # tell the dogfood activity monitor when dum was typing, so its OWN synthetic keystrokes
             # (paste Cmd+V, CGEvent typing, overlay backspace+retype) aren't counted as user edits —
             # incl. when this commit's insertion lands inside an earlier commit's observation window.
             self.dogfood.mark_self_typing(apply_wall0, time.time())
@@ -577,7 +577,7 @@ class LiveDictation:
                        eager=eager_used, eager_revised=eager_revised,
                        mode=mode, app=commit_app,
                        raw=raw, fixed=fixed)
-            # opt-in dogfood log (HOVOR_DOGFOOD_LOG=1): rich commit record + best-effort
+            # opt-in dogfood log (DUM_DOGFOOD_LOG=1): rich commit record + best-effort
             # background post-commit edit capture. Non-blocking; never breaks dictation.
             # surface + window_title are derived inside the logger (real bucket from app, AX title);
             # audio = the full committed utterance, saved for offline replay/eval (Layer-1 ground
@@ -776,19 +776,19 @@ class LiveDictation:
 def load_all_aliases():
     """Phrase-aliases for every corrector: the SHIPPED global pack (packs/*.aliases, always on —
     this is what makes it a *global* dictionary, GLOBAL-VOCAB-PLAN.md G2) PLUS optional user/repo
-    packs from $HOVOR_VOCAB_DIR on top. Deduped so pointing HOVOR_VOCAB_DIR at packs/ won't
+    packs from $DUM_VOCAB_DIR on top. Deduped so pointing DUM_VOCAB_DIR at packs/ won't
     double-load. load_phrase_aliases stays a pure (dir->aliases) function for clean unit tests;
     the always-on policy lives here at the wiring."""
     shipped = HERE / "packs"
     aliases = load_phrase_aliases(str(shipped))
-    env_dir = os.environ.get("HOVOR_VOCAB_DIR")
+    env_dir = os.environ.get("DUM_VOCAB_DIR")
     if env_dir and Path(env_dir).resolve() != Path(shipped).resolve():
         aliases += load_phrase_aliases(env_dir)
     # Phase R (Decision G): auto-harvested cwd-repo vocab. Default-ON in the live tool
-    # (main() sets HOVOR_REPO_VOCAB=1) so daily driving picks up project symbols; OFF in the
+    # (main() sets DUM_REPO_VOCAB=1) so daily driving picks up project symbols; OFF in the
     # deterministic bench (it never calls main()) so the committed baseline isn't polluted by
-    # whatever repo cwd happens to be. HOVOR_REPO_VOCAB=0 disables it.
-    if os.environ.get("HOVOR_REPO_VOCAB", "0") not in ("0", "", "false"):
+    # whatever repo cwd happens to be. DUM_REPO_VOCAB=0 disables it.
+    if os.environ.get("DUM_REPO_VOCAB", "0") not in ("0", "", "false"):
         try:
             from repo_harvest import ensure_repo_pack
             rdir = ensure_repo_pack()
@@ -800,14 +800,14 @@ def load_all_aliases():
 
 
 def load_all_alias_pairs():
-    """(say_tokens, want) pairs from the same packs load_all_aliases uses (global + HOVOR_VOCAB_DIR
-    + repo when HOVOR_REPO_VOCAB) — for the commit-only fuzzy symbol recovery stage. Parses the
+    """(say_tokens, want) pairs from the same packs load_all_aliases uses (global + DUM_VOCAB_DIR
+    + repo when DUM_REPO_VOCAB) — for the commit-only fuzzy symbol recovery stage. Parses the
     raw `lhs => rhs` so we keep the spoken-form tokens (load_phrase_aliases only returns regexes)."""
     dirs = [HERE / "packs"]
-    env_dir = os.environ.get("HOVOR_VOCAB_DIR")
+    env_dir = os.environ.get("DUM_VOCAB_DIR")
     if env_dir and Path(env_dir).resolve() != (HERE / "packs").resolve():
         dirs.append(Path(env_dir))
-    if os.environ.get("HOVOR_REPO_VOCAB", "0") not in ("0", "", "false"):
+    if os.environ.get("DUM_REPO_VOCAB", "0") not in ("0", "", "false"):
         try:
             from repo_harvest import ensure_repo_pack
             rd = ensure_repo_pack()
@@ -836,14 +836,14 @@ def build_pipeline(terms):
     stages = [
         PunctuationStage(),                                    # Layer 1.5: drop micro-pause dots
         # Layer 2: free, built-in. extra_phrase_aliases = shipped global pack (always on) + any
-        # user/repo packs via HOVOR_VOCAB_DIR (SEAM 2, GLOBAL-VOCAB-PLAN.md G1a/G2).
+        # user/repo packs via DUM_VOCAB_DIR (SEAM 2, GLOBAL-VOCAB-PLAN.md G1a/G2).
         PhoneticStage(PhoneticCorrector(terms, extra_phrase_aliases=load_all_aliases())),
-        # SEAM 1: paid external corrector — inert unless HOVOR_EXTERNAL_CORRECTOR set
-        ExternalCorrectorStage(os.environ.get("HOVOR_EXTERNAL_CORRECTOR")),
+        # SEAM 1: paid external corrector — inert unless DUM_EXTERNAL_CORRECTOR set
+        ExternalCorrectorStage(os.environ.get("DUM_EXTERNAL_CORRECTOR")),
         # V2 SEAM: per-user personalization (learned corrections) — defined, inert in V1 (no learner,
-        # no data). Slots in here; gated by HOVOR_PERSONAL_CORRECTIONS. See learn/proposer.py.
+        # no data). Slots in here; gated by DUM_PERSONAL_CORRECTIONS. See learn/proposer.py.
         PersonalCorrectionStage(),
-        # COMMIT-ONLY constrained fuzzy symbol recovery — inert unless HOVOR_FUZZY_SYMBOLS=1.
+        # COMMIT-ONLY constrained fuzzy symbol recovery — inert unless DUM_FUZZY_SYMBOLS=1.
         FuzzySymbolStage(load_all_alias_pairs()),
         # Revert common-word/name -> jargon corruptions (get->git, grab->grep, Rado->redis) unless the
         # sentence clearly carries command/code context. Source of truth for the 2026-06-20 theme.
@@ -915,8 +915,8 @@ def run_double_tap_toggle(app):
 def main():
     argv = sys.argv[1:]
     # Phase R default-ON for the live daily driver (Decision G): harvest the cwd repo's vocab.
-    # The bench never calls main(), so it stays deterministic. Disable with HOVOR_REPO_VOCAB=0.
-    os.environ.setdefault("HOVOR_REPO_VOCAB", "1")
+    # The bench never calls main(), so it stays deterministic. Disable with DUM_REPO_VOCAB=0.
+    os.environ.setdefault("DUM_REPO_VOCAB", "1")
     if "--list-devices" in argv:
         import sounddevice as sd
         for i, dv in enumerate(sd.query_devices()):
@@ -929,29 +929,29 @@ def main():
     use_hotkey = "--hotkey" in argv
     use_double = "--double-cmd" in argv
     use_overlay = "--overlay" in argv
-    eager_first = "--eager" in argv or os.environ.get("HOVOR_EAGER") == "1"
+    eager_first = "--eager" in argv or os.environ.get("DUM_EAGER") == "1"
     global VAD_MARGIN_DB
     if "--margin" in argv:
         VAD_MARGIN_DB = float(argv[argv.index("--margin") + 1])
     mic_spec = (argv[argv.index("--mic") + 1] if "--mic" in argv
-                else os.environ.get("HOVOR_MIC") or os.environ.get("DICTATE_MIC"))
+                else os.environ.get("DUM_MIC") or os.environ.get("DICTATE_MIC"))
     device = resolve_device(mic_spec)
 
     # --trace <path> : append hi-res latency events; --dump-wav <dir> : save each
     # committed segment WAV (so the exact audio the model heard can be re-checked).
     trace_path = (argv[argv.index("--trace") + 1] if "--trace" in argv
-                  else os.environ.get("HOVOR_TRACE"))
+                  else os.environ.get("DUM_TRACE"))
     dump_dir = (argv[argv.index("--dump-wav") + 1] if "--dump-wav" in argv
-                else os.environ.get("HOVOR_DUMP_WAV"))
+                else os.environ.get("DUM_DUMP_WAV"))
     tracer = Tracer(trace_path)
 
-    terms = load_terms([HERE / "terms.txt"], os.environ.get("HOVOR_VOCAB_DIR"))
+    terms = load_terms([HERE / "terms.txt"], os.environ.get("DUM_VOCAB_DIR"))
     log(f"loaded {len(terms)} IT terms")
     if trace_path:
         log(f"[trace] -> {trace_path}")
     rec = build_parakeet(find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*"))
     pipe = build_pipeline(terms)
-    bus = EventBus(os.environ.get("HOVOR_EVENTS"))      # SEAM 3
+    bus = EventBus(os.environ.get("DUM_EVENTS"))      # SEAM 3
     app = LiveDictation(rec, pipe, bus, do_paste=do_paste, device=device,
                         use_llm=use_llm, terms=terms, overlay=use_overlay,
                         tracer=tracer, dump_dir=dump_dir, eager_first=eager_first)

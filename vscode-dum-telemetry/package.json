@@ -1,0 +1,17 @@
+{
+  "name": "dum-telemetry",
+  "displayName": "dum dictation Telemetry",
+  "description": "Measures EXACT post-commit edits to dum dictation inside VS Code, closing the AX-blind telemetry gap. Observation only — never inserts or changes text.",
+  "version": "0.1.0",
+  "publisher": "dum",
+  "private": true,
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "dum.telemetry.status", "title": "dum: Dictation Telemetry Status" }
+    ]
+  }
+}

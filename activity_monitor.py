@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Session-level activity monitor — the Layer-2 backbone for the question Step 4 answers:
-**after Hovor inserts text, did the user FIX the output, or just CONTINUE working?**
+**after dum inserts text, did the user FIX the output, or just CONTINUE working?**
 
 Two cheap, session-wide collectors feed timestamped logs; each commit's observer is a pure reader
 that slices them by [t0, t1]. No per-commit OS taps.
@@ -31,7 +31,7 @@ class ActivityMonitor:
         self._keystrokes = keystrokes           # accept keystroke feed via record_key()?
         self._apps = collections.deque(maxlen=max_events)   # (ts, app) appended on CHANGE
         self._keys = collections.deque(maxlen=max_events)   # (ts, category, app_at_press)
-        self._self_typing = collections.deque(maxlen=max_events)  # (t0, t1) intervals Hovor was typing
+        self._self_typing = collections.deque(maxlen=max_events)  # (t0, t1) intervals dum was typing
         self._cur_app = None
         self._lock = threading.Lock()
         self._started = False
@@ -74,8 +74,8 @@ class ActivityMonitor:
             self._keys.append((time.time(), category, self._cur_app))
 
     def mark_self_typing(self, t0, t1, pad=0.4):
-        """Record an interval during which HOVOR was inserting/reconciling text. Keystrokes in this
-        interval are Hovor's own synthetic events (paste Cmd+V, CGEvent typing, overlay
+        """Record an interval during which dum was inserting/reconciling text. Keystrokes in this
+        interval are dum's own synthetic events (paste Cmd+V, CGEvent typing, overlay
         backspace+retype) and must NOT be counted as user edits. End is padded for async delivery."""
         with self._lock:
             self._self_typing.append((t0, t1 + pad))
@@ -105,12 +105,12 @@ class ActivityMonitor:
                 final_app = a
         away = next((s["t_rel"] for s in switches if s["app"] != commit_app), None)
 
-        def _hovor_typed(ts):     # was this keystroke Hovor's own insertion/reconcile, not the user's?
+        def _dum_typed(ts):     # was this keystroke dum's own insertion/reconcile, not the user's?
             return any(s <= ts <= e for s, e in self_typing)
 
         ks = collections.Counter()
         for ts, cat, app_at in keys:
-            if t0 <= ts <= t1 and (commit_app is None or app_at == commit_app) and not _hovor_typed(ts):
+            if t0 <= ts <= t1 and (commit_app is None or app_at == commit_app) and not _dum_typed(ts):
                 ks[cat] += 1
         return {
             "app_switches": switches,

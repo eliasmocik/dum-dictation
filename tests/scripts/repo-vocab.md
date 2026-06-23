@@ -14,7 +14,7 @@ Run this WITH the harvested repo pack loaded (commands below the lines).
 4. the overlay typer applies the min edit script
 5. check the age stable count before the stable prefix
 6. clean punct runs before the phonetic stage
-7. set hovor vocab dir to point at the pack
+7. set dum vocab dir to point at the pack
 8. build parakeet then call event bus
 
 ## Controls — must stay untouched
@@ -26,7 +26,7 @@ Run this WITH the harvested repo pack loaded (commands below the lines).
 
 - Lines 1-8 → the canonical identifiers appear: `build_pipeline`, `phonetic corrector`→`PhoneticCorrector`,
   `load_phrase_aliases`, `find_model_dir`, `OverlayTyper`, `min_edit_script`, `age_stable_count`,
-  `stable_prefix`, `clean_punct`, `HOVOR_VOCAB_DIR`, `build_parakeet`, `EventBus`.
+  `stable_prefix`, `clean_punct`, `DUM_VOCAB_DIR`, `build_parakeet`, `EventBus`.
 - Lines 9-10 → untouched.
 - Any miss → the RAW column shows the true spoken form; we refine the harvester or accept the miss.
 
@@ -40,5 +40,5 @@ mkdir -p /tmp/repo_pack && .venv/bin/python repo_harvest.py . /tmp/repo_pack/rep
 scripts/record.sh recordings/repo-vocab.wav 40
 
 # 3. pack ON (global + repo): read the FIXED column — do the identifiers land?
-HOVOR_VOCAB_DIR=/tmp/repo_pack .venv/bin/python probe.py recordings/repo-vocab.wav
+DUM_VOCAB_DIR=/tmp/repo_pack .venv/bin/python probe.py recordings/repo-vocab.wav
 ```

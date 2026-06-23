@@ -74,7 +74,7 @@ check("parser" not in hc and "return" not in hc, "harvest_text skips single-toke
 
 # --- ensure_repo_pack: HEAD-keyed cache on this repo (integration; needs git) ---
 with tempfile.TemporaryDirectory() as cache:
-    os.environ["HOVOR_CACHE"] = cache
+    os.environ["DUM_CACHE"] = cache
     try:
         d1 = ensure_repo_pack(".")
         check(d1 is not None and os.path.exists(os.path.join(d1, "repo.aliases")),
@@ -85,6 +85,6 @@ with tempfile.TemporaryDirectory() as cache:
         # a non-repo path -> None (global pack still applies, never crashes)
         check(ensure_repo_pack(tempfile.gettempdir()) is None, "non-repo cwd -> None")
     finally:
-        os.environ.pop("HOVOR_CACHE", None)
+        os.environ.pop("DUM_CACHE", None)
 
 print(f"\nALL {passed} CHECKS PASSED")

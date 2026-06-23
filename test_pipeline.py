@@ -215,9 +215,9 @@ from pipeline import PersonalCorrectionStage
 _ps = PersonalCorrectionStage()                          # no learned corrections (V1)
 assert _ps.run("git push to jithub", {}) == ("git push to jithub", []), "personal seam must be inert in V1"
 # even with the flag on but no data, still inert (never invents corrections)
-os.environ["HOVOR_PERSONAL_CORRECTIONS"] = "1"
+os.environ["DUM_PERSONAL_CORRECTIONS"] = "1"
 assert PersonalCorrectionStage().run("deploy now", {}) == ("deploy now", []), "no data -> still passthrough"
-os.environ.pop("HOVOR_PERSONAL_CORRECTIONS", None)
+os.environ.pop("DUM_PERSONAL_CORRECTIONS", None)
 passed += 1
 print("ok  PersonalCorrectionStage inert in V1 (defined seam, no behaviour)")
 # the learn/ proposer is a defined-but-unbuilt seam

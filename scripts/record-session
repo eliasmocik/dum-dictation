@@ -44,9 +44,9 @@ for a in "$@"; do
     --no-llm)  FLAGS=(--double-cmd --overlay) ;;
     --plain)   FLAGS=(--double-cmd --llm) ;;          # commit-only paste, no overlay
     --snappy)                                         # the tuned-responsiveness preset
-      export HOVOR_STEP="${HOVOR_STEP:-0.15}"         # preview cadence (was 0.30)
-      export HOVOR_MIN_SEG="${HOVOR_MIN_SEG:-0.20}"   # first-preview gate (was 0.40)
-      export HOVOR_MIN_SIL="${HOVOR_MIN_SIL:-0.45}"   # silence-to-commit (was 0.60)
+      export DUM_STEP="${DUM_STEP:-0.15}"         # preview cadence (was 0.30)
+      export DUM_MIN_SEG="${DUM_MIN_SEG:-0.20}"   # first-preview gate (was 0.40)
+      export DUM_MIN_SIL="${DUM_MIN_SIL:-0.45}"   # silence-to-commit (was 0.60)
       ;;
     *)         PASSTHRU+=("$a") ;;
   esac
@@ -54,7 +54,7 @@ done
 
 echo "==> session: $DIR"
 echo "==> flags  : ${FLAGS[*]} ${PASSTHRU[*]:-}"
-echo "==> tuning : STEP=${HOVOR_STEP:-0.20(default)}  MIN_SEG=${HOVOR_MIN_SEG:-0.20(default)}  MIN_SIL=${HOVOR_MIN_SIL:-0.45(default)}"
+echo "==> tuning : STEP=${DUM_STEP:-0.20(default)}  MIN_SEG=${DUM_MIN_SEG:-0.20(default)}  MIN_SIL=${DUM_MIN_SIL:-0.45(default)}"
 
 # 1) start screen+mic recording in the background
 echo "==> starting screen+mic capture (screen=$SCREEN_IDX mic=$MIC_IDX)..."
@@ -82,7 +82,7 @@ sleep 1   # let ffmpeg warm up / trip the permission prompt before the app grabs
 # 2) run the dictation app with tracing + WAV dump + event sink; tee its stdout to live.log
 echo "==> dictation running. Dictate normally; double-tap RIGHT ⌘ to toggle."
 echo "==> press Ctrl+C HERE when finished."
-HOVOR_EVENTS="$DIR/events.jsonl" \
+DUM_EVENTS="$DIR/events.jsonl" \
   .venv/bin/python live.py "${FLAGS[@]}" "${PASSTHRU[@]:-}" \
     --trace "$DIR/trace.jsonl" --dump-wav "$DIR" 2>&1 | tee "$DIR/live.log" || true
 
