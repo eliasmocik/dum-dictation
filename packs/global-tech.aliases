@@ -47,3 +47,13 @@ postgress     => Postgres
 # — in speech "versus" transcribes as "versus", not "vs"). Verified on Elias's mic (2026-06-21).
 v s code      => VS Code
 vs code       => VS Code
+
+# Group 5 — "dum dictation", the tool's OWN brand name. "dum" is an INTENTIONAL misspelling of
+# "dumb", so Parakeet will hear the brand as "dumb dictation" (or near-mishears "done"/"dom"
+# dictation) and emit the wrong spelling. PHRASE-level only: the multi-word "<x> dictation" form is
+# unambiguously the product (nobody says "dumb dictation" / "dom dictation" literally), so it's safe.
+# We deliberately do NOT alias bare "dumb"/"done"/"dum" — those are everyday words and remapping them
+# bare would corrupt normal dictation ("that's a dumb idea"). Bare "dum" as the short command is NOT
+# recoverable from "dumb" alone; documented limitation, not attempted here. Brand vocab, not idiolect.
+dumb dictation => dum dictation
+dom dictation  => dum dictation

@@ -181,6 +181,13 @@ G2_CASES = [
     ("use the nemo DB for sessions", "use the DynamoDB for sessions"),
     ("run it with o lama", "run it with Ollama"),                       # "O Lama" form...
     ("I saw a llama at the zoo", "I saw a llama at the zoo"),           # ...but "a llama" still safe
+    # group 5: "dum dictation" brand — phrase alias fires to the canonical (intentionally-misspelled) brand
+    ("I use dumb dictation every day", "I use dum dictation every day"),                  # required brand phrase
+    ("try dom dictation on your mac", "try dum dictation on your mac"),                   # near-mishear variant
+    # over-correction GUARD: a bare "dumb"/"done" in normal prose must NEVER be remapped to "dum"
+    ("that's a dumb idea honestly", "that's a dumb idea honestly"),                       # bare "dumb" untouched
+    ("I'm done with this task", "I'm done with this task"),                               # bare "done" untouched
+    ("dumb luck got me through", "dumb luck got me through"),                             # "dumb" + non-dictation word safe
     # near-miss NEGATIVES: must stay untouched (the over-correction tripwires)
     ("I saw a llama at the zoo last weekend", "I saw a llama at the zoo last weekend"),   # a llama != Ollama
     ("I need to type a script for the video", "I need to type a script for the video"),   # no TypeScript alias
