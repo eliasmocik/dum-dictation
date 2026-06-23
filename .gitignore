@@ -23,3 +23,6 @@ results/
 # Secrets
 .env
 *.env
+
+# Local-only Claude context (points to the private aios brain — must never go public)
+CLAUDE.local.md
