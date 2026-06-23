@@ -150,6 +150,11 @@ VAD_MARGIN_DB = float(os.environ.get("DUM_VAD_MARGIN", 12.0))  # dB over noise f
 
 HOTKEY = os.environ.get("DUM_HOTKEY", "<ctrl>+<alt>+d")
 DOUBLE_TAP_GAP = float(os.environ.get("DUM_DOUBLE_GAP", 0.40))  # max s between the two taps
+# How long stop()/teardown waits for an IN-FLIGHT commit reconcile to finish before tearing down,
+# so a raced early-stop can't cut the backspace-then-retype in half (data-loss). A reconcile is a
+# handful of keystrokes (<<1s even over pynput); 3.0s is generous headroom yet still bounded so the
+# guard can NEVER deadlock clean shutdown / Ctrl-C — past it, teardown proceeds with a warning.
+RECONCILE_DRAIN_S = float(os.environ.get("DUM_RECONCILE_DRAIN", 3.0))
 
 # Live overlay routing: overlay-by-DEFAULT on every app. It streams cleanly in native text views,
 # Electron apps, and browser inputs — feel-checked across TextEdit/Notes/ChatGPT/Mail/Safari/Discord/
@@ -303,6 +308,20 @@ class LiveDictation:
         self._prev_ended_sentence = True
         self.running = threading.Event()
         self.lock = threading.Lock()
+        # Early-stop data-loss guard. A commit reconcile (overlay backspace-then-retype, or the
+        # smart min-edit span replace) is a DESTRUCTIVE-then-CONSTRUCTIVE pair that must not be cut
+        # in the middle, or the tail is wiped and never retyped ("...we grab the logs" stopped right
+        # as grab->grep applies => left with "...we gr"). It runs on the worker thread, which is a
+        # daemon — so an abrupt teardown (Ctrl-C/SIGTERM, or worker.join() timing out and main()
+        # exiting) can kill it between the two phases. `_reconcile_lock` is held for the duration of
+        # the on-screen reconcile in commit(); stop()/teardown ACQUIRE it (bounded wait) before
+        # closing the stream + joining the worker, so an in-flight reconcile always finishes as one
+        # unit first. Live streaming/preview reconciles are NOT guarded (commit-only change) — a
+        # raced stop there loses nothing destructive (preview only ever appends/early-fixes, and a
+        # killed preview just leaves the live draft, which the next run ignores). The wait is BOUNDED
+        # (RECONCILE_DRAIN_S) and teardown proceeds with a warning if it elapses, so the guard can
+        # never deadlock clean shutdown or Ctrl-C.
+        self._reconcile_lock = threading.Lock()
 
     # ---- mic callback: ONLY enqueue, never block -----------------------------
     def _on_audio(self, indata, frames, time_info, status):
@@ -350,6 +369,23 @@ class LiveDictation:
             if not self.running.is_set():
                 return
             self.running.clear()
+        # Wait (bounded) for any IN-FLIGHT commit reconcile to finish as one atomic unit before we
+        # tear down. Clearing `running` makes the worker fall into its flush-commit (end of
+        # _consume), whose backspace-then-retype we must NOT cut: the worker is a daemon, so without
+        # this a fast stop + process exit could kill it between the destructive and constructive
+        # phases, leaving a truncated tail ("...we gr"). We use the lock purely as a BARRIER — acquire
+        # then immediately release — so it is never held DURING worker.join(): if it were, a worker
+        # that hasn't yet entered its reconcile would block on the lock while stop() blocks in join,
+        # deadlocking until the join timed out (and re-opening the very race we close). The flush
+        # reconcile takes the lock when it reaches it, so by the time the barrier returns either the
+        # reconcile already completed or it has not started — and once we proceed, the worker's own
+        # `with self._reconcile_lock` runs uncontended to completion before join() returns. Bounded
+        # (RECONCILE_DRAIN_S) so it can NEVER hang shutdown / Ctrl-C — past it we warn and proceed.
+        if self._reconcile_lock.acquire(timeout=RECONCILE_DRAIN_S):
+            self._reconcile_lock.release()
+        else:
+            log("[!]    stop: a commit reconcile is still running after "
+                f"{RECONCILE_DRAIN_S:.0f}s — tearing down anyway")
         if self.stream:
             try:
                 self.stream.stop(); self.stream.close()
@@ -549,20 +585,25 @@ class LiveDictation:
                 "surface": "terminal", "app": ov_focus or self.platform.frontmost_app(),
                 "mode": mode, "llm": self.use_llm, "n_words": len(fixed.split()),
             })
-            if self.overlay is not None and ov_active:
-                # one reconcile applies corrections AND completes the unlocked tail,
-                # but only if focus hasn't moved (else we'd backspace the wrong field)
-                if ov_focus is not None and self.platform.frontmost_app() != ov_focus:
-                    log("[!]    focus changed mid-sentence — overlay reconcile skipped")
-                elif not self.overlay.reconcile(fixed, exact=True):
-                    log("[!]    overlay edit too large — skipped (left as dictated)")
-                else:
-                    # exact reconcile already put Parakeet's real punctuation (?, .) and
-                    # casing on screen; just add the trailing space between sentences
-                    self.overlay.finish(" ")
-                reset_overlay()
-            elif self.do_paste:
-                self.platform.paste(fixed + " ")
+            # Hold _reconcile_lock across the ENTIRE destructive+constructive insertion so a raced
+            # early-stop can't cut the backspace-then-retype in half. stop()/teardown acquires this
+            # same lock before closing the stream + joining the (daemon) worker, so an in-flight
+            # reconcile always completes as one atomic unit before teardown can kill the thread.
+            with self._reconcile_lock:
+                if self.overlay is not None and ov_active:
+                    # one reconcile applies corrections AND completes the unlocked tail,
+                    # but only if focus hasn't moved (else we'd backspace the wrong field)
+                    if ov_focus is not None and self.platform.frontmost_app() != ov_focus:
+                        log("[!]    focus changed mid-sentence — overlay reconcile skipped")
+                    elif not self.overlay.reconcile(fixed, exact=True):
+                        log("[!]    overlay edit too large — skipped (left as dictated)")
+                    else:
+                        # exact reconcile already put Parakeet's real punctuation (?, .) and
+                        # casing on screen; just add the trailing space between sentences
+                        self.overlay.finish(" ")
+                    reset_overlay()
+                elif self.do_paste:
+                    self.platform.paste(fixed + " ")
             apply_ms = (time.monotonic() - t_apply0) * 1000.0
             # tell the dogfood activity monitor when dum was typing, so its OWN synthetic keystrokes
             # (paste Cmd+V, CGEvent typing, overlay backspace+retype) aren't counted as user edits —
