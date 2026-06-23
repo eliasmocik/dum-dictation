@@ -32,6 +32,8 @@ echo "== unit: activity-monitor =="
 $PY test_activity_monitor.py || fail=1
 echo "== unit: insertion-seam =="
 $PY test_insertion.py || fail=1
+echo "== unit: early-stop dataloss (half-applied reconcile) =="
+$PY test_early_stop.py || fail=1
 echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="
