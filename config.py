@@ -51,6 +51,14 @@ DEFAULT_MODE = "toggle"
 _VALID_KEYS = {k["key"] for k in CURATED_KEYS}
 _VALID_MODES = {m["mode"] for m in CURATED_MODES}
 
+# Substrings that identify a Mac's built-in microphone across models. The wizard
+# recommends the built-in mic as the daily-driver default for EVERY user: a
+# Continuity iPhone mic frequently grabs the macOS *system default* slot, but it's a
+# poor dictation base (not always present, added latency, drops on handoff). So we
+# locate the built-in mic and recommend THAT, falling back to the system default,
+# then the first device.
+BUILTIN_MIC_HINTS = ("macbook", "built-in", "built in", "imac", "mac studio", "studio display")
+
 
 def default_config():
     """The built-in defaults = today's behavior (double-tap left ⌘ toggle, system
@@ -116,6 +124,23 @@ def resolve_mic_spec(flag_mic, env_mic, cfg_mic, builtin):
     return builtin
 
 
+def recommended_mic_index(devices, default_idx):
+    """1-based position of the device to mark (recommended) in the wizard, or None if
+    `devices` is empty. Prefers the Mac built-in mic (best dictation base for every
+    user) over the macOS system default, then falls back to the system default, then
+    the first device. `devices` is [(index, name), ...]."""
+    if not devices:
+        return None
+    for pos, (idx, name) in enumerate(devices, start=1):
+        if any(h in name.lower() for h in BUILTIN_MIC_HINTS):
+            return pos
+    if default_idx is not None:
+        for pos, (idx, _name) in enumerate(devices, start=1):
+            if idx == default_idx:
+                return pos
+    return 1
+
+
 def key_descriptor(key_token):
     """Return the CURATED_KEYS entry for a config token (or the default's)."""
     for k in CURATED_KEYS:
@@ -164,17 +189,11 @@ def pick_mic(devices, default_idx, input_fn, out):
     if not devices:
         out.write("No input devices found — using system default.\n")
         return None
+    rec_pos = recommended_mic_index(devices, default_idx)  # built-in mic preferred
     out.write("\nChoose your microphone:\n")
-    rec_pos = None  # 1-based position of the recommended device
     for pos, (idx, name) in enumerate(devices, start=1):
-        tag = ""
-        if default_idx is not None and idx == default_idx:
-            tag = "  (recommended)"
-            rec_pos = pos
+        tag = "  (recommended)" if pos == rec_pos else ""
         out.write(f"  for mic {pos} press {pos}: {name}{tag}\n")
-    if rec_pos is None:
-        # No detectable system default — recommend the first device.
-        rec_pos = 1
     hint = (f"Press a number 1-{len(devices)} to choose, or Enter for "
             f"the recommended (mic {rec_pos}): ")
     while True:

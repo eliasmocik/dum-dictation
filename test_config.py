@@ -105,12 +105,30 @@ class TestDefaults(unittest.TestCase):
 class TestMicPicker(unittest.TestCase):
     DEVICES = [(0, "MacBook Air Microphone"), (1, "Studio Mic"), (2, "USB Cam")]
 
-    def test_enter_accepts_recommended_default(self):
+    def test_enter_accepts_recommended_builtin(self):
         out = io.StringIO()
-        # default_idx=1 -> recommended is "Studio Mic"; Enter (empty) picks it
+        # Even though the system default points at "Studio Mic" (idx 1), the built-in
+        # MacBook mic is recommended; Enter (empty) picks it.
         chosen = config.pick_mic(self.DEVICES, 1, _feed(""), out)
-        self.assertEqual(chosen, "Studio Mic")
+        self.assertEqual(chosen, "MacBook Air Microphone")
         self.assertIn("(recommended)", out.getvalue())
+
+    def test_builtin_recommended_over_continuity_iphone(self):
+        # Elias's real case: the iPhone Continuity mic grabs the system-default slot,
+        # but the wizard must recommend the built-in MacBook mic as the daily base.
+        devices = [(0, "iPhone Elias Microphone"), (1, "MacBook Air Microphone")]
+        out = io.StringIO()
+        chosen = config.pick_mic(devices, 0, _feed(""), out)  # idx 0 = system default
+        self.assertEqual(chosen, "MacBook Air Microphone")
+        # the (recommended) tag sits on the MacBook line, not the iPhone line
+        macbook_line = [ln for ln in out.getvalue().splitlines() if "MacBook" in ln][0]
+        self.assertIn("(recommended)", macbook_line)
+
+    def test_recommends_system_default_when_no_builtin(self):
+        # No built-in mic present -> fall back to the system default (idx 1).
+        devices = [(0, "USB Cam"), (1, "Studio Mic")]
+        chosen = config.pick_mic(devices, 1, _feed(""), io.StringIO())
+        self.assertEqual(chosen, "Studio Mic")
 
     def test_numbered_choice(self):
         out = io.StringIO()
@@ -126,11 +144,12 @@ class TestMicPicker(unittest.TestCase):
         out = io.StringIO()
         self.assertIsNone(config.pick_mic([], None, _feed(), out))
 
-    def test_no_default_recommends_first(self):
+    def test_no_builtin_no_default_recommends_first(self):
         out = io.StringIO()
-        # default_idx=None -> recommend mic 1; Enter picks it
-        chosen = config.pick_mic(self.DEVICES, None, _feed(""), out)
-        self.assertEqual(chosen, "MacBook Air Microphone")
+        # No built-in mic and no system default -> recommend mic 1; Enter picks it
+        devices = [(0, "USB Cam"), (1, "Studio Mic")]
+        chosen = config.pick_mic(devices, None, _feed(""), out)
+        self.assertEqual(chosen, "USB Cam")
 
 
 class TestModeAndKeyPickers(unittest.TestCase):
