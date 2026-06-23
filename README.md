@@ -19,8 +19,8 @@ you can think clearly.
 ## Install
 
 ```sh
-git clone <this-repo> it-dictation
-cd it-dictation
+gh repo clone eliasmocik/dum-dictation
+cd dum-dictation
 ./setup
 ```
 
