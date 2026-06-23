@@ -20,7 +20,7 @@ Capability + context:
                                     # False => no inline preview (e.g. paste-at-commit fallback)
     target = {"app","surface",...}  # optional per-call hint about where text is going, when known
 
-Concrete backends (built out in Phase 1, see LIVE-PREVIEW-PLAN.md):
+Concrete backends (built out in Phase 1):
   * IMKBackend          — macOS marked text via the dum IMK over IPC (supports_marked_text=True)
   * OverlayBackend      — the existing synthetic keystroke overlay (VS Code fallback)
   * PasteBackend        — clipboard paste at commit (universal last-resort; no live preview)

@@ -45,7 +45,7 @@ def load_phrase_aliases(extra_dir=None):
     PHRASE_ALIASES in correct_phonetic.py so the two merge uniformly (same
     re.sub(..., flags=IGNORECASE) loop). Returns a list of (pattern, replacement)
     tuples; empty when no packs are present. Value mechanism for the tech-vocab
-    dictionary (GLOBAL-VOCAB-PLAN.md G1a) — additive, never replaces the base."""
+    dictionary — additive, never replaces the base."""
     out = []
     extra_dir = extra_dir or os.environ.get("DUM_VOCAB_DIR")
     if not (extra_dir and Path(extra_dir).is_dir()):

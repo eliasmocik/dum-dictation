@@ -52,7 +52,7 @@ class PhoneticCorrector:
         self.meta = {t: jellyfish.metaphone(self.tk[t]) for t in terms}
         # ADDITIVE: shipped base first, then any pack-loaded aliases (vocab.load_phrase_aliases).
         # With no extras this is exactly PHRASE_ALIASES -> behaviour is identical by construction
-        # (no migration, no identity drift). GLOBAL-VOCAB-PLAN.md G1a.
+        # (no migration, no identity drift).
         self.phrase_aliases = PHRASE_ALIASES + list(extra_phrase_aliases or [])
 
     def _single(self, tok):

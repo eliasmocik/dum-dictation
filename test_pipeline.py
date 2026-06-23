@@ -121,7 +121,7 @@ for src, want in PHONETIC_CASES:
     passed += 1
     print(f"ok  {src!r} -> {got!r}")
 
-# --- G1a: external phrase-alias loading (additive, GLOBAL-VOCAB-PLAN.md) ---
+# --- G1a: external phrase-alias loading (additive) ---
 _terms = [t.strip() for t in open("terms.txt") if t.strip()]
 
 # no-pack identity: a corrector with no extras is EXACTLY the shipped base (nothing migrated)

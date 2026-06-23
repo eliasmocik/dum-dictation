@@ -11,7 +11,7 @@ V2 is a *query over history*, not a re-instrumentation.
 Pipeline side: approved proposals feed `pipeline.PersonalCorrectionStage` (the inert V1 seam),
 gated by DUM_PERSONAL_CORRECTIONS.
 
-Governing rule (PRODUCT-VISION.md): General vs Personal. A learner here proposes PERSONAL
+Governing rule (CONTRIBUTING.md): General vs Personal. A learner here proposes PERSONAL
 corrections for one user; it must NEVER auto-promote a user's idiolect (e.g. "JITHUB" -> "GitHub")
 into the shipped GLOBAL packs — that stays a deliberate human decision.
 

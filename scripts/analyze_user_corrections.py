@@ -213,7 +213,7 @@ def summarize(events):
                        key=lambda x: -x["edit_distance"])[:8]
 
     # repeated user corrections committed->corrected — the V2/V3 learning candidates a human reviews
-    # (General vs Personal, see PRODUCT-VISION.md) before hand-adding the General ones to packs. Only
+    # (General vs Personal, see CONTRIBUTING.md) before hand-adding the General ones to packs. Only
     # 'clean' pairs (genuine word-level fixes) are candidates; 'trivial' punctuation/case diffs are
     # dropped (not worth learning), and 'scramble'/'bleed' OVERLAY CORRUPTION is split out as a bug
     # signal — broken down by capture_method so a real submitted-text scramble (claude-transcript,
@@ -511,7 +511,7 @@ def print_report(s):
         print(f"    {m['n']:>3}x  {m['raw']!r} -> {m['fixed']!r}")
     cps = s.get("top_correction_pairs", [])
     print("\n  top repeated USER corrections (committed -> corrected) — vocab/alias candidates:")
-    print("    (classify General vs Personal before adding to packs — see PRODUCT-VISION.md)")
+    print("    (classify General vs Personal before adding to packs — see CONTRIBUTING.md)")
     if not cps:
         print("    (none captured yet — needs AX-readable edits with DUM_KEEP_CORRECTIONS on)")
     for p in cps:

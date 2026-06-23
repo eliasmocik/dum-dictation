@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase R — auto repo/path vocabulary harvester (GLOBAL-VOCAB-PLAN.md §R).
+Phase R — auto repo/path vocabulary harvester.
 
 Parse a git repo's tracked source, harvest DISTINCTIVE multi-component identifiers
 (camelCase / snake_case / SCREAMING_SNAKE / PascalCase), decompose each to the words

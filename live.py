@@ -133,7 +133,7 @@ HOLD_ALIAS_PREFIX = os.environ.get("DUM_HOLD_ALIAS_PREFIX", "1") != "0"
 # re-displayed. Live window = context + margin + recent => bounded, ~150ms proc on any length.
 LOCK_TRIM = os.environ.get("DUM_LOCK_TRIM", "1") != "0"
 LOCK_MARGIN_S = float(os.environ.get("DUM_LOCK_MARGIN", 1.5))
-# Phase 1 one-by-one reveal (DEV-PLAN). Reveal a word on screen once its right boundary sits
+# Phase 1 one-by-one reveal. Reveal a word on screen once its right boundary sits
 # DISPLAY_MARGIN_S behind the live edge (age-based, from lock-trim word timestamps), instead of
 # waiting for two previews to agree — which is what caused the freeze-then-dump word clumps.
 # Must be <= LOCK_MARGIN_S (clamped). 0 = OFF (old two-preview agreement gate). Default 0.7:
@@ -775,7 +775,7 @@ class LiveDictation:
 
 def load_all_aliases():
     """Phrase-aliases for every corrector: the SHIPPED global pack (packs/*.aliases, always on —
-    this is what makes it a *global* dictionary, GLOBAL-VOCAB-PLAN.md G2) PLUS optional user/repo
+    this is what makes it a *global* dictionary) PLUS optional user/repo
     packs from $DUM_VOCAB_DIR on top. Deduped so pointing DUM_VOCAB_DIR at packs/ won't
     double-load. load_phrase_aliases stays a pure (dir->aliases) function for clean unit tests;
     the always-on policy lives here at the wiring."""
@@ -836,7 +836,7 @@ def build_pipeline(terms):
     stages = [
         PunctuationStage(),                                    # Layer 1.5: drop micro-pause dots
         # Layer 2: free, built-in. extra_phrase_aliases = shipped global pack (always on) + any
-        # user/repo packs via DUM_VOCAB_DIR (SEAM 2, GLOBAL-VOCAB-PLAN.md G1a/G2).
+        # user/repo packs via DUM_VOCAB_DIR (SEAM 2).
         PhoneticStage(PhoneticCorrector(terms, extra_phrase_aliases=load_all_aliases())),
         # SEAM 1: paid external corrector — inert unless DUM_EXTERNAL_CORRECTOR set
         ExternalCorrectorStage(os.environ.get("DUM_EXTERNAL_CORRECTOR")),

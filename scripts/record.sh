@@ -16,4 +16,4 @@ echo
 ffmpeg -hide_banner -loglevel warning -f avfoundation -i ":default" \
        -ar 16000 -ac 1 -t "$secs" -y "$out"
 echo
-echo "Saved ${out}. Now run:  .venv/bin/python bakeoff.py --wav ${out}"
+echo "Saved ${out}. Now run:  scripts/draft-ref ${out}"

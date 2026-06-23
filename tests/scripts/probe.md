@@ -24,4 +24,4 @@ forms the aliases target; don't say "nginx" or "kubectl" yourself).
 - **Controls must stay UNTOUCHED:** line 4 "cube root" must NOT become kubectl; line 5 "grab" stays
   (no LLM in this probe); lines 6/7 plain prose unchanged.
 - If an alias does NOT fire, the raw transcript tells us the **true spoken form** Parakeet emits —
-  that's the single most valuable thing this probe can surface (see GLOBAL-VOCAB-PLAN.md §7).
+  that's the single most valuable thing this probe can surface.

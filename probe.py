@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-G0 mechanism probe (GLOBAL-VOCAB-PLAN.md §3).
+G0 mechanism probe.
 
 Replays a WAV through the REAL live.py pipeline — current HARDCODED aliases, NO LLM,
 NO vocab pack — and prints, per committed sentence, the RAW transcript vs the FIXED
