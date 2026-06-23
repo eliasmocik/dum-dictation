@@ -20,10 +20,12 @@
 # First run needs Microphone + Accessibility + Input Monitoring granted to the
 # terminal app (System Settings > Privacy & Security), then relaunch.
 cd "$(dirname "$0")" || exit 1
-# Default mic = the built-in MacBook Air mic. Override per-run with DUM_MIC="Other Mic"
-# ./dum, or --mic <idx> (both still win — :=only sets when DUM_MIC is unset).
-: "${DUM_MIC:=MacBook Air}"
-export DUM_MIC
+# Mic selection (precedence handled in live.py): explicit --mic / DUM_MIC (flag/env) >
+# saved ~/.dum/config.json > built-in default ("MacBook Air"). The first-run wizard
+# (./dum --config to re-run) writes the saved choice. We intentionally DON'T bake a
+# DUM_MIC default here anymore — doing so would shadow the user's saved config; the
+# built-in fallback now lives in live.py so config can take effect.
+if [[ -n "${DUM_MIC:-}" ]]; then export DUM_MIC; fi
 # Dogfood log: append every committed sentence (raw / fixed / changed / app / llm) so the
 # real mistranscriptions can be mined later to seed Milestone B vocab packs. Local-only
 # (gitignored — it's your dictation history). Override/disable with DUM_EVENTS=.

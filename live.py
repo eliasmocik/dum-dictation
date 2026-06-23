@@ -148,6 +148,9 @@ MAX_SEG_S = 12.0                     # force-commit runaway sentences (bounds co
 PREROLL_S = 0.20                     # keep this much pre-speech audio so onsets aren't clipped
 VAD_MARGIN_DB = float(os.environ.get("DUM_VAD_MARGIN", 12.0))  # dB over noise floor = speech
 
+# Built-in fallback mic when neither --mic/DUM_MIC nor saved config picks one. Was baked into
+# the `dum` launcher as DUM_MIC:="MacBook Air"; moved here so saved config isn't shadowed.
+BUILTIN_DEFAULT_MIC = os.environ.get("DUM_DEFAULT_MIC", "MacBook Air")
 HOTKEY = os.environ.get("DUM_HOTKEY", "<ctrl>+<alt>+d")
 DOUBLE_TAP_GAP = float(os.environ.get("DUM_DOUBLE_GAP", 0.40))  # max s between the two taps
 
@@ -854,15 +857,29 @@ def build_pipeline(terms):
     return CorrectionPipeline(stages)
 
 
-def run_double_tap_toggle(app):
-    """Two global double-tap gestures on macOS (LEFT modifier, two presses within DOUBLE_TAP_GAP,
-    no other key between — so single presses and modifier+key shortcuts are untouched):
-      * double-tap LEFT ⌘ -> start/stop dictation
-      * double-tap LEFT ⌥ -> flag the last dictation as a problem to revisit
+def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
+    """Global hotkey listener on macOS (needs Input Monitoring). The DICTATION start/stop
+    trigger is configurable (key + mode, read from ~/.dum/config.json); the ⌥ "flag a problem"
+    gesture stays hardcoded (double-tap LEFT ⌥) — out of scope for v1.
+
+    `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "cmd_l" (default,
+    reproduces today's behavior exactly), "cmd_r", "alt_r", or "fn".
+    `mode`:
+      * "toggle" — a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
+        key between — so single presses and modifier+key shortcuts are untouched) flips
+        start <-> stop. This is the original behavior.
+      * "push"   — push-to-dictate: holding the trigger key starts recording, releasing it
+        stops + commits. Wired through the same app.start()/app.stop() entry points.
     Global (needs Input Monitoring)."""
     from pynput import keyboard
+    import config as _config
+
+    desc = _config.key_descriptor(trigger_key)
+    trig = getattr(keyboard.Key, desc["pynput"])   # the pynput Key for the chosen trigger
+
     cmd = {"last": 0.0, "armed": False}       # armed = a first tap is waiting for its partner
-    opt = {"last": 0.0, "armed": False}
+    opt = {"last": 0.0, "armed": False}       # the (hardcoded) ⌥ flag-a-problem double-tap
+    push_down = {"held": False}               # push mode: ignore key-auto-repeat between press/release
     _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
 
     def _double(state, now):
@@ -888,11 +905,16 @@ def run_double_tap_toggle(app):
         # feed the dogfood activity monitor from this SINGLE listener (no second pynput listener —
         # two would call macOS TIS/TSM from different threads and the OS aborts the process).
         app.dogfood.record_key(_key_category(key))
-        if key == keyboard.Key.cmd_l:
-            opt["armed"] = False              # a ⌘ tap breaks a pending ⌥ double-tap
-            if _double(cmd, now):
-                app.toggle()
-        elif key == keyboard.Key.alt_l:
+        if key == trig:
+            opt["armed"] = False              # a trigger tap breaks a pending ⌥ double-tap
+            if mode == "push":
+                if not push_down["held"]:     # one physical press = one start (ignore auto-repeat)
+                    push_down["held"] = True
+                    app.start()
+            else:                             # toggle: start/stop on double-tap
+                if _double(cmd, now):
+                    app.toggle()
+        elif key == keyboard.Key.alt_l and trig != keyboard.Key.alt_l:
             cmd["armed"] = False
             if _double(opt, now):
                 app.flag_last_problem()
@@ -900,8 +922,19 @@ def run_double_tap_toggle(app):
             cmd["armed"] = False              # any other key breaks both pending double-taps
             opt["armed"] = False
 
-    log("double-tap LEFT ⌘ = start/stop dictation; double-tap LEFT ⌥ = flag last dictation as a problem. Ctrl+C to quit.")
-    listener = keyboard.Listener(on_press=on_press)
+    def on_release(key):
+        if mode == "push" and key == trig and push_down["held"]:
+            push_down["held"] = False
+            app.stop()                        # release => stop + commit
+
+    if mode == "push":
+        log(f"PUSH-TO-DICTATE: HOLD {desc['label']} to talk, release to stop + commit. "
+            "double-tap LEFT ⌥ = flag last dictation. Ctrl+C to quit.")
+        listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    else:
+        log(f"{desc['label']} = start/stop dictation; double-tap LEFT ⌥ = flag last dictation "
+            "as a problem. Ctrl+C to quit.")
+        listener = keyboard.Listener(on_press=on_press)
     listener.start()
     try:
         while listener.running:
@@ -929,12 +962,39 @@ def main():
     use_hotkey = "--hotkey" in argv
     use_double = "--double-cmd" in argv
     use_overlay = "--overlay" in argv
+    is_replay = "--replay" in argv
+    want_config = "--config" in argv
     eager_first = "--eager" in argv or os.environ.get("DUM_EAGER") == "1"
     global VAD_MARGIN_DB
     if "--margin" in argv:
         VAD_MARGIN_DB = float(argv[argv.index("--margin") + 1])
-    mic_spec = (argv[argv.index("--mic") + 1] if "--mic" in argv
-                else os.environ.get("DUM_MIC") or os.environ.get("DICTATE_MIC"))
+
+    # --- First-run / on-demand config wizard (mic + dictation hotkey) -----------------
+    # GUARD (must hold ALL to run the interactive, stdin-blocking wizard, or it would hang
+    # any non-interactive run incl. the test gate):
+    #   * normal LIVE mode (the --double-cmd daily-driver path) AND NOT replay/bench/list-devices
+    #   * stdin is a real TTY
+    #   * no config file exists yet, OR --config was passed
+    # bench.py never calls main(); --list-devices & --replay branch away above/here, so they
+    # can't reach this. scripts/test runs --replay => the wizard never fires.
+    import config as _config
+    user_cfg = _config.load_config()
+    wizard_ok = (use_double and not is_replay and sys.stdin.isatty()
+                 and (want_config or not _config.config_exists()))
+    if wizard_ok:
+        try:
+            devices, default_idx = _config.list_input_devices()
+        except Exception as e:
+            log(f"[config] could not enumerate input devices ({e}); skipping mic picker")
+            devices, default_idx = [], None
+        user_cfg = _config.run_wizard(devices, default_idx)
+    hotkey_key = user_cfg.get("hotkey_key", _config.DEFAULT_KEY)
+    hotkey_mode = user_cfg.get("hotkey_mode", _config.DEFAULT_MODE)
+
+    # Mic precedence: explicit --mic / DUM_MIC (flag/env) > saved config > built-in default.
+    flag_mic = argv[argv.index("--mic") + 1] if "--mic" in argv else None
+    env_mic = os.environ.get("DUM_MIC") or os.environ.get("DICTATE_MIC")
+    mic_spec = _config.resolve_mic_spec(flag_mic, env_mic, user_cfg.get("mic"), BUILTIN_DEFAULT_MIC)
     device = resolve_device(mic_spec)
 
     # --trace <path> : append hi-res latency events; --dump-wav <dir> : save each
@@ -964,7 +1024,7 @@ def main():
         log(f"[replay] {wav}")
         app.replay(wav, realtime="--replay-fast" not in argv)
     elif use_double:
-        run_double_tap_toggle(app)
+        run_double_tap_toggle(app, trigger_key=hotkey_key, mode=hotkey_mode)
     elif use_hotkey:
         from pynput import keyboard
         log(f"hotkey daemon ready. tap {HOTKEY} to start/stop. Ctrl+C to quit.")

@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Unit tests for the user config + first-run wizard (config.py).
+
+Headless: every interactive path is driven with a mocked input_fn + a StringIO `out`,
+so no TTY/mic is needed. Covers:
+  * load/save round-trip
+  * default-when-missing (no file) and default-healing (corrupt/partial file)
+  * wizard input parsing — numbered choice AND Enter-for-default — with mocked stdin
+  * the no-regression default (recommended choices == today's behavior)
+
+The interactive hotkey firing / push-to-talk / real mic capture are NOT testable
+headlessly — flagged PENDING in the build report.
+"""
+import io
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import config
+
+
+def _feed(*answers):
+    """Build an input_fn that returns the given answers in order (then raises if
+    over-consumed — catches a picker that loops when it shouldn't)."""
+    it = iter(answers)
+
+    def _fn():
+        try:
+            return next(it)
+        except StopIteration:
+            raise AssertionError("picker asked for more input than expected")
+    return _fn
+
+
+class TestLoadSaveRoundTrip(unittest.TestCase):
+    def test_round_trip(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            cfg = {"mic": "Studio Mic", "hotkey_key": "alt_r", "hotkey_mode": "push"}
+            config.save_config(cfg, p)
+            self.assertTrue(p.exists())
+            loaded = config.load_config(p)
+            self.assertEqual(loaded["mic"], "Studio Mic")
+            self.assertEqual(loaded["hotkey_key"], "alt_r")
+            self.assertEqual(loaded["hotkey_mode"], "push")
+
+    def test_save_only_known_fields(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            config.save_config({"mic": None, "hotkey_key": "cmd_l",
+                                "hotkey_mode": "toggle", "junk": 1}, p)
+            data = json.loads(p.read_text())
+            self.assertEqual(set(data.keys()), {"mic", "hotkey_key", "hotkey_mode"})
+
+    def test_mic_index_persists(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            config.save_config({"mic": 2, "hotkey_key": "cmd_l", "hotkey_mode": "toggle"}, p)
+            self.assertEqual(config.load_config(p)["mic"], 2)
+
+
+class TestDefaults(unittest.TestCase):
+    def test_default_when_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "nope.json"
+            self.assertFalse(config.config_exists(p))
+            cfg = config.load_config(p)
+            self.assertEqual(cfg, config.default_config())
+            # today's behavior: double-tap left cmd, toggle, system-default mic
+            self.assertEqual(cfg["hotkey_key"], "cmd_l")
+            self.assertEqual(cfg["hotkey_mode"], "toggle")
+            self.assertIsNone(cfg["mic"])
+
+    def test_corrupt_file_falls_back_to_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            p.write_text("{ this is not json")
+            self.assertEqual(config.load_config(p), config.default_config())
+
+    def test_partial_and_invalid_fields_healed(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            # valid mic, bogus key, bogus mode -> bogus ones revert to defaults
+            p.write_text(json.dumps({"mic": "X", "hotkey_key": "bogus", "hotkey_mode": "nope"}))
+            cfg = config.load_config(p)
+            self.assertEqual(cfg["mic"], "X")
+            self.assertEqual(cfg["hotkey_key"], config.DEFAULT_KEY)
+            self.assertEqual(cfg["hotkey_mode"], config.DEFAULT_MODE)
+
+
+class TestMicPicker(unittest.TestCase):
+    DEVICES = [(0, "MacBook Air Microphone"), (1, "Studio Mic"), (2, "USB Cam")]
+
+    def test_enter_accepts_recommended_default(self):
+        out = io.StringIO()
+        # default_idx=1 -> recommended is "Studio Mic"; Enter (empty) picks it
+        chosen = config.pick_mic(self.DEVICES, 1, _feed(""), out)
+        self.assertEqual(chosen, "Studio Mic")
+        self.assertIn("(recommended)", out.getvalue())
+
+    def test_numbered_choice(self):
+        out = io.StringIO()
+        chosen = config.pick_mic(self.DEVICES, 1, _feed("3"), out)
+        self.assertEqual(chosen, "USB Cam")
+
+    def test_reprompts_on_bad_input(self):
+        out = io.StringIO()
+        chosen = config.pick_mic(self.DEVICES, 0, _feed("9", "abc", "2"), out)
+        self.assertEqual(chosen, "Studio Mic")
+
+    def test_no_devices_returns_none(self):
+        out = io.StringIO()
+        self.assertIsNone(config.pick_mic([], None, _feed(), out))
+
+    def test_no_default_recommends_first(self):
+        out = io.StringIO()
+        # default_idx=None -> recommend mic 1; Enter picks it
+        chosen = config.pick_mic(self.DEVICES, None, _feed(""), out)
+        self.assertEqual(chosen, "MacBook Air Microphone")
+
+
+class TestModeAndKeyPickers(unittest.TestCase):
+    def test_mode_enter_is_toggle(self):
+        out = io.StringIO()
+        self.assertEqual(config.pick_mode(_feed(""), out), "toggle")
+        self.assertIn("(recommended)", out.getvalue())
+
+    def test_mode_push(self):
+        self.assertEqual(config.pick_mode(_feed("2"), io.StringIO()), "push")
+
+    def test_key_enter_is_cmd_l(self):
+        out = io.StringIO()
+        self.assertEqual(config.pick_key(_feed(""), out), "cmd_l")
+        self.assertIn("(recommended)", out.getvalue())
+
+    def test_key_numbered(self):
+        # entry 2 in CURATED_KEYS is alt_r
+        self.assertEqual(config.pick_key(_feed("2"), io.StringIO()), "alt_r")
+
+
+class TestWizardNoRegression(unittest.TestCase):
+    def test_all_defaults_reproduce_today(self):
+        """Accepting all recommended defaults (Enter x3) must yield today's behavior:
+        double-tap left cmd, toggle mode, recommended (system-default) mic."""
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            devices = [(0, "MacBook Air Microphone"), (1, "Studio Mic")]
+            cfg = config.run_wizard(devices, default_idx=0,
+                                    input_fn=_feed("", "", ""), out=io.StringIO(), path=p)
+            self.assertEqual(cfg["hotkey_key"], "cmd_l")
+            self.assertEqual(cfg["hotkey_mode"], "toggle")
+            self.assertEqual(cfg["mic"], "MacBook Air Microphone")
+            # persisted and reloadable
+            self.assertEqual(config.load_config(p), {
+                "mic": "MacBook Air Microphone",
+                "hotkey_key": "cmd_l",
+                "hotkey_mode": "toggle",
+            })
+
+    def test_wizard_custom_choices(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.json"
+            devices = [(0, "Mic A"), (1, "Mic B"), (2, "Mic C")]
+            # mic 3, mode push (2), key alt_r (2)
+            cfg = config.run_wizard(devices, default_idx=0,
+                                    input_fn=_feed("3", "2", "2"), out=io.StringIO(), path=p)
+            self.assertEqual(cfg["mic"], "Mic C")
+            self.assertEqual(cfg["hotkey_mode"], "push")
+            self.assertEqual(cfg["hotkey_key"], "alt_r")
+
+    def test_wizard_no_save(self):
+        cfg = config.run_wizard([(0, "Mic A")], 0,
+                                input_fn=_feed("", "", ""), out=io.StringIO(), save=False)
+        self.assertEqual(cfg["mic"], "Mic A")
+
+
+class TestMicPrecedence(unittest.TestCase):
+    """Exercises the REAL precedence helper main() uses (config.resolve_mic_spec):
+    --mic / DUM_MIC (flag/env) > config > built-in."""
+
+    BUILTIN = "MacBook Air"
+
+    def _resolve(self, flag_mic, env_mic, cfg_mic, builtin):
+        return config.resolve_mic_spec(flag_mic, env_mic, cfg_mic, builtin)
+
+    def test_flag_wins_over_everything(self):
+        self.assertEqual(self._resolve("1", "EnvMic", "CfgMic", self.BUILTIN), "1")
+
+    def test_env_wins_over_config(self):
+        self.assertEqual(self._resolve(None, "EnvMic", "CfgMic", self.BUILTIN), "EnvMic")
+
+    def test_config_wins_over_builtin(self):
+        self.assertEqual(self._resolve(None, None, "CfgMic", self.BUILTIN), "CfgMic")
+
+    def test_builtin_when_nothing_set(self):
+        self.assertEqual(self._resolve(None, None, None, self.BUILTIN), self.BUILTIN)
+        self.assertEqual(self._resolve(None, "", "", self.BUILTIN), self.BUILTIN)
+
+
+if __name__ == "__main__":
+    unittest.main()
