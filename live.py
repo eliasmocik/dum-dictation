@@ -337,16 +337,32 @@ class LiveDictation:
         with self.lock:
             if self.running.is_set():
                 return
-            try:
-                import sounddevice as sd
+            import sounddevice as sd
+
+            def _open(dev):
                 self.stream = sd.InputStream(
                     samplerate=SR, channels=1, dtype="float32",
-                    blocksize=int(BLOCK_S * SR), device=self.device,
+                    blocksize=int(BLOCK_S * SR), device=dev,
                     callback=self._on_audio)
                 self.stream.start()
+
+            try:
+                _open(self.device)
             except Exception as e:
-                log(f"[ERR] could not open mic: {e}")
-                return
+                # The configured/requested mic could not be opened — e.g. it was unplugged, or
+                # its saved name no longer matches any device after the audio devices reshuffled.
+                # Fall back to the system default instead of dead-ending, so dictation still works.
+                if self.device is not None:
+                    log(f"[WARN] could not open mic {self.device!r} ({e}); falling back to the "
+                        f"system default — run ./dum --config to pick a different one")
+                    try:
+                        _open(None)
+                    except Exception as e2:
+                        log(f"[ERR] could not open mic (system default also failed): {e2}")
+                        return
+                else:
+                    log(f"[ERR] could not open mic: {e}")
+                    return
             # drain any stale frames
             while not self.q.empty():
                 try:
