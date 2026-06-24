@@ -12,6 +12,7 @@
 # Flags (all optional):
 #   --start SEC   skip the first SEC seconds (cut the "I just clicked record" dead air)
 #   --dur SEC     keep only SEC seconds from the start point (cut the tail)
+#   --speed N     speed up by N× (e.g. 1.4 = a little quicker; default 1 = original)
 #   --width PX    output width in px           (default 1000; height auto, keeps aspect)
 #   --fps N       frames per second            (default 14 — smooth enough, small file)
 #   --out PATH    output path                  (default docs/demo.gif)
@@ -25,11 +26,12 @@ cd "$(dirname "$0")/.."
 SRC="$1"; shift
 [ -f "$SRC" ] || { echo "[!] not a file: $SRC"; exit 1; }
 
-START=""; DUR=""; WIDTH=1000; FPS=14; OUT="docs/demo.gif"
+START=""; DUR=""; SPEED=1; WIDTH=1000; FPS=14; OUT="docs/demo.gif"
 while [ $# -gt 0 ]; do
   case "$1" in
     --start) START="$2"; shift 2;;
     --dur)   DUR="$2";   shift 2;;
+    --speed) SPEED="$2"; shift 2;;
     --width) WIDTH="$2"; shift 2;;
     --fps)   FPS="$2";   shift 2;;
     --out)   OUT="$2";   shift 2;;
@@ -42,7 +44,7 @@ TRIM=()
 [ -n "$START" ] && TRIM+=(-ss "$START")
 [ -n "$DUR" ]   && TRIM+=(-t  "$DUR")
 PAL="$(mktemp -t demopal).png"
-FILT="fps=${FPS},scale=${WIDTH}:-1:flags=lanczos"
+FILT="setpts=PTS/${SPEED},fps=${FPS},scale=${WIDTH}:-1:flags=lanczos"
 
 echo "==> 1/2  building color palette"
 ffmpeg -y -loglevel error "${TRIM[@]}" -i "$SRC" -vf "${FILT},palettegen=stats_mode=diff" "$PAL"

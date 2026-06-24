@@ -4,9 +4,7 @@
 
 An open, local alternative to Wispr Flow.
 
-<!-- DEMO GIF GOES HERE => record yourself dictating "git push, then run kubectl on nginx and check the PostgreSQL logs on localhost", show every term land right, offline. Save as docs/demo.gif and uncomment the line below. This is the #1 thing that makes people actually try it.
 ![dum dictation demo](docs/demo.gif)
--->
 
 Ok real talk: this is Apple Dictation, except it doesn't butcher your tech words. It gets `git`,
 `kubectl`, `nginx`, `PostgreSQL`, `TanStack Query` and friends right, where normal dictation hears
