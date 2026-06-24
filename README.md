@@ -78,8 +78,8 @@ The most useful thing you can send me is a vocab fix (a word it keeps getting wr
 
 ## License
 
-GPLv3 (see [`LICENSE`](LICENSE)). Contributions need the CLA (kindly see [`CLA.md`](CLA.md)) so the tool
-can stay free and open while I keep building it.
+MIT (see [`LICENSE`](LICENSE)). Free to use, fork, and build on — no strings attached. If you ship
+a vocab fix back, even better, but you never have to.
 
 ---
 
