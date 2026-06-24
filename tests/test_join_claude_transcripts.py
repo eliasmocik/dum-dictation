@@ -4,7 +4,7 @@ the EXACT post-commit edit signal for dictation into the Claude Code prompt (whi
 extension can read). Tests the pure core: timestamp parsing, windowed best-match, and join_session."""
 import os, sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 import join_claude_transcripts as J
 
 passed = 0

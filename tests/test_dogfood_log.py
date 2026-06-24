@@ -225,7 +225,7 @@ check(cap3 and cap3[0]["capture_method"] == "keystroke" and cap3[0]["switched_aw
 
 # --- 4. analyzer summary ---
 spec = importlib.util.spec_from_file_location(
-    "auc", os.path.join(os.path.dirname(__file__), "scripts", "analyze_user_corrections.py"))
+    "auc", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "analyze_user_corrections.py"))
 auc = importlib.util.module_from_spec(spec); spec.loader.exec_module(auc)
 
 events = [

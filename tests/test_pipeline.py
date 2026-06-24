@@ -229,7 +229,7 @@ passed += 1
 print("ok  PersonalCorrectionStage inert in V1 (defined seam, no behaviour)")
 # the learn/ proposer is a defined-but-unbuilt seam
 import importlib.util as _ilu
-_spec = _ilu.spec_from_file_location("proposer", os.path.join(os.path.dirname(__file__), "learn", "proposer.py"))
+_spec = _ilu.spec_from_file_location("proposer", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "learn", "proposer.py"))
 _prop = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_prop)
 try:
     _prop.propose_personal_corrections([])
