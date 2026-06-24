@@ -13,7 +13,7 @@ Ok real talk: this is Apple Dictation, except it doesn't butcher your tech words
 "get hub" or "engine x". It runs fully on your machine. No cloud, no account, no network. You talk,
 it precisely types into whatever app you're in.
 
-Built for vibecoders. The bar I'm going for is **"I forgot I was using it."** So you
+Built for vibecoders. The bar I'm going for is **"I forgot I was using it"** so you
 can think clearly. If you just want to talk and have the right text show up, this is
 for you.
 
@@ -64,21 +64,21 @@ DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
 
 ## Privacy
 
-Everything stays on your machine. For real => no cloud, nothing uploaded, ever. There's an
+Everything stays on your machine. No cloud, nothing uploaded, ever. There's an
 optional local-only log (off by default) that remembers what you dictated so the misheard words
 can get fixed over time, but it never leaves your computer and `dogfood/` is gitignored. The full
-breakdown of what can be captured and how to turn it off is in [`DOGFOOD.md`](DOGFOOD.md).
+breakdown is in [`DOGFOOD.md`](DOGFOOD.md).
 
 ## Want to help?
 
-The most useful thing you can send me is a vocab fix => a word it keeps getting wrong. Read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) first, the general-vs-personal rule is the whole discipline.
+The most useful thing you can send me is a vocab fix (a word it keeps getting wrong). Ideally read
+[`CONTRIBUTING.md`](CONTRIBUTING.md), but the general-vs-personal rule is the whole deal.
 [`ARCHITECTURE.md`](ARCHITECTURE.md) shows how the pipeline fits together and
 [`DEV-NOTES.md`](DEV-NOTES.md) has the dev loop.
 
 ## License
 
-GPLv3 (see [`LICENSE`](LICENSE)). Contributions need the CLA (see [`CLA.md`](CLA.md)) so the tool
+GPLv3 (see [`LICENSE`](LICENSE)). Contributions need the CLA (kindly see [`CLA.md`](CLA.md)) so the tool
 can stay free and open while I keep building it.
 
 ---
