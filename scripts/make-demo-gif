@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# make-demo-gif — turn a screen recording into the optimized docs/demo.gif for the README.
+#
+# You record (Cmd+Shift+5 => "Record Selected Portion"), this does ALL the editing:
+# trims (optional), scales, sets a sane frame rate, and runs a two-pass palette for
+# crisp colors + small file size. No video editor needed.
+#
+#   scripts/make-demo-gif ~/Desktop/recording.mov
+#   scripts/make-demo-gif ~/Desktop/recording.mov --start 1.5 --dur 18
+#   scripts/make-demo-gif rec.mov --width 1000 --fps 14 --out docs/demo.gif
+#
+# Flags (all optional):
+#   --start SEC   skip the first SEC seconds (cut the "I just clicked record" dead air)
+#   --dur SEC     keep only SEC seconds from the start point (cut the tail)
+#   --width PX    output width in px           (default 1000; height auto, keeps aspect)
+#   --fps N       frames per second            (default 14 — smooth enough, small file)
+#   --out PATH    output path                  (default docs/demo.gif)
+#
+# Tip: keep the recording TIGHT (start talking right away, stop right after) and you
+# won't need --start/--dur at all.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+[ $# -ge 1 ] || { echo "usage: scripts/make-demo-gif <recording.mov> [--start S] [--dur S] [--width PX] [--fps N] [--out PATH]"; exit 1; }
+SRC="$1"; shift
+[ -f "$SRC" ] || { echo "[!] not a file: $SRC"; exit 1; }
+
+START=""; DUR=""; WIDTH=1000; FPS=14; OUT="docs/demo.gif"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --start) START="$2"; shift 2;;
+    --dur)   DUR="$2";   shift 2;;
+    --width) WIDTH="$2"; shift 2;;
+    --fps)   FPS="$2";   shift 2;;
+    --out)   OUT="$2";   shift 2;;
+    *) echo "[!] unknown flag: $1"; exit 1;;
+  esac
+done
+
+mkdir -p "$(dirname "$OUT")"
+TRIM=()
+[ -n "$START" ] && TRIM+=(-ss "$START")
+[ -n "$DUR" ]   && TRIM+=(-t  "$DUR")
+PAL="$(mktemp -t demopal).png"
+FILT="fps=${FPS},scale=${WIDTH}:-1:flags=lanczos"
+
+echo "==> 1/2  building color palette"
+ffmpeg -y -loglevel error "${TRIM[@]}" -i "$SRC" -vf "${FILT},palettegen=stats_mode=diff" "$PAL"
+
+echo "==> 2/2  rendering GIF => $OUT"
+ffmpeg -y -loglevel error "${TRIM[@]}" -i "$SRC" -i "$PAL" \
+  -lavfi "${FILT} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3" "$OUT"
+rm -f "$PAL"
+
+SIZE=$(du -h "$OUT" | cut -f1)
+echo ""
+echo "Done => $OUT  ($SIZE)"
+echo "If it's bigger than ~8MB, re-run with a smaller --width (e.g. 800) or --fps 12."
+echo "Next: uncomment the ![dum dictation demo](docs/demo.gif) line in README.md, then commit."
