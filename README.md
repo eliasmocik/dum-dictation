@@ -57,7 +57,7 @@ Need a different mic?
 
 ```sh
 DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
-./dum --mic 1                    # by index (list them: .venv/bin/python live.py --list-devices)
+./dum --mic 1                    # by index (list them: .venv/bin/python src/live.py --list-devices)
 ```
 
 ## Privacy
@@ -65,14 +65,14 @@ DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
 Everything stays on your machine. No cloud, nothing uploaded, ever. There's an
 optional local-only log (off by default) that remembers what you dictated so the misheard words
 can get fixed over time, but it never leaves your computer and `dogfood/` is gitignored. The full
-breakdown is in [`DOGFOOD.md`](DOGFOOD.md).
+breakdown is in [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
 
 ## Want to help?
 
 The most useful thing you can send me is a vocab fix (a word it keeps getting wrong). Ideally read
-[`CONTRIBUTING.md`](CONTRIBUTING.md), but the general-vs-personal rule is the whole deal.
-[`ARCHITECTURE.md`](ARCHITECTURE.md) shows how the pipeline fits together and
-[`DEV-NOTES.md`](DEV-NOTES.md) has the dev loop.
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md), but the general-vs-personal rule is the whole deal.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) shows how the pipeline fits together and
+[`docs/DEV-NOTES.md`](docs/DEV-NOTES.md) has the dev loop.
 
 ## License
 

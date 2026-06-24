@@ -50,4 +50,4 @@ mkdir -p "$(dirname "$DUM_EVENTS")"
 # Decapitalize stray boundary capitals on a closed safe-word set (the/and/it/…) when not a real
 # sentence start — the CAP face of the over-eager-boundary bug. Verbatim/off: DUM_DECAP_CAPS=0 ./dum
 : "${DUM_DECAP_CAPS:=1}"; export DUM_DECAP_CAPS
-exec .venv/bin/python live.py --double-cmd --overlay --llm "$@"
+exec .venv/bin/python src/live.py --double-cmd --overlay --llm "$@"

@@ -11,9 +11,9 @@
 # local-only (voice) — bench skips fixtures whose WAV isn't present.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
-# tests live in tests/ but import the engine modules at the repo root; put root on the
-# path so `import pipeline` etc. resolve when a test is run as tests/test_*.py.
-export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+# engine code lives in src/; tests/ import it flat (`import pipeline`), so put src/ on the
+# path. (Resources like terms.txt/models/ stay at the root, found via HERE in the modules.)
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 PY=.venv/bin/python
 fail=0
 
@@ -48,7 +48,7 @@ echo "== bench: real pipeline vs baseline =="
 BENCH_ARGS=()
 [[ " $* " == *" --realtime "* ]] && BENCH_ARGS+=(--realtime)
 [[ " $* " == *" --update "* ]]   && BENCH_ARGS+=(--update-baseline)
-$PY bench.py "${BENCH_ARGS[@]:-}" || fail=1
+$PY src/bench.py "${BENCH_ARGS[@]:-}" || fail=1
 
 echo ""
 if [[ $fail -eq 0 ]]; then echo "ALL GREEN"; else echo "FAILURES — see above"; fi
