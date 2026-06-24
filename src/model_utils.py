@@ -16,7 +16,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-HERE = Path(__file__).parent
+# Engine code lives in src/; resources (models/, packs/, learn/, terms.txt) live at the
+# repo root, one level up. HERE points at that root so all resource lookups resolve.
+HERE = Path(__file__).parent.parent
 MODELS = HERE / "models"
 
 

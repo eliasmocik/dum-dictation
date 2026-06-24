@@ -249,7 +249,7 @@ class LLMWorker:
 
 if __name__ == "__main__":
     from pathlib import Path
-    terms = [t.strip() for t in (Path(__file__).parent / "terms.txt").read_text().splitlines() if t.strip()]
+    terms = [t.strip() for t in (Path(__file__).parent.parent / "terms.txt").read_text().splitlines() if t.strip()]
     print("loading model...")
     llm = LLMCorrector(terms)
     # novel sentences (NOT the few-shot examples) -> tests real generalization

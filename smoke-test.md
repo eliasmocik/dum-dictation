@@ -1,6 +1,6 @@
 # Quick smoke test — read these two sentences aloud
 
-Run `./dum` (or `.venv/bin/python live.py --overlay --llm --mic 1`), double-tap
+Run `./dum` (or `.venv/bin/python src/live.py --overlay --llm --mic 1`), double-tap
 left ⌘, then read the two sentences below **into a scratch doc**. Pause for a breath at
 the `[breath]` mark on purpose — that tests the dot fix.
 
