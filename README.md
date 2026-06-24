@@ -14,11 +14,9 @@ Ok real talk: this is Apple Dictation, except it doesn't butcher your tech words
 it types into whatever app you're in.
 
 Built for vibecoders. The bar I'm going for is **"I forgot I was using it."** No garbage, so you
-can think clearly.
-
-> This repo looks unpolished on purpose. I'd rather spend the time on the thing that matters => the
-> tool working out of the box. If you're a lazy IT guy who just wants to talk and have the right
-> text show up, this is for you.
+can think clearly. I spend my time on the thing that actually matters => the tool working out of
+the box. If you're a lazy IT guy who just wants to talk and have the right text show up, this is
+for you.
 
 ## What you need
 
