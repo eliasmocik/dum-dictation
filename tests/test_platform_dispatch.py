@@ -25,8 +25,12 @@ class TestGetPlatform(unittest.TestCase):
     def test_win32_is_windows(self):
         self.assertIsInstance(self._select("win32"), platform_io.WindowsPlatform)
 
-    def test_linux_is_fallback(self):
-        self.assertIsInstance(self._select("linux"), platform_io.FallbackPlatform)
+    def test_linux_is_linux(self):
+        self.assertIsInstance(self._select("linux"), platform_io.LinuxPlatform)
+
+    def test_unknown_is_fallback(self):
+        # any other OS (e.g. *BSD) still starts via the degraded fallback
+        self.assertIsInstance(self._select("freebsd13"), platform_io.FallbackPlatform)
 
 
 class TestWindowsPlatformPure(unittest.TestCase):
@@ -41,6 +45,21 @@ class TestWindowsPlatformPure(unittest.TestCase):
 
     def test_app_detection_supported(self):
         self.assertTrue(platform_io.WindowsPlatform().supports_app_detection())
+
+
+class TestLinuxPlatformPure(unittest.TestCase):
+    """Constructing it (which only probes tool availability via shutil.which) and its no-API
+    paths must be safe on any OS — including a box with no xdotool/xclip, like this gate."""
+
+    def test_construct_is_safe(self):
+        platform_io.LinuxPlatform()              # only shutil.which() probes, no execution
+
+    def test_type_empty_is_noop(self):
+        platform_io.LinuxPlatform().type_text("")
+
+    def test_app_detection_reflects_xdotool(self):
+        # supports_app_detection mirrors whether xdotool was found; here we just assert it's a bool
+        self.assertIn(platform_io.LinuxPlatform().supports_app_detection(), (True, False))
 
 
 if __name__ == "__main__":

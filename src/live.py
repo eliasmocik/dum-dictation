@@ -497,17 +497,28 @@ class LiveDictation:
         """Build the LLM stage HERE, on the consumer thread, so every MLX op
         (load + inference) shares this thread's GPU stream. Loading it on the
         main thread crashes with 'no Stream(gpu, N) in current thread' because
-        MLX streams are thread-local. Inserted before the external (paid) seam."""
-        from llm_stage import LLMWorker
-        log("loading LLM stage (cached; ~700MB download only if not already present)...")
-        # LLMWorker pins the MLX model to its own persistent thread, so it survives
-        # the consumer thread being recreated on every start/stop toggle.
-        self.llm_stage = LLMStage(LLMWorker(self.terms))      # Layer 3: free, built-in
-        # insert right before the external seam, so trailing stages (fuzzysym, sentcap) stay after it
-        ext_i = next((k for k, s in enumerate(self.pipe.stages) if getattr(s, "name", "") == "external"),
-                     len(self.pipe.stages) - 1)
-        self.pipe.stages.insert(ext_i, self.llm_stage)
-        log("LLM stage ready")
+        MLX streams are thread-local. Inserted before the external (paid) seam.
+
+        MLX is Apple-Silicon only, so on Windows/Linux the import fails — we degrade
+        gracefully (log once, disable the stage) instead of crashing, so the shared
+        `dum` launcher can pass --llm everywhere and the homophone layer is simply
+        absent off macOS (the phonetic + alias layers, the main value, still run)."""
+        try:
+            from llm_stage import LLMWorker
+            log("loading LLM stage (cached; ~700MB download only if not already present)...")
+            # LLMWorker pins the MLX model to its own persistent thread, so it survives
+            # the consumer thread being recreated on every start/stop toggle.
+            self.llm_stage = LLMStage(LLMWorker(self.terms))      # Layer 3: free, built-in
+            # insert right before the external seam, so trailing stages (fuzzysym, sentcap) stay after it
+            ext_i = next((k for k, s in enumerate(self.pipe.stages) if getattr(s, "name", "") == "external"),
+                         len(self.pipe.stages) - 1)
+            self.pipe.stages.insert(ext_i, self.llm_stage)
+            log("LLM stage ready")
+        except Exception as e:
+            # disable so we don't retry on every sentence; the rest of the pipeline runs unchanged
+            self.use_llm = False
+            log(f"[llm] homophone stage unavailable on this platform ({type(e).__name__}); "
+                "continuing without it (phonetic + alias layers still active)")
 
     # ---- the single consumer thread: VAD + streaming + commit ----------------
     def _consume(self):

@@ -7,8 +7,7 @@ terminal with `./dum` running, the robot starts itself when you log in and the O
 puts it back if it dies — paired with the menu-bar/tray icon (tray.py) and the
 single-instance guard (single_instance.py), it's a real always-there app.
 
-Implemented per OS behind one install()/uninstall()/status() interface (Linux lands
-in the next port phase):
+Implemented per OS behind one install()/uninstall()/status() interface:
 
   * macOS — a launchd **LaunchAgent** (~/Library/LaunchAgents/sk.zaprazny.dum.plist):
       RunAtLoad (start at login) + KeepAlive={SuccessfulExit:false} (relaunch ONLY on a
@@ -17,9 +16,12 @@ in the next port phase):
   * Windows — a **Task Scheduler** task ("dum-dictation"): a LogonTrigger (start at
       logon) + RestartOnFailure (the KeepAlive analog) + InteractiveToken (GUI session).
       Runs the `dum.ps1` launcher hidden via PowerShell.
+  * Linux — a **systemd --user** unit (~/.config/systemd/user/dum.service): WantedBy
+      default.target (start at login) + Restart=on-failure (the KeepAlive analog), After
+      graphical-session.target (so DISPLAY/clipboard are up). Runs the `dum` launcher + --tray.
 
-Both launch the SAME daily-driver launcher (the `dum`/`dum.ps1` script), plus --tray, so
-the login copy is byte-for-byte a manual launch — same flags AND same DUM_* env.
+All launch the SAME daily-driver launcher (the `dum`/`dum.ps1` script), plus --tray, so the
+login copy is byte-for-byte a manual launch — same flags AND same DUM_* env.
 
 ⚠️ macOS permissions caveat: a launchd-spawned python is a DIFFERENT executable than your
 terminal, so the Mic/Accessibility/Input-Monitoring grants don't carry over — macOS re-asks
@@ -33,6 +35,7 @@ from pathlib import Path
 
 LABEL = "sk.zaprazny.dum"        # macOS launchd label
 TASK_NAME = "dum-dictation"      # Windows Task Scheduler task name
+SERVICE_NAME = "dum.service"     # Linux systemd --user unit name
 # We launch the dum SHELL LAUNCHER (not live.py directly), with --tray appended, so the
 # login-started copy is byte-for-byte the same daily driver as a manual launch: same flags
 # AND same DUM_* env, which all live inside the launcher. --tray swaps the babysat terminal
@@ -50,9 +53,9 @@ def install(args=None):
         return _mac_install(args)
     if sys.platform == "win32":
         return _win_install(args)
-    raise NotImplementedError(
-        f"auto-start install: Linux (systemd --user) lands in the next port phase; "
-        f"platform {sys.platform!r} unsupported for now.")
+    if sys.platform.startswith("linux"):
+        return _linux_install(args)
+    raise NotImplementedError(f"auto-start install: unsupported platform {sys.platform!r}.")
 
 
 def uninstall():
@@ -60,8 +63,9 @@ def uninstall():
         return _mac_uninstall()
     if sys.platform == "win32":
         return _win_uninstall()
-    raise NotImplementedError(
-        f"auto-start uninstall: unsupported on {sys.platform!r} (Linux lands next phase).")
+    if sys.platform.startswith("linux"):
+        return _linux_uninstall()
+    raise NotImplementedError(f"auto-start uninstall: unsupported platform {sys.platform!r}.")
 
 
 def status():
@@ -69,8 +73,9 @@ def status():
         return _mac_status()
     if sys.platform == "win32":
         return _win_status()
-    raise NotImplementedError(
-        f"auto-start status: unsupported on {sys.platform!r} (Linux lands next phase).")
+    if sys.platform.startswith("linux"):
+        return _linux_status()
+    raise NotImplementedError(f"auto-start status: unsupported platform {sys.platform!r}.")
 
 
 # ================================== macOS (launchd) ==================================
@@ -273,3 +278,81 @@ def _win_status():
     installed = r.returncode == 0
     print(f"[autostart] task '{TASK_NAME}': {'registered' if installed else 'not registered'}")
     return installed, installed
+
+
+# ============================== Linux (systemd --user) ==============================
+
+def service_unit_path():
+    return Path.home() / ".config" / "systemd" / "user" / SERVICE_NAME
+
+
+def build_unit(exec_start, workdir):
+    """The systemd --user unit text (pure — unit-testable without systemctl). Starts after the
+    graphical session (so DISPLAY/clipboard are up), relaunches on crash (Restart=on-failure =
+    the KeepAlive analog), and is pulled in at login by default.target."""
+    return (
+        "[Unit]\n"
+        "Description=dum dictation — start at login, relaunch on crash\n"
+        "After=graphical-session.target\n"
+        "PartOf=graphical-session.target\n"
+        "\n"
+        "[Service]\n"
+        "Type=simple\n"
+        f"ExecStart={exec_start}\n"
+        f"WorkingDirectory={workdir}\n"
+        "Restart=on-failure\n"
+        "RestartSec=3\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=default.target\n"
+    )
+
+
+def _systemctl(*argv):
+    return subprocess.run(["systemctl", "--user", *argv], capture_output=True, text=True)
+
+
+def _linux_install(args=None):
+    args = list(args) if args is not None else DEFAULT_ARGS
+    launcher = REPO_ROOT / "dum"
+    venv_python = REPO_ROOT / ".venv" / "bin" / "python"
+    if not venv_python.exists():
+        raise FileNotFoundError(
+            f"{venv_python} not found — run ./setup first so the venv exists before installing auto-start.")
+    exec_start = " ".join([str(launcher), *args])
+    path = service_unit_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(build_unit(exec_start, REPO_ROOT))
+    _systemctl("daemon-reload")
+    r = _systemctl("enable", "--now", SERVICE_NAME)
+    ok = r.returncode == 0
+    print(f"[autostart] wrote {path}")
+    if ok:
+        print(f"[autostart] enabled {SERVICE_NAME} — dum starts at login and relaunches on crash.")
+        print("            (needs an X11 session for xdotool/xclip; on Wayland install ydotool + "
+              "wl-clipboard. If the tray doesn't appear at login, check `systemctl --user status dum`.)")
+    else:
+        print(f"[autostart] systemctl reported: {r.stderr.strip() or r.stdout.strip()}")
+    return ok
+
+
+def _linux_uninstall():
+    _systemctl("disable", "--now", SERVICE_NAME)
+    path = service_unit_path()
+    existed = path.exists()
+    if existed:
+        path.unlink()
+        _systemctl("daemon-reload")
+        print(f"[autostart] removed {path} — dum will no longer start at login.")
+    else:
+        print("[autostart] nothing to remove (no systemd unit installed).")
+    return existed
+
+
+def _linux_status():
+    path = service_unit_path()
+    installed = path.exists()
+    enabled = _systemctl("is-enabled", SERVICE_NAME).returncode == 0
+    print(f"[autostart] unit:    {'present' if installed else 'absent'} ({path})")
+    print(f"[autostart] enabled: {'yes' if enabled else 'no'}")
+    return installed, enabled

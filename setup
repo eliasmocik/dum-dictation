@@ -57,14 +57,24 @@ else
 fi
 
 echo ""
-echo "==> 4/5  macOS permissions (grant these to your TERMINAL app, then relaunch it)"
-cat <<'PERMS'
+if [ "$(uname)" = "Darwin" ]; then
+  echo "==> 4/5  macOS permissions (grant these to your TERMINAL app, then relaunch it)"
+  cat <<'PERMS'
     System Settings > Privacy & Security, grant to your terminal app:
       1. Microphone        — to capture your voice
       2. Accessibility     — to type/paste text into the focused app
       3. Input Monitoring  — to detect the double-tap left Command hotkey
     Then QUIT and reopen the terminal so the grants take effect.
 PERMS
+else
+  echo "==> 4/5  Linux setup (X11)"
+  cat <<'PERMS'
+    Install the typing/clipboard tools if you haven't:  xdotool  xclip   (or wl-clipboard on Wayland)
+      e.g.  sudo apt install xdotool xclip
+    Make sure your user can use the microphone (PulseAudio/PipeWire) — usually already fine.
+    Default hotkey: double-tap RIGHT Ctrl (change it with ./dum --config).
+PERMS
+fi
 
 echo ""
 echo "==> 5/5  Import sanity check (dependencies + the engine itself)"

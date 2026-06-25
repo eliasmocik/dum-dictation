@@ -8,7 +8,6 @@ The install/uninstall/status verbs shell out to the OS scheduler; macOS + Window
 implemented, so only Linux still raises NotImplementedError (asserted on Linux).
 """
 import plistlib
-import sys
 import unittest
 import xml.dom.minidom as minidom
 
@@ -68,20 +67,39 @@ class TestWindowsTaskXml(unittest.TestCase):
         minidom.parseString(xml.encode("utf-16"))         # raises on malformed; UTF-16 as schtasks wants
 
 
-@unittest.skipUnless(sys.platform.startswith("linux"),
-                     "install/uninstall/status are implemented on macOS + Windows; only Linux raises")
-class TestLinuxNotYetImplemented(unittest.TestCase):
-    def test_install_refuses(self):
-        with self.assertRaises(NotImplementedError):
-            autostart.install()
+class TestLinuxUnit(unittest.TestCase):
+    def _unit(self):
+        return autostart.build_unit("/repo/dum --tray", "/repo")
 
-    def test_uninstall_refuses(self):
-        with self.assertRaises(NotImplementedError):
-            autostart.uninstall()
+    def test_runs_launcher_with_tray(self):
+        self.assertIn("ExecStart=/repo/dum --tray", self._unit())
+        self.assertIn("WorkingDirectory=/repo", self._unit())
 
-    def test_status_refuses(self):
+    def test_starts_at_login_and_self_heals(self):
+        u = self._unit()
+        self.assertIn("WantedBy=default.target", u)        # start at login
+        self.assertIn("Restart=on-failure", u)             # the KeepAlive analog
+        self.assertIn("After=graphical-session.target", u)  # DISPLAY/clipboard are up first
+
+
+class TestUnsupportedPlatformGuard(unittest.TestCase):
+    """A truly unsupported OS (not darwin/win32/linux) must fail loudly, not silently no-op."""
+
+    def _on_platform(self, value, fn):
+        orig = autostart.sys.platform
+        autostart.sys.platform = value
+        try:
+            return fn()
+        finally:
+            autostart.sys.platform = orig
+
+    def test_install_refuses_on_unknown(self):
         with self.assertRaises(NotImplementedError):
-            autostart.status()
+            self._on_platform("freebsd13", autostart.install)
+
+    def test_status_refuses_on_unknown(self):
+        with self.assertRaises(NotImplementedError):
+            self._on_platform("freebsd13", autostart.status)
 
 
 if __name__ == "__main__":
