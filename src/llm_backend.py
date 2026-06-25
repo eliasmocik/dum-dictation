@@ -25,6 +25,7 @@ DUM_LLM_BACKEND (e.g. "mlx") to pin/benchmark one backend against another on one
 """
 import atexit
 import os
+import sys
 
 
 class LLMBackend:
@@ -112,14 +113,23 @@ class LlamaCppBackend(LLMBackend):
         return (res["choices"][0]["message"]["content"] or "").strip()
 
 
+def _default_backend_name():
+    """Platform default: MLX on Apple Silicon (native), llama.cpp everywhere else.
+
+    On Windows/Linux MLX doesn't exist, so the portable llama.cpp backend is both the only
+    option AND the unifying one — picking it automatically means Win/Linux get the L3 LLM
+    polish with no flags. On Mac we keep mlx the default for now (llama.cpp is actually faster
+    — see bench — so this default is expected to flip to llamacpp after per-OS validation)."""
+    return "mlx" if sys.platform == "darwin" else "llamacpp"
+
+
 def make_backend(model_id, name=None):
     """Pick the inference backend.
 
-    - "mlx"      — Apple-Silicon native (fastest on Mac, Mac-only).
+    - "mlx"      — Apple-Silicon native (Mac-only).
     - "llamacpp" — portable llama.cpp/GGUF; runs on macOS/Windows/Linux (the unifying backend).
-    Default is "mlx" on Apple Silicon for now; once llama.cpp is benched at parity it becomes
-    the cross-platform default. Override per-run with DUM_LLM_BACKEND."""
-    name = (name or os.environ.get("DUM_LLM_BACKEND") or "mlx").lower()
+    Default is platform-aware (see _default_backend_name). Override per-run with DUM_LLM_BACKEND."""
+    name = (name or os.environ.get("DUM_LLM_BACKEND") or _default_backend_name()).lower()
     if name == "mlx":
         return MlxBackend(model_id)
     if name in ("llamacpp", "llama", "gguf"):
