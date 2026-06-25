@@ -41,10 +41,12 @@ echo "== unit: config + first-run wizard =="
 $PY tests/test_config.py || fail=1
 echo "== unit: single-instance guard =="
 $PY tests/test_single_instance.py || fail=1
-echo "== unit: autostart (launchd plist) =="
+echo "== unit: autostart (launchd plist + windows task xml) =="
 $PY tests/test_autostart.py || fail=1
 echo "== unit: tray controller =="
 $PY tests/test_tray.py || fail=1
+echo "== unit: platform dispatch (mac/windows/fallback) =="
+$PY tests/test_platform_dispatch.py || fail=1
 echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="

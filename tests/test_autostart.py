@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""Unit tests for the launchd auto-start plist (autostart.py).
+"""Unit tests for the auto-start builders (autostart.py).
 
-The plist BUILDER is pure (no launchctl), so it's tested anywhere. The install/
-uninstall/status verbs shell out to launchctl and are macOS-only — here we just
-assert they fail loudly (NotImplementedError) off macOS rather than silently no-op.
-Covers:
-  * plist carries the daily-driver command (python + live.py + flags)
-  * RunAtLoad on; KeepAlive relaunches on crash but NOT after a clean Quit (exit 0)
-  * round-trips as valid launchd XML
-  * off-macOS, the launchctl verbs raise a clear NotImplementedError
+Both builders are PURE (no launchctl / no schtasks), so they're tested on any OS:
+  * macOS launchd plist — RunAtLoad + KeepAlive-on-crash-only + GUI session
+  * Windows Task Scheduler XML — LogonTrigger + RestartOnFailure + InteractiveToken
+The install/uninstall/status verbs shell out to the OS scheduler; macOS + Windows are
+implemented, so only Linux still raises NotImplementedError (asserted on Linux).
 """
 import plistlib
 import sys
 import unittest
+import xml.dom.minidom as minidom
 
 import autostart
 
@@ -47,8 +45,32 @@ class TestPlistBuilder(unittest.TestCase):
         self.assertEqual(plistlib.loads(raw)["Label"], autostart.LABEL)
 
 
-@unittest.skipIf(sys.platform == "darwin", "launchctl verbs are exercised on macOS")
-class TestOffMacOSGuard(unittest.TestCase):
+class TestWindowsTaskXml(unittest.TestCase):
+    def _xml(self):
+        cmd, arguments = autostart.windows_launcher_command(["--tray"])
+        return autostart.build_task_xml(cmd, arguments, r"C:\repo"), cmd, arguments
+
+    def test_runs_launcher_hidden(self):
+        _xml, cmd, arguments = self._xml()
+        self.assertEqual(cmd, "powershell.exe")
+        self.assertIn("-WindowStyle Hidden", arguments)   # no console flash
+        self.assertIn("dum.ps1", arguments)               # the launcher = single source of truth
+        self.assertIn("--tray", arguments)
+
+    def test_logon_trigger_and_restart(self):
+        xml, *_ = self._xml()
+        self.assertIn("<LogonTrigger>", xml)              # start at logon
+        self.assertIn("<RestartOnFailure>", xml)          # the KeepAlive analog (self-heal)
+        self.assertIn("InteractiveToken", xml)            # GUI session (types into apps)
+
+    def test_serializes_to_valid_xml(self):
+        xml, *_ = self._xml()
+        minidom.parseString(xml.encode("utf-16"))         # raises on malformed; UTF-16 as schtasks wants
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"),
+                     "install/uninstall/status are implemented on macOS + Windows; only Linux raises")
+class TestLinuxNotYetImplemented(unittest.TestCase):
     def test_install_refuses(self):
         with self.assertRaises(NotImplementedError):
             autostart.install()
