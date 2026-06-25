@@ -23,6 +23,8 @@ echo "== unit: overlay =="
 $PY tests/test_overlay.py  || fail=1
 echo "== unit: llm-guard =="
 $PY tests/test_llm_guard.py || fail=1
+echo "== unit: llm-backend seam =="
+$PY tests/test_llm_backend.py || fail=1
 echo "== unit: repo-harvest =="
 $PY tests/test_repo_harvest.py || fail=1
 echo "== unit: fuzzy-recover (safety gate) =="
