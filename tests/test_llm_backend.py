@@ -10,7 +10,7 @@ the path that must behave identically on Mac/Win/Linux once a portable backend l
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from llm_backend import LLMBackend, MlxBackend, make_backend
+from llm_backend import LLMBackend, MlxBackend, make_backend, _default_backend_name
 from llm_stage import LLMCorrector
 
 TERMS = ["git", "grep", "kubectl", "sudo", "nginx", "PostgreSQL"]
@@ -49,9 +49,9 @@ try:
 except ValueError:
     check("make_backend rejects unknown name", True)
 
-# 3) factory default selects mlx (name only — don't construct: would load the model)
-check("make_backend default name is mlx",
-      (os.environ.get("DUM_LLM_BACKEND") or "mlx").lower() == "mlx")
+# 3) platform default: mlx on Mac, llama.cpp everywhere else (the unifying backend)
+check("default backend is mlx on darwin / llamacpp elsewhere",
+      _default_backend_name() == ("mlx" if sys.platform == "darwin" else "llamacpp"))
 
 # 4) injected backend drives correct(): a valid context-gated pair lands
 fb = FakeBackend("get->git")
