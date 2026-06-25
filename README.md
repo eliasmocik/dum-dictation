@@ -33,16 +33,29 @@ cd dum-dictation
 `./setup` makes a virtualenv, installs the deps, downloads the speech model + the on-device
 correction model, and then tells you which permissions to grant. That's the whole setup.
 
-## Permissions (one time, Mac makes you do this)
+## Permissions (one time — Mac makes you do this)
 
-Dictation literally can't work without these. Open **System Settings => Privacy & Security** and
-grant all three to your terminal app:
+Dictation literally can't work without these, so don't skip it. The app you need to grant them to
+is **whatever app you ran `./dum` from** — Terminal, iTerm, or the VS Code terminal. (If you run it
+in the VS Code terminal, you grant them to **Visual Studio Code**.)
+
+The first time you run `./dum`, macOS will pop these up on its own — just click **Allow** / **Open
+System Settings**. If it doesn't, set them by hand: open **System Settings → Privacy & Security**,
+then for each of the three, find your terminal app in the list and flip the switch **on**:
 
 1. **Microphone** => so it can hear you
-2. **Accessibility** => so it can type into the app you're focused on
-3. **Input Monitoring** => so it can catch the double-tap hotkey
+2. **Accessibility** => so it can type into whatever app you're focused on
+3. **Input Monitoring** => so it can catch the double-tap-Command hotkey
 
-Then quit your terminal and open it again so they kick in.
+⚠️ **Then fully quit your terminal app and reopen it.** macOS only applies the new permissions to a
+fresh launch — this is the step everyone forgets, and dictation stays silent until you do it.
+
+<!-- Optional but recommended for non-technical friends: add 3 small screenshots of the toggles.
+Drop them in docs/ as docs/perm-mic.png, docs/perm-accessibility.png, docs/perm-input.png and
+reference them here. The grant step is where most people get stuck. -->
+
+Stuck? The most common cause of "it runs but types nothing" is forgetting to **quit and reopen**
+the terminal after granting Accessibility.
 
 ## Using it
 

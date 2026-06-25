@@ -63,8 +63,11 @@ cat <<'PERMS'
 PERMS
 
 echo ""
-echo "==> 5/5  Import sanity check"
-"$PY" -c "import sherpa_onnx, mlx_lm, sounddevice, pynput; print('    ok: core imports succeed')"
+echo "==> 5/5  Import sanity check (dependencies + the engine itself)"
+"$PY" -c "import sherpa_onnx, mlx_lm, sounddevice, pynput; print('    ok: dependencies import')"
+# Also import the engine (src/ on the path) so a broken layout fails HERE, with a clear
+# message, instead of at first dictation.
+PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config; print('    ok: engine imports')"
 
 echo ""
 echo "Done. Now run:  ./dum"
