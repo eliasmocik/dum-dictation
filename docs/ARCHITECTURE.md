@@ -89,3 +89,21 @@ writes only to the gitignored `dogfood/` tree, and makes no network calls. The o
 extension in `vscode-dum-telemetry/` closes the editor-coverage gap by reporting post-commit
 edits from the document model; it only observes, never inserts. Full detail and the privacy
 controls are in [`DOGFOOD.md`](DOGFOOD.md).
+
+## Launch & lifecycle (the "real app" layer)
+
+Three small modules turn the babysat-terminal `./dum` into an always-there app, each behind a
+thin OS seam so the Windows/Linux ports drop in later without touching the core:
+
+- **single-instance** (`single_instance.py`) — an exclusive `flock` on `~/.dum/dum.lock`; a second
+  live copy exits cleanly. The mic, the global double-tap hotkey, and the overlay are single-owner
+  (two hotkey listeners can even get the process OS-aborted), so exactly one robot may run. The lock
+  is taken only for the live modes, never for `--replay`/bench, so the test gate is unaffected.
+- **tray** (`tray.py`, `--tray`) — a `pystray` menu-bar/tray icon (Start/Stop/Quit + listening
+  state). It **owns the main thread** (the macOS GUI loop's requirement); the hotkey listener and
+  recognizer run underneath on their existing background threads, and a watcher mirrors the real
+  `app.running` state onto the icon so the hotkey and the menu never disagree.
+- **auto-start** (`autostart.py`, `--install-autostart`) — a launchd LaunchAgent carrying both
+  `RunAtLoad` and `KeepAlive={SuccessfulExit:false}`: start at login, relaunch on crash, but a clean
+  menu-bar Quit stays quit. (A launchd-spawned `python` is a different binary than your terminal, so
+  macOS re-asks for the three permissions the first time — inherent to non-bundled login items.)

@@ -73,6 +73,28 @@ DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
 ./dum --mic 1                    # by index (list them: .venv/bin/python src/live.py --list-devices)
 ```
 
+### Run it like a real app (menu bar + auto-start)
+
+Don't want to babysit a terminal? Add `--tray` and dum lives in your **menu bar** — a
+little dot (green = listening, grey = idle) with **Start/Stop** and **Quit**. The hotkey
+still works the same.
+
+```sh
+./dum --tray
+```
+
+To have it **start by itself at login** (and quietly relaunch if it ever crashes):
+
+```sh
+./dum --install-autostart      # set it up   (also: --autostart-status)
+./dum --uninstall-autostart    # undo it
+```
+
+After the first auto-start, macOS re-asks for Microphone / Accessibility / Input
+Monitoring — this time for the venv's `python` (a login item isn't your terminal). Grant
+those three once and log out/in. Running a second copy is refused automatically — one
+robot owns the mic and hotkey.
+
 ## Privacy
 
 Everything stays on your machine. No cloud, nothing uploaded, ever. There's an

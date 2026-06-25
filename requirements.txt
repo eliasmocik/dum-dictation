@@ -15,6 +15,11 @@ numpy==2.4.6
 # Global hotkey + synthetic keystrokes (double-tap left Cmd; overlay typing)
 pynput==1.8.2
 
+# Menu-bar / system-tray icon for the robust daily-driver launch (cross-platform:
+# macOS menu bar now, Windows tray + Linux indicator in the later port phases).
+pystray==0.19.5
+pillow==12.1.0
+
 # macOS native APIs: Quartz (CGEvent keystrokes), AppKit/Cocoa (NSPasteboard, AX)
 pyobjc-core==12.2
 pyobjc-framework-Cocoa==12.2
