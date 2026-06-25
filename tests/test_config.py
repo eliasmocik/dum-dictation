@@ -80,8 +80,8 @@ class TestDefaults(unittest.TestCase):
             self.assertFalse(config.config_exists(p))
             cfg = config.load_config(p)
             self.assertEqual(cfg, config.default_config())
-            # today's behavior: double-tap left cmd, toggle, system-default mic
-            self.assertEqual(cfg["hotkey_key"], "cmd_l")
+            # the platform default (left ⌘ on macOS, right Ctrl on Win/Linux), toggle, sys-default mic
+            self.assertEqual(cfg["hotkey_key"], config.DEFAULT_KEY)
             self.assertEqual(cfg["hotkey_mode"], "toggle")
             self.assertIsNone(cfg["mic"])
 
@@ -161,32 +161,33 @@ class TestModeAndKeyPickers(unittest.TestCase):
     def test_mode_push(self):
         self.assertEqual(config.pick_mode(_feed("2"), io.StringIO()), "push")
 
-    def test_key_enter_is_cmd_l(self):
+    def test_key_enter_is_default(self):
         out = io.StringIO()
-        self.assertEqual(config.pick_key(_feed(""), out), "cmd_l")
+        # Enter picks this OS's recommended default (cmd_l on macOS, ctrl_r on Win/Linux)
+        self.assertEqual(config.pick_key(_feed(""), out), config.DEFAULT_KEY)
         self.assertIn("(recommended)", out.getvalue())
 
     def test_key_numbered(self):
-        # entry 2 in CURATED_KEYS is cmd_r
-        self.assertEqual(config.pick_key(_feed("2"), io.StringIO()), "cmd_r")
+        # numbered choice picks that position in this OS's curated subset
+        self.assertEqual(config.pick_key(_feed("2"), io.StringIO()), config.CURATED_KEYS[1]["key"])
 
 
 class TestWizardNoRegression(unittest.TestCase):
     def test_all_defaults_reproduce_today(self):
-        """Accepting all recommended defaults (Enter x3) must yield today's behavior:
-        double-tap left cmd, toggle mode, recommended (system-default) mic."""
+        """Accepting all recommended defaults (Enter x3) must yield this OS's defaults:
+        the platform default trigger (left ⌘ on macOS), toggle mode, recommended mic."""
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.json"
             devices = [(0, "MacBook Air Microphone"), (1, "Studio Mic")]
             cfg = config.run_wizard(devices, default_idx=0,
                                     input_fn=_feed("", "", ""), out=io.StringIO(), path=p)
-            self.assertEqual(cfg["hotkey_key"], "cmd_l")
+            self.assertEqual(cfg["hotkey_key"], config.DEFAULT_KEY)
             self.assertEqual(cfg["hotkey_mode"], "toggle")
             self.assertEqual(cfg["mic"], "MacBook Air Microphone")
             # persisted and reloadable
             self.assertEqual(config.load_config(p), {
                 "mic": "MacBook Air Microphone",
-                "hotkey_key": "cmd_l",
+                "hotkey_key": config.DEFAULT_KEY,
                 "hotkey_mode": "toggle",
             })
 
@@ -194,12 +195,12 @@ class TestWizardNoRegression(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.json"
             devices = [(0, "Mic A"), (1, "Mic B"), (2, "Mic C")]
-            # mic 3, mode push (2), key cmd_r (2)
+            # mic 3, mode push (2), key = 2nd in this OS's curated subset (cmd_r on macOS)
             cfg = config.run_wizard(devices, default_idx=0,
                                     input_fn=_feed("3", "2", "2"), out=io.StringIO(), path=p)
             self.assertEqual(cfg["mic"], "Mic C")
             self.assertEqual(cfg["hotkey_mode"], "push")
-            self.assertEqual(cfg["hotkey_key"], "cmd_r")
+            self.assertEqual(cfg["hotkey_key"], config.CURATED_KEYS[1]["key"])
 
     def test_wizard_no_save(self):
         cfg = config.run_wizard([(0, "Mic A")], 0,

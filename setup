@@ -48,9 +48,13 @@ echo "    ok: 3 .onnx files + tokens.txt in $PARAKEET_DIR"
 
 echo ""
 echo "==> 3/5  Pre-pull the on-device correction LLM ($LLM_MODEL)"
-echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
-.venv/bin/hf download "$LLM_MODEL" >/dev/null
-echo "    ok"
+if [ "$(uname)" = "Darwin" ]; then
+  echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
+  .venv/bin/hf download "$LLM_MODEL" >/dev/null
+  echo "    ok"
+else
+  echo "    skipped — the MLX homophone LLM is Apple-Silicon only; this OS runs without it."
+fi
 
 echo ""
 echo "==> 4/5  macOS permissions (grant these to your TERMINAL app, then relaunch it)"
@@ -64,10 +68,15 @@ PERMS
 
 echo ""
 echo "==> 5/5  Import sanity check (dependencies + the engine itself)"
-"$PY" -c "import sherpa_onnx, mlx_lm, sounddevice, pynput; print('    ok: dependencies import')"
+# mlx_lm is imported only on macOS — it's an Apple-Silicon wheel and is marked darwin-only in
+# requirements.txt, so it isn't installed elsewhere (the LLM stage is lazy + gated regardless).
+"$PY" -c "import sys, sherpa_onnx, sounddevice, pynput, pystray
+if sys.platform == 'darwin':
+    import mlx_lm
+print('    ok: dependencies import')"
 # Also import the engine (src/ on the path) so a broken layout fails HERE, with a clear
 # message, instead of at first dictation.
-PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config; print('    ok: engine imports')"
+PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform_io; print('    ok: engine imports')"
 
 echo ""
 echo "Done. Now run:  ./dum"

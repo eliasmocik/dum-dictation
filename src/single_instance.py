@@ -13,14 +13,43 @@ So we take an exclusive, advisory OS lock on a file in ~/.dum and the loser exit
 cleanly. The lock is released automatically when the holder dies (even on crash/kill),
 so a previous hard-stop never wedges the next launch.
 
-`fcntl.flock` covers macOS + Linux (this phase). The Windows port swaps in
-`msvcrt.locking` / a named mutex behind the same `SingleInstance` interface — the
-call sites in live.py don't change.
+Locking is OS-specific but behind one interface: `fcntl.flock` on macOS + Linux,
+`msvcrt.locking` (a non-blocking byte-range lock) on Windows. Either way the lock is
+held by the open file handle and the OS drops it when the process dies, so the call
+sites in live.py never change.
 """
 import os
+import sys
 from pathlib import Path
 
 DEFAULT_LOCK = Path.home() / ".dum" / "dum.lock"
+
+
+def _lock_exclusive(fd):
+    """Take a non-blocking exclusive lock on `fd`; raise OSError if already held."""
+    if sys.platform == "win32":
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)   # 1 byte at offset 0; raises on contention
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def _unlock(fd):
+    if sys.platform == "win32":
+        import msvcrt
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+    else:
+        import fcntl
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
 
 
 class AlreadyRunning(Exception):
@@ -54,15 +83,13 @@ class SingleInstance:
             return None
 
     def acquire(self):
-        import fcntl
-
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         # O_RDWR|O_CREAT WITHOUT O_TRUNC: a losing contender must not blank the holder's
         # pid before it discovers the lock is taken. We truncate+write our own pid only
         # AFTER the lock is ours.
         fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o644)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock_exclusive(fd)
         except OSError:
             holder = self._read_holder_pid()
             os.close(fd)
@@ -76,12 +103,8 @@ class SingleInstance:
     def release(self):
         if self._fd is None:
             return
-        import fcntl
-
         try:
-            fcntl.flock(self._fd, fcntl.LOCK_UN)
-        except OSError:
-            pass
+            _unlock(self._fd)
         finally:
             os.close(self._fd)
             self._fd = None

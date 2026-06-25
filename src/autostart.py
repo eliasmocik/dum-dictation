@@ -4,30 +4,26 @@ Auto-start dum at login, and self-heal it if it crashes.
 
 This is the "robust launch" half of the daily driver: instead of babysitting a
 terminal with `./dum` running, the robot starts itself when you log in and the OS
-puts it back if it dies — paired with the menu-bar icon (tray.py) and the
+puts it back if it dies — paired with the menu-bar/tray icon (tray.py) and the
 single-instance guard (single_instance.py), it's a real always-there app.
 
-macOS (this phase): a launchd **LaunchAgent** at
-  ~/Library/LaunchAgents/sk.zaprazny.dum.plist
-with:
-  * RunAtLoad        — start at login
-  * KeepAlive={SuccessfulExit:false} — relaunch ONLY on a crash (non-zero exit), so
-                        picking Quit in the menu bar (clean exit 0) actually quits and
-                        stays quit until the next login.
-  * ProcessType=Interactive — runs inside the GUI session (it types into focused apps).
+Implemented per OS behind one install()/uninstall()/status() interface (Linux lands
+in the next port phase):
 
-The plist runs the SAME daily-driver command as ./dum, plus --tray (menu bar, no
-terminal needed). stdout/stderr go to dogfood/ (gitignored).
+  * macOS — a launchd **LaunchAgent** (~/Library/LaunchAgents/sk.zaprazny.dum.plist):
+      RunAtLoad (start at login) + KeepAlive={SuccessfulExit:false} (relaunch ONLY on a
+      crash, so a clean Quit stays quit) + ProcessType=Interactive (GUI session). Runs
+      the `dum` shell launcher + --tray.
+  * Windows — a **Task Scheduler** task ("dum-dictation"): a LogonTrigger (start at
+      logon) + RestartOnFailure (the KeepAlive analog) + InteractiveToken (GUI session).
+      Runs the `dum.ps1` launcher hidden via PowerShell.
 
-Windows (phase 2) = Task Scheduler at-logon; Linux (phase 3) = a `systemd --user`
-service with Restart=on-failure — both behind this same install()/uninstall()/status()
-interface so live.py's call sites don't change.
+Both launch the SAME daily-driver launcher (the `dum`/`dum.ps1` script), plus --tray, so
+the login copy is byte-for-byte a manual launch — same flags AND same DUM_* env.
 
-⚠️ macOS permissions caveat: a launchd-spawned python is a DIFFERENT executable than
-your terminal, so the Microphone / Accessibility / Input Monitoring grants you gave the
-terminal do NOT carry over. After the first auto-start, macOS will re-prompt (or you grant
-them by hand) for ".../.venv/bin/python". This is inherent to login items that aren't a
-signed .app bundle; documented so it isn't a mystery.
+⚠️ macOS permissions caveat: a launchd-spawned python is a DIFFERENT executable than your
+terminal, so the Mic/Accessibility/Input-Monitoring grants don't carry over — macOS re-asks
+for ".../.venv/bin/python" the first time. (Windows has no equivalent re-prompt.)
 """
 import os
 import plistlib
@@ -35,17 +31,49 @@ import subprocess
 import sys
 from pathlib import Path
 
-LABEL = "sk.zaprazny.dum"
-# We launch the `dum` SHELL LAUNCHER (not live.py directly), with --tray appended, so the
-# login-started copy is byte-for-byte the same daily driver as a manual `./dum`: same flags
-# (--double-cmd --overlay --llm) AND same DUM_* env (strip-fillers, decap, dogfood, …), which
-# all live inside `dum`. --tray swaps the babysat terminal for a menu-bar icon. Single source
-# of truth: change `dum` and the login item follows.
+LABEL = "sk.zaprazny.dum"        # macOS launchd label
+TASK_NAME = "dum-dictation"      # Windows Task Scheduler task name
+# We launch the dum SHELL LAUNCHER (not live.py directly), with --tray appended, so the
+# login-started copy is byte-for-byte the same daily driver as a manual launch: same flags
+# AND same DUM_* env, which all live inside the launcher. --tray swaps the babysat terminal
+# for a tray icon. Single source of truth: change the launcher and the login item follows.
 DEFAULT_ARGS = ["--tray"]
 
 # repo root = parent of this file's dir (src/) — same anchor the engine uses for resources.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+
+# ============================ public, platform-dispatching ============================
+
+def install(args=None):
+    if sys.platform == "darwin":
+        return _mac_install(args)
+    if sys.platform == "win32":
+        return _win_install(args)
+    raise NotImplementedError(
+        f"auto-start install: Linux (systemd --user) lands in the next port phase; "
+        f"platform {sys.platform!r} unsupported for now.")
+
+
+def uninstall():
+    if sys.platform == "darwin":
+        return _mac_uninstall()
+    if sys.platform == "win32":
+        return _win_uninstall()
+    raise NotImplementedError(
+        f"auto-start uninstall: unsupported on {sys.platform!r} (Linux lands next phase).")
+
+
+def status():
+    if sys.platform == "darwin":
+        return _mac_status()
+    if sys.platform == "win32":
+        return _win_status()
+    raise NotImplementedError(
+        f"auto-start status: unsupported on {sys.platform!r} (Linux lands next phase).")
+
+
+# ================================== macOS (launchd) ==================================
 
 def agent_plist_path():
     return Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
@@ -74,18 +102,10 @@ def build_plist(program_args, workdir, out_log, err_log):
     return plistlib.dumps(build_plist_dict(program_args, workdir, out_log, err_log))
 
 
-def _default_job_paths():
+def _mac_job_paths():
     launcher = REPO_ROOT / "dum"
     logdir = REPO_ROOT / "dogfood"
     return launcher, REPO_ROOT, logdir / "dum.out.log", logdir / "dum.err.log"
-
-
-def _require_macos(action):
-    if sys.platform != "darwin":
-        raise NotImplementedError(
-            f"auto-start {action} is implemented for macOS (launchd) in this phase; "
-            f"the Windows (Task Scheduler) and Linux (systemd --user) variants land in "
-            f"the later port phases. Current platform: {sys.platform}.")
 
 
 def _launchctl(*argv):
@@ -99,7 +119,6 @@ def _bootstrap(plist):
     r = _launchctl("bootstrap", f"gui/{uid}", str(plist))
     if r.returncode == 0:
         return r
-    # already loaded, or older launchctl — try the legacy verb
     return _launchctl("load", "-w", str(plist))
 
 
@@ -111,11 +130,9 @@ def _bootout():
     return _launchctl("unload", "-w", str(agent_plist_path()))
 
 
-def install(args=None):
-    """Write the LaunchAgent and load it. Idempotent: reloads if already present."""
-    _require_macos("install")
+def _mac_install(args=None):
     args = list(args) if args is not None else DEFAULT_ARGS
-    launcher, workdir, out_log, err_log = _default_job_paths()
+    launcher, workdir, out_log, err_log = _mac_job_paths()
     venv_python = REPO_ROOT / ".venv" / "bin" / "python"
     if not venv_python.exists():
         raise FileNotFoundError(
@@ -124,8 +141,7 @@ def install(args=None):
     plist = agent_plist_path()
     plist.parent.mkdir(parents=True, exist_ok=True)
     plist.write_bytes(build_plist([launcher, *args], workdir, out_log, err_log))
-    # If a previous copy is loaded, bootout first so the new plist takes effect.
-    _bootout()
+    _bootout()                                  # reload cleanly if already present
     r = _bootstrap(plist)
     ok = r.returncode == 0
     print(f"[autostart] wrote {plist}")
@@ -138,9 +154,7 @@ def install(args=None):
     return ok
 
 
-def uninstall():
-    """Unload and remove the LaunchAgent. Idempotent."""
-    _require_macos("uninstall")
+def _mac_uninstall():
     _bootout()
     plist = agent_plist_path()
     existed = plist.exists()
@@ -152,12 +166,110 @@ def uninstall():
     return existed
 
 
-def status():
-    """Print whether the agent is installed (plist present) and loaded (in launchctl)."""
-    _require_macos("status")
+def _mac_status():
     plist = agent_plist_path()
     installed = plist.exists()
     loaded = _launchctl("list", LABEL).returncode == 0
     print(f"[autostart] plist:  {'present' if installed else 'absent'} ({plist})")
     print(f"[autostart] loaded: {'yes' if loaded else 'no'}")
     return installed, loaded
+
+
+# ============================== Windows (Task Scheduler) ==============================
+
+def windows_launcher_command(args):
+    """(command, arguments) to run the dum.ps1 launcher HIDDEN (no console flash) via
+    PowerShell — single source of truth for flags + env, mirroring the macOS `dum` launcher."""
+    launcher = REPO_ROOT / "dum.ps1"
+    arguments = " ".join(["-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
+                          "-File", f'"{launcher}"', *args])
+    return "powershell.exe", arguments
+
+
+def build_task_xml(command, arguments, workdir):
+    """Task Scheduler XML: start at logon, relaunch on failure (the KeepAlive analog), run in
+    the interactive GUI session. Pure — unit-testable without schtasks. (schtasks /Create /XML
+    wants the file as UTF-16; _win_install encodes it so.)"""
+    from xml.sax.saxutils import escape
+    return (
+        '<?xml version="1.0" encoding="UTF-16"?>\n'
+        '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n'
+        "  <RegistrationInfo>\n"
+        "    <Description>dum dictation — start at logon, relaunch on crash</Description>\n"
+        "  </RegistrationInfo>\n"
+        "  <Triggers>\n"
+        "    <LogonTrigger><Enabled>true</Enabled></LogonTrigger>\n"
+        "  </Triggers>\n"
+        '  <Principals>\n'
+        '    <Principal id="Author">\n'
+        "      <LogonType>InteractiveToken</LogonType>\n"
+        "      <RunLevel>LeastPrivilege</RunLevel>\n"
+        "    </Principal>\n"
+        "  </Principals>\n"
+        "  <Settings>\n"
+        "    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n"
+        "    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n"
+        "    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n"
+        "    <AllowHardTerminate>true</AllowHardTerminate>\n"
+        "    <StartWhenAvailable>true</StartWhenAvailable>\n"
+        "    <AllowStartOnDemand>true</AllowStartOnDemand>\n"
+        "    <Enabled>true</Enabled>\n"
+        "    <Hidden>false</Hidden>\n"
+        "    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\n"
+        "    <Priority>7</Priority>\n"
+        "    <RestartOnFailure>\n"
+        "      <Interval>PT1M</Interval>\n"
+        "      <Count>3</Count>\n"
+        "    </RestartOnFailure>\n"
+        "  </Settings>\n"
+        '  <Actions Context="Author">\n'
+        "    <Exec>\n"
+        f"      <Command>{escape(str(command))}</Command>\n"
+        f"      <Arguments>{escape(arguments)}</Arguments>\n"
+        f"      <WorkingDirectory>{escape(str(workdir))}</WorkingDirectory>\n"
+        "    </Exec>\n"
+        "  </Actions>\n"
+        "</Task>\n"
+    )
+
+
+def _schtasks(*argv):
+    return subprocess.run(["schtasks", *argv], capture_output=True, text=True)
+
+
+def _win_install(args=None):
+    import tempfile
+    args = list(args) if args is not None else DEFAULT_ARGS
+    venv_python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        raise FileNotFoundError(
+            f"{venv_python} not found — run setup.ps1 first so the venv exists before installing auto-start.")
+    command, arguments = windows_launcher_command(args)
+    xml = build_task_xml(command, arguments, REPO_ROOT)
+    xml_path = Path(tempfile.gettempdir()) / "dum-dictation-task.xml"
+    xml_path.write_bytes(xml.encode("utf-16"))   # schtasks /XML expects UTF-16
+    r = _schtasks("/Create", "/TN", TASK_NAME, "/XML", str(xml_path), "/F")
+    ok = r.returncode == 0
+    if ok:
+        print(f"[autostart] registered Task Scheduler task '{TASK_NAME}' — dum starts at logon "
+              "and relaunches on crash.")
+    else:
+        print(f"[autostart] schtasks reported: {r.stderr.strip() or r.stdout.strip()}")
+    return ok
+
+
+def _win_uninstall():
+    r = _schtasks("/Delete", "/TN", TASK_NAME, "/F")
+    existed = r.returncode == 0
+    if existed:
+        print(f"[autostart] removed task '{TASK_NAME}' — dum will no longer start at logon.")
+    else:
+        print(f"[autostart] nothing to remove ({r.stderr.strip() or 'no such task'}).")
+    return existed
+
+
+def _win_status():
+    r = _schtasks("/Query", "/TN", TASK_NAME)
+    installed = r.returncode == 0
+    print(f"[autostart] task '{TASK_NAME}': {'registered' if installed else 'not registered'}")
+    return installed, installed
