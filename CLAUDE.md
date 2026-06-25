@@ -9,10 +9,11 @@ becomes corrected text typed into whatever app is focused. The whole point is ge
 vocab right (`git`, `kubectl`, `nginx`, `PostgreSQL`) where normal dictation hears "get hub" or
 "engine x". No cloud, no network — everything runs on the machine.
 
-> Platform note: OS-specific behaviour is isolated behind `platform_io.py`. **macOS** (Quartz/AppKit
-> + the MLX homophone LLM) and **Windows** (SendInput/win32clipboard/winsound, no LLM) are
-> implemented; **Linux** runs via the degraded `FallbackPlatform` until a native one lands. This dev
-> checkout is Linux/WSL, so `./setup`/`./dum` and the Mac/Windows-native paths can't run here — but
+> Platform note: OS-specific behaviour is isolated behind `platform_io.py`, one class per OS.
+> **macOS** (Quartz/AppKit + the MLX homophone LLM), **Windows** (SendInput/win32clipboard/winsound,
+> no LLM), and **Linux/X11** (xdotool + xclip/wl-clipboard, no LLM) are all implemented;
+> `FallbackPlatform` is the last resort for any other OS (and what LinuxPlatform degrades to with no
+> X11 tools). This dev checkout is Linux/WSL with no GUI, so the live OS paths can't run here — but
 > the **unit suites are pure logic and run anywhere**, and they cover the cross-platform decomposable
 > parts of every OS backend. The bench needs local corpus audio.
 
@@ -84,9 +85,10 @@ Flow: **capture → VAD → recognize → correct → insert**, single-consumer 
 - **`src/platform_io.py`** — the OS seam, one class per platform behind `get_platform()`.
   `MacPlatform` (Quartz CGEvent keystrokes, AppKit NSPasteboard, AX reads), `WindowsPlatform`
   (ctypes SendInput Unicode typing, win32clipboard save/restore, winsound, GetForegroundWindow),
-  `FallbackPlatform` (pynput typing, used on Linux). Both native backends override `type_text` with
-  raw-Unicode insertion so a dead-key layout (e.g. Slovak) isn't mangled. The hotkey listener +
-  overlay backspaces ride on pynput (cross-platform) everywhere.
+  `LinuxPlatform` (xdotool type, xclip/wl-clipboard, a bell, xdotool app-detect; degrades to pynput
+  when X11 tools are absent), `FallbackPlatform` (pynput typing, last resort for other OSes). All
+  native backends override `type_text` with raw-Unicode insertion so a dead-key layout (e.g. Slovak)
+  isn't mangled. The hotkey listener + overlay backspaces ride on pynput (cross-platform) everywhere.
 
 ### Robust launch (menu bar + auto-start + single-instance)
 
@@ -104,10 +106,10 @@ behind thin OS seams (same philosophy as `platform_io.py`):
   double-tap hotkey and the menu reflect the same state. `TrayController` is the GUI-free, unit-tested
   glue; pystray/pillow imports are lazy.
 - **`src/autostart.py`** — login-item installer, one interface (`install`/`uninstall`/`status`) over
-  two backends: macOS = a launchd LaunchAgent (`RunAtLoad` + `KeepAlive={SuccessfulExit:false}`),
-  Windows = a Task Scheduler task (`LogonTrigger` + `RestartOnFailure` — the KeepAlive analog),
-  both running the `dum`/`dum.ps1` launcher + `--tray`. Linux (`systemd --user`) lands next phase.
-  The `build_plist_dict` / `build_task_xml` builders are pure and unit-tested.
+  three backends: macOS = a launchd LaunchAgent (`RunAtLoad` + `KeepAlive={SuccessfulExit:false}`),
+  Windows = a Task Scheduler task (`LogonTrigger` + `RestartOnFailure`), Linux = a `systemd --user`
+  unit (`WantedBy=default.target` + `Restart=on-failure`) — all running the `dum`/`dum.ps1` launcher
+  with `--tray`. The `build_plist_dict` / `build_task_xml` / `build_unit` builders are pure + unit-tested.
 
 The launch + hotkey + platform code is decomposed so its **pure logic is unit-tested and runs on
 Linux/WSL** (`test_single_instance`, `test_autostart` — both plist and Windows-task XML —, `test_tray`,

@@ -20,6 +20,8 @@ for you.
 - A **Mac** with Apple Silicon (M-series) — the full experience, including the homophone LLM
 - …or **Windows 10/11** — same dictation + tech-vocab, minus the (Apple-only) homophone LLM. See
   [On Windows](#on-windows) below.
+- …or **Linux** (X11) — same as Windows, via `xdotool` + `xclip`/`wl-clipboard`. See
+  [On Linux](#on-linux) below.
 - Python 3.12
 
 ## Install
@@ -131,6 +133,29 @@ Want the tray icon and start-at-logon?
 > so install and run the **Windows** version above. It still types straight into your WSL
 > terminal (and through it, into anything you've SSH'd to). You don't install dum inside WSL
 > or on a remote server; it lives on the machine in front of you.
+
+## On Linux
+
+Same again, for a Linux **desktop** you sit in front of (not a headless server — there's no mic
+or screen to dictate into there). It uses the standard X11 tools:
+
+```sh
+sudo apt install xdotool xclip      # (or your distro's equivalent; wl-clipboard for Wayland)
+git clone https://github.com/eliasmocik/dum-dictation.git
+cd dum-dictation
+./setup                              # skips the Apple-only LLM automatically
+./dum                                # double-tap RIGHT Ctrl to start/stop
+./dum --tray                         # tray icon
+./dum --install-autostart            # systemd --user service (start at login + relaunch on crash)
+```
+
+Typing is layout-independent via `xdotool type` (so a Slovak/dead-key layout isn't mangled);
+clipboard paste uses `xclip` or `wl-clipboard`. If those tools aren't installed it still runs,
+just degraded (types via a generic backend, no focus guard).
+
+> **Wayland:** the typing/clipboard tools above are X11. Under a pure Wayland session, run under
+> XWayland or install `ydotool` + `wl-clipboard`. This is the least-tested path — X11 is the
+> smooth one for now.
 
 ## Privacy
 
