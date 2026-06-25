@@ -23,6 +23,7 @@ Contract (one method):
 Selection: make_backend(model_id) picks the impl for the current platform. Override with
 DUM_LLM_BACKEND (e.g. "mlx") to pin/benchmark one backend against another on one machine.
 """
+import atexit
 import os
 
 
@@ -86,6 +87,23 @@ class LlamaCppBackend(LLMBackend):
         self.model_path = path
         self.llm = Llama(model_path=path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers,
                          chat_format=self.CHAT_FORMAT, verbose=False)
+        # llama.cpp's Metal device is torn down by a C++ static destructor at process exit. If a
+        # Llama still holds Metal resource-sets at that point, ggml asserts and the process
+        # SIGABRTs — so a clean Quit would exit non-zero with a scary native trace. Releasing the
+        # model at normal interpreter shutdown (atexit runs BEFORE __cxa_finalize) lets the device
+        # free cleanly. Harmless on CPU/CUDA builds. See llama.cpp ggml-metal device-free assert.
+        self._closed = False
+        atexit.register(self.close)
+
+    def close(self):
+        """Free the underlying llama.cpp context. Idempotent; safe to call at exit or by hand."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.llm.close()
+        except Exception:
+            pass
 
     def generate(self, messages, max_tokens):
         # temperature=0 => greedy/deterministic, matching the narrow "wrong->right" mandate.
