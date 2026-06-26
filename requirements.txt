@@ -14,7 +14,12 @@ sherpa-onnx==1.13.2
 #     backend off-macOS, so Win/Linux now get the homophone fixes too (Rado's port ran without).
 #   mlx-lm = the Apple-Silicon fast path; default on macOS for now, selectable via DUM_LLM_BACKEND.
 # Both are lazy-imported + gated behind --llm; the phonetic + alias layers work without either.
-llama-cpp-python==0.3.31
+# NOTE: llama-cpp-python ships NO prebuilt wheels on PyPI (source-only -> needs a C++
+# toolchain). Install from the maintainer's prebuilt index instead, e.g.:
+#   pip install llama-cpp-python==0.3.30 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# (cpu works on every OS; swap to whl/cu124 etc. for GPU, whl/metal for Mac GPU). 0.3.30 is the
+# newest version with prebuilt win/linux/macos wheels. Pre-install it before `pip install -r`.
+llama-cpp-python==0.3.30
 mlx-lm==0.31.3 ; sys_platform == "darwin"
 
 # Audio capture + WAV I/O — cross-platform (PortAudio)
