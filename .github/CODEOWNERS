@@ -1,0 +1,35 @@
+# Code ownership for dum dictation.
+#
+# The dictation BRAIN (engine + unified LLM backend + model pins) is owned by @eliasmocik:
+# any pull request touching these paths REQUIRES his review before it can merge into a
+# protected branch. The Windows platform layer is intentionally UNOWNED so Rado can edit it
+# freely (his PRs that touch only those files need no approval). @eliasmocik is a repo admin,
+# so he bypasses all of this and pushes directly.
+
+# --- Shared brain / backend (Elias approves any change) ---
+/src/llm_backend.py        @eliasmocik
+/src/llm_stage.py          @eliasmocik
+/src/pipeline.py           @eliasmocik
+/src/vocab.py              @eliasmocik
+/src/correct_phonetic.py   @eliasmocik
+/src/fuzzy_recover.py      @eliasmocik
+/src/live.py               @eliasmocik
+/src/overlay.py            @eliasmocik
+/src/insertion.py          @eliasmocik
+/src/config.py             @eliasmocik
+/src/model_utils.py        @eliasmocik
+/requirements.txt          @eliasmocik
+/packs/                    @eliasmocik
+/terms.txt                 @eliasmocik
+
+# --- Platform layer: shared interface + dispatcher + macOS = Elias ---
+/src/platform_base.py      @eliasmocik
+/src/platform_io.py        @eliasmocik
+/src/platform_mac.py       @eliasmocik
+
+# --- Windows platform: UNOWNED on purpose => Rado edits freely, no approval needed ---
+#   /src/platform_windows.py   (no owner)
+#   /dum.ps1                   (no owner)
+#   /setup.ps1                 (no owner)
+# --- Linux: parked, unowned ---
+#   /src/platform_linux.py     (no owner)
