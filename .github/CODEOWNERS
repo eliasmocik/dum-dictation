@@ -28,17 +28,22 @@
 /src/platform_mac.py       @eliasmocik
 
 # --- Shared app / launch infrastructure (cross-platform, but core UX => Elias owns it) ---
-# tray + autostart + single-instance are one cross-platform implementation (pystray etc.).
-# Rado contributed them, but going forward they're shared infra Elias maintains, so changes
-# to shared launch behaviour get his review. The macOS launcher (./dum) is his too.
+# tray + single-instance are one cross-platform implementation (pystray etc.). Rado
+# contributed them, but going forward they're shared infra Elias maintains, so changes get
+# his review. autostart is now split per-OS (like platform_io): the dispatcher + base + the
+# macOS backend are Elias's; the Windows backend is Rado's (below). The ./dum launcher is his.
 /src/tray.py               @eliasmocik
-/src/autostart.py          @eliasmocik
 /src/single_instance.py    @eliasmocik
+/src/autostart.py          @eliasmocik
+/src/autostart_base.py     @eliasmocik
+/src/autostart_mac.py      @eliasmocik
 /dum                       @eliasmocik
 
 # --- Windows-only: UNOWNED on purpose => Rado edits freely, no approval needed ---
-#   /src/platform_windows.py   (no owner)
-#   /dum.ps1                   (no owner)
-#   /setup.ps1                 (no owner)
+#   /src/platform_windows.py    (no owner)
+#   /src/autostart_windows.py   (no owner)
+#   /dum.ps1                    (no owner)
+#   /setup.ps1                  (no owner)
 # --- Linux: parked, unowned ---
-#   /src/platform_linux.py     (no owner)
+#   /src/platform_linux.py      (no owner)
+#   /src/autostart_linux.py     (no owner)
