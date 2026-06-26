@@ -25,7 +25,6 @@ DUM_LLM_BACKEND (e.g. "mlx") to pin/benchmark one backend against another on one
 """
 import atexit
 import os
-import sys
 
 
 class LLMBackend:
@@ -36,16 +35,18 @@ class LLMBackend:
 
 
 class MlxBackend(LLMBackend):
-    """Apple-Silicon inference via mlx-lm.
+    """Apple-Silicon inference via mlx-lm (the Mac opt-in: DUM_LLM_BACKEND=mlx).
 
     Loads the model on the CONSTRUCTING thread: MLX GPU streams are thread-local, so the
     caller (llm_stage.LLMWorker) must build this on the single persistent MLX thread that
     also runs generate(). See LLMWorker's docstring for why."""
 
-    def __init__(self, model_id):
+    DEFAULT_MODEL = os.environ.get("DUM_LLM_MODEL", "mlx-community/Llama-3.2-1B-Instruct-4bit")
+
+    def __init__(self, model_id=None):
         from mlx_lm import load
-        self.model_id = model_id
-        self.model, self.tok = load(model_id)
+        self.model_id = model_id or self.DEFAULT_MODEL
+        self.model, self.tok = load(self.model_id)
 
     def generate(self, messages, max_tokens):
         from mlx_lm import generate
@@ -114,13 +115,11 @@ class LlamaCppBackend(LLMBackend):
 
 
 def _default_backend_name():
-    """Platform default: MLX on Apple Silicon (native), llama.cpp everywhere else.
-
-    On Windows/Linux MLX doesn't exist, so the portable llama.cpp backend is both the only
-    option AND the unifying one — picking it automatically means Win/Linux get the L3 LLM
-    polish with no flags. On Mac we keep mlx the default for now (llama.cpp is actually faster
-    — see bench — so this default is expected to flip to llamacpp after per-OS validation)."""
-    return "mlx" if sys.platform == "darwin" else "llamacpp"
+    """Unified default: the portable llama.cpp backend on EVERY OS — so the published GitHub
+    tool is the same dictation everywhere, including the maintainer's own Mac daily-driver.
+    It's faster than MLX even on Apple Silicon (Metal; ~3.5x in bench) and behaves identically
+    cross-platform. MLX stays available on Apple Silicon as an opt-in: DUM_LLM_BACKEND=mlx."""
+    return "llamacpp"
 
 
 def make_backend(model_id, name=None):

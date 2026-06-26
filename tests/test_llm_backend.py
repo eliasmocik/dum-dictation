@@ -49,9 +49,9 @@ try:
 except ValueError:
     check("make_backend rejects unknown name", True)
 
-# 3) platform default: mlx on Mac, llama.cpp everywhere else (the unifying backend)
-check("default backend is mlx on darwin / llamacpp elsewhere",
-      _default_backend_name() == ("mlx" if sys.platform == "darwin" else "llamacpp"))
+# 3) unified default: llama.cpp on every OS (mlx stays opt-in on Mac via DUM_LLM_BACKEND)
+check("default backend is llamacpp on every OS (unified)",
+      _default_backend_name() == "llamacpp")
 
 # 4) injected backend drives correct(): a valid context-gated pair lands
 fb = FakeBackend("get->git")
