@@ -7,11 +7,14 @@ sentence contains a real-word homophone "suspect" (grab/get/...) that the
 deterministic layer must not touch (since those words are valid English).
 This keeps the LLM off the latency path for the easy 95%.
 
-Local model via MLX (Apple Silicon). Default: Llama-3.2-1B-Instruct-4bit (~700MB,
-downloaded once to the HF cache) — chosen over the 3B for ~2.5x lower commit latency
-at equal task accuracy (constrained output + IT-term filter). Override with
-DUM_LLM_MODEL. Long-term on Mac this is replaceable by Apple's on-device
-FoundationModels (free, no download) behind the same interface.
+Inference runs through the `llm_backend.LLMBackend` seam — model load + token generation
+are the only platform-specific atoms, fenced into one pluggable backend so this corrector
+(prompt, gating, validation) stays single and OS-agnostic. Default: Llama-3.2-1B-Instruct-4bit
+on MLX/Apple-Silicon (~700MB, downloaded once to the HF cache) — chosen over the 3B for ~2.5x
+lower commit latency at equal task accuracy (constrained output + IT-term filter). Override the
+model with DUM_LLM_MODEL, the backend with DUM_LLM_BACKEND. A portable backend (llama.cpp /
+onnxruntime-genai) drops in behind the same interface to unify dictation across Win/Linux; on
+Mac, Apple's on-device FoundationModels would slot in the same way.
 
 Mandate is deliberately narrow: fix ONLY misheard tech terms, never rephrase. The model
 emits "wrong->right" pairs (or NONE); we apply each only if `right` is a validated IT term.
@@ -148,11 +151,14 @@ def _plausible(wrong, right):
 
 
 class LLMCorrector:
-    def __init__(self, terms, model_id=DEFAULT_LLM_MODEL):
-        from mlx_lm import load
+    def __init__(self, terms, model_id=DEFAULT_LLM_MODEL, backend=None):
+        from llm_backend import make_backend
         self.model_id = model_id
         self.termset = {_key(t) for t in terms}
-        self.model, self.tok = load(model_id)
+        # Inference (model load + token generation) is the ONLY platform-specific part; every
+        # gate/validation method below is OS-agnostic. Default builds the MLX backend on THIS
+        # thread (LLMWorker's persistent MLX thread). Inject `backend` to bench an alternative.
+        self.backend = backend if backend is not None else make_backend(model_id)
 
     def _apply_pairs(self, text, raw_out):
         """Apply the model's 'wrong->right' corrections to `text`, but ONLY when `right`
@@ -183,14 +189,11 @@ class LLMCorrector:
         return out
 
     def _gen(self, text):
-        from mlx_lm import generate
         msgs = [{"role": "system", "content": SYSTEM}]
         for u, a in FEWSHOT:
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
         msgs.append({"role": "user", "content": text})
-        prompt = self.tok.apply_chat_template(msgs, add_generation_prompt=True)
-        return generate(self.model, self.tok, prompt=prompt, max_tokens=48,
-                        verbose=False).strip()
+        return self.backend.generate(msgs, max_tokens=48)
 
     def correct(self, text, force=False):
         """Returns (text_out, fired_bool, latency_s)."""

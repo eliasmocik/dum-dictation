@@ -77,8 +77,14 @@ screen. Backends do insertion *only* (no recognition/correction/telemetry):
 
 `live.py` chooses per focused app: it overlays everywhere by default and routes a small block
 list of surfaces that scramble under synthetic keystrokes to paste-at-commit instead. App
-detection is handled in `platform_io.py`, which also owns the macOS-native bits (Quartz CGEvent
-keystrokes, AppKit `NSPasteboard`, Accessibility reads).
+detection is handled in `platform_io.py` — the single OS seam, one class per platform behind
+`get_platform()`: `MacPlatform` (Quartz CGEvent keystrokes, AppKit `NSPasteboard`, Accessibility
+reads), `WindowsPlatform` (ctypes `SendInput` Unicode typing, `win32clipboard` save/restore,
+`winsound`, `GetForegroundWindow`), `LinuxPlatform` (`xdotool type`, `xclip`/`wl-clipboard`, a bell,
+`xdotool` app-detect — degrading to pynput when the X11 tools are absent), and `FallbackPlatform`
+(pynput typing, the last resort for any other OS). All native backends post **raw Unicode** for
+typing rather than going through pynput, so a dead-key keyboard layout (e.g. Slovak) doesn't mangle
+the output. The hotkey listener and the overlay's backspaces are pynput on every platform.
 
 ## Telemetry / dogfood seam (opt-in)
 
@@ -89,3 +95,27 @@ writes only to the gitignored `dogfood/` tree, and makes no network calls. The o
 extension in `vscode-dum-telemetry/` closes the editor-coverage gap by reporting post-commit
 edits from the document model; it only observes, never inserts. Full detail and the privacy
 controls are in [`DOGFOOD.md`](DOGFOOD.md).
+
+## Launch & lifecycle (the "real app" layer)
+
+Three small modules turn the babysat-terminal launcher into an always-there app, each behind a
+thin OS seam (macOS, Windows and Linux all implemented):
+
+- **single-instance** (`single_instance.py`) — an exclusive lock on `~/.dum/dum.lock` (`flock` on
+  macOS/Linux, `msvcrt.locking` on Windows); a second live copy exits cleanly. The mic, the global
+  double-tap hotkey, and the overlay are single-owner (two hotkey listeners can even get the process
+  OS-aborted), so exactly one robot may run. The lock is taken only for the live modes, never for
+  `--replay`/bench, so the test gate is unaffected.
+- **tray** (`tray.py`, `--tray`) — a `pystray` menu-bar/tray icon (Start/Stop/Quit + listening
+  state), the same code on the macOS menu bar and the Windows tray. It **owns the main thread** (the
+  macOS GUI loop's requirement); the hotkey listener and recognizer run underneath on their existing
+  background threads, and a watcher mirrors the real `app.running` state onto the icon so the hotkey
+  and the menu never disagree.
+- **auto-start** (`autostart.py`, `--install-autostart`) — one `install`/`uninstall`/`status`
+  interface over three backends, all start-at-login + relaunch-on-crash (honoring a clean Quit): a
+  macOS launchd LaunchAgent (`RunAtLoad` + `KeepAlive={SuccessfulExit:false}`), a Windows Task
+  Scheduler task (`LogonTrigger` + `RestartOnFailure`), and a Linux `systemd --user` unit
+  (`WantedBy=default.target` + `Restart=on-failure`, `After=graphical-session.target`). All run the
+  platform launcher (`dum` / `dum.ps1`) with `--tray`. (A launchd-spawned `python` is a different
+  binary than your terminal, so macOS re-asks for the three permissions the first time — inherent to
+  non-bundled login items; Windows/Linux have no such re-prompt.)

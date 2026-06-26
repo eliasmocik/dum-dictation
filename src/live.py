@@ -33,11 +33,16 @@ Run (toggle daemon: tap the hotkey to start/stop continuous dictation):
     .venv/bin/python live.py --hotkey
 Run (macOS-style: double-tap LEFT Command to start/stop, globally):
     .venv/bin/python live.py --double-cmd --overlay --llm
+Run (menu-bar daily driver — same hotkey, tray icon instead of a babysat terminal):
+    .venv/bin/python live.py --double-cmd --overlay --llm --tray
 Run (word-by-word live overlay — types as you speak, reconciles on pause):
     .venv/bin/python live.py --overlay
 Run (overlay DRY — prints the type/backspace ops, types nothing; safe to watch):
     .venv/bin/python live.py --overlay --no-paste
-Options: --overlay  --llm  --mic <idx|name>  --list-devices  --margin <dB>
+Auto-start at login (launchd login item; relaunches on crash):
+    .venv/bin/python live.py --install-autostart   # also: --uninstall-autostart / --autostart-status
+Options: --overlay  --llm  --tray  --mic <idx|name>  --list-devices  --margin <dB>
+A single live instance is enforced (mic + global hotkey are single-owner); a 2nd exits.
 
 Env (shared with dum where it makes sense):
     DUM_MIC / DICTATE_MIC   mic index or name substring (default: system default)
@@ -492,17 +497,28 @@ class LiveDictation:
         """Build the LLM stage HERE, on the consumer thread, so every MLX op
         (load + inference) shares this thread's GPU stream. Loading it on the
         main thread crashes with 'no Stream(gpu, N) in current thread' because
-        MLX streams are thread-local. Inserted before the external (paid) seam."""
-        from llm_stage import LLMWorker
-        log("loading LLM stage (cached; ~700MB download only if not already present)...")
-        # LLMWorker pins the MLX model to its own persistent thread, so it survives
-        # the consumer thread being recreated on every start/stop toggle.
-        self.llm_stage = LLMStage(LLMWorker(self.terms))      # Layer 3: free, built-in
-        # insert right before the external seam, so trailing stages (fuzzysym, sentcap) stay after it
-        ext_i = next((k for k, s in enumerate(self.pipe.stages) if getattr(s, "name", "") == "external"),
-                     len(self.pipe.stages) - 1)
-        self.pipe.stages.insert(ext_i, self.llm_stage)
-        log("LLM stage ready")
+        MLX streams are thread-local. Inserted before the external (paid) seam.
+
+        MLX is Apple-Silicon only, so on Windows/Linux the import fails — we degrade
+        gracefully (log once, disable the stage) instead of crashing, so the shared
+        `dum` launcher can pass --llm everywhere and the homophone layer is simply
+        absent off macOS (the phonetic + alias layers, the main value, still run)."""
+        try:
+            from llm_stage import LLMWorker
+            log("loading LLM stage (cached; ~700MB download only if not already present)...")
+            # LLMWorker pins the MLX model to its own persistent thread, so it survives
+            # the consumer thread being recreated on every start/stop toggle.
+            self.llm_stage = LLMStage(LLMWorker(self.terms))      # Layer 3: free, built-in
+            # insert right before the external seam, so trailing stages (fuzzysym, sentcap) stay after it
+            ext_i = next((k for k, s in enumerate(self.pipe.stages) if getattr(s, "name", "") == "external"),
+                         len(self.pipe.stages) - 1)
+            self.pipe.stages.insert(ext_i, self.llm_stage)
+            log("LLM stage ready")
+        except Exception as e:
+            # disable so we don't retry on every sentence; the rest of the pipeline runs unchanged
+            self.use_llm = False
+            log(f"[llm] homophone stage unavailable on this platform ({type(e).__name__}); "
+                "continuing without it (phonetic + alias layers still active)")
 
     # ---- the single consumer thread: VAD + streaming + commit ----------------
     def _consume(self):
@@ -914,7 +930,7 @@ def build_pipeline(terms):
     return CorrectionPipeline(stages)
 
 
-def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
+def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     """Global hotkey listener on macOS (needs Input Monitoring). The DICTATION start/stop
     trigger is configurable (key + mode, read from ~/.dum/config.json); the ⌥ "flag a problem"
     gesture stays hardcoded (double-tap LEFT ⌥) — out of scope for v1.
@@ -995,6 +1011,10 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press)
     listener.start()
+    # block=False: the tray front-end owns the main thread (the GUI run loop), so we
+    # just hand back the started listener and let the caller stop it + the app on Quit.
+    if not block:
+        return listener
     try:
         while listener.running:
             time.sleep(0.2)
@@ -1002,6 +1022,24 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle"):
         pass
     listener.stop()
     app.stop()
+
+
+def run_tray(app, trigger_key="cmd_l", mode="toggle"):
+    """Menu-bar daily driver: the same global double-tap hotkey listener, but with a
+    tray icon instead of a babysat terminal. The hotkey listener runs on its own thread;
+    the tray owns the MAIN thread (required for the macOS GUI loop) and blocks until Quit.
+    """
+    from tray import run as run_tray_gui
+
+    listener = run_double_tap_toggle(app, trigger_key=trigger_key, mode=mode, block=False)
+
+    def _teardown():
+        try:
+            listener.stop()
+        finally:
+            app.stop()
+
+    run_tray_gui(app, on_quit=_teardown)   # blocks on the main thread until Quit
 
 
 def main():
@@ -1016,10 +1054,23 @@ def main():
                 log(f"  {i}: {dv['name']}")
         return
 
+    # Auto-start (login item) admin commands — handle and EXIT before building the engine,
+    # so `./dum --install-autostart` is a quick one-shot, not a dictation launch.
+    if any(a in argv for a in ("--install-autostart", "--uninstall-autostart", "--autostart-status")):
+        import autostart
+        if "--uninstall-autostart" in argv:
+            autostart.uninstall()
+        elif "--autostart-status" in argv:
+            autostart.status()
+        else:
+            autostart.install()
+        return
+
     do_paste = "--no-paste" not in argv
     use_llm = "--llm" in argv
     use_hotkey = "--hotkey" in argv
     use_double = "--double-cmd" in argv
+    use_tray = "--tray" in argv
     use_overlay = "--overlay" in argv
     is_replay = "--replay" in argv
     want_config = "--config" in argv
@@ -1077,33 +1128,54 @@ def main():
     if eager_first:
         log("[eager] first-word eager-lock ON")
 
-    if "--replay" in argv:
-        # headless: push a WAV through the real loop (for bench.py / regression).
+    if is_replay:
+        # headless: push a WAV through the real loop (for bench.py / regression). No mic,
+        # no global hotkey — so it needs neither the single-instance guard nor a finally.
         wav = argv[argv.index("--replay") + 1]
         log(f"[replay] {wav}")
         app.replay(wav, realtime="--replay-fast" not in argv)
-    elif use_double:
-        run_double_tap_toggle(app, trigger_key=hotkey_key, mode=hotkey_mode)
-    elif use_hotkey:
-        from pynput import keyboard
-        log(f"hotkey daemon ready. tap {HOTKEY} to start/stop. Ctrl+C to quit.")
-        with keyboard.GlobalHotKeys({HOTKEY: app.toggle}) as h:
+        tracer.close()
+        app.dogfood.close()
+        log("bye")
+        return
+
+    # Live daily-driver modes own single-owner resources — the mic, the global double-tap
+    # hotkey, and the overlay that types into the focused app. A second copy would fight over
+    # all three (and on macOS two hotkey listeners can get the process aborted), so refuse it.
+    from single_instance import SingleInstance, AlreadyRunning
+    try:
+        guard = SingleInstance().acquire()
+    except AlreadyRunning as e:
+        log(f"dum is already running — {e}. Quit the other copy first "
+            f"(menu bar > Quit dum, or Ctrl+C in its terminal).")
+        return
+    try:
+        if use_tray:
+            run_tray(app, trigger_key=hotkey_key, mode=hotkey_mode)
+        elif use_double:
+            run_double_tap_toggle(app, trigger_key=hotkey_key, mode=hotkey_mode)
+        elif use_hotkey:
+            from pynput import keyboard
+            log(f"hotkey daemon ready. tap {HOTKEY} to start/stop. Ctrl+C to quit.")
+            with keyboard.GlobalHotKeys({HOTKEY: app.toggle}) as h:
+                try:
+                    h.join()
+                except KeyboardInterrupt:
+                    pass
+            app.stop()
+        else:
+            app.start()
             try:
-                h.join()
+                while app.running.is_set():
+                    time.sleep(0.3)
             except KeyboardInterrupt:
                 pass
-        app.stop()
-    else:
-        app.start()
-        try:
-            while app.running.is_set():
-                time.sleep(0.3)
-        except KeyboardInterrupt:
-            pass
-        app.stop()
-    tracer.close()
-    app.dogfood.close()        # flush pending post-commit observers so the last commits aren't lost
-    log("bye")
+            app.stop()
+    finally:
+        guard.release()
+        tracer.close()
+        app.dogfood.close()    # flush pending post-commit observers so the last commits aren't lost
+        log("bye")
 
 
 if __name__ == "__main__":

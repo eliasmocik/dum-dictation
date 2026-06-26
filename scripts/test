@@ -23,6 +23,8 @@ echo "== unit: overlay =="
 $PY tests/test_overlay.py  || fail=1
 echo "== unit: llm-guard =="
 $PY tests/test_llm_guard.py || fail=1
+echo "== unit: llm-backend seam =="
+$PY tests/test_llm_backend.py || fail=1
 echo "== unit: repo-harvest =="
 $PY tests/test_repo_harvest.py || fail=1
 echo "== unit: fuzzy-recover (safety gate) =="
@@ -39,6 +41,14 @@ echo "== unit: early-stop dataloss (half-applied reconcile) =="
 $PY tests/test_early_stop.py || fail=1
 echo "== unit: config + first-run wizard =="
 $PY tests/test_config.py || fail=1
+echo "== unit: single-instance guard =="
+$PY tests/test_single_instance.py || fail=1
+echo "== unit: autostart (launchd plist + windows task xml) =="
+$PY tests/test_autostart.py || fail=1
+echo "== unit: tray controller =="
+$PY tests/test_tray.py || fail=1
+echo "== unit: platform dispatch (mac/windows/fallback) =="
+$PY tests/test_platform_dispatch.py || fail=1
 echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="

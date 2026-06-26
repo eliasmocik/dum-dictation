@@ -33,14 +33,36 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 # v1 deliberately offers a small curated list — NOT arbitrary "press any key to
 # bind" capture. Each entry maps a stable config token -> how the listener detects
 # it. "double" gestures fire on a double-tap of the named pynput modifier key;
-# "single" gestures (fn) fire on a single press/hold of that key. The recommended
-# default reproduces today's hardcoded behavior exactly: double-tap LEFT ⌘.
-CURATED_KEYS = [
-    {"key": "cmd_l",  "label": "double-tap left ⌘ (Command)",  "gesture": "double", "pynput": "cmd_l"},
-    {"key": "cmd_r",  "label": "double-tap right ⌘ (Command)", "gesture": "double", "pynput": "cmd_r"},
-    {"key": "fn",     "label": "fn key",                            "gesture": "single", "pynput": "function"},
+# "single" gestures (fn) fire on a single press/hold of that key.
+#
+# The catalog is platform-aware: macOS offers the Command/fn keys (default: double-tap
+# LEFT ⌘ — today's behavior, unchanged); Windows + Linux have no Command key, so they
+# offer the Ctrl keys (default: double-tap RIGHT Ctrl — rarely pressed alone, the natural
+# analog of the Mac right-Command choice). `_ALL_KEYS` is the full union; `CURATED_KEYS`
+# is the subset offered on THIS OS (what the wizard shows).
+_ALL_KEYS = [
+    {"key": "cmd_l",  "label": "double-tap left ⌘ (Command)",  "gesture": "double", "pynput": "cmd_l",    "platforms": ("darwin",)},
+    {"key": "cmd_r",  "label": "double-tap right ⌘ (Command)", "gesture": "double", "pynput": "cmd_r",    "platforms": ("darwin",)},
+    {"key": "fn",     "label": "fn key",                       "gesture": "single", "pynput": "function", "platforms": ("darwin",)},
+    {"key": "ctrl_r", "label": "double-tap right Ctrl",        "gesture": "double", "pynput": "ctrl_r",   "platforms": ("win32", "linux")},
+    {"key": "ctrl_l", "label": "double-tap left Ctrl",         "gesture": "double", "pynput": "ctrl_l",   "platforms": ("win32", "linux")},
 ]
-DEFAULT_KEY = "cmd_l"
+
+
+def _platform_tag():
+    """Normalize sys.platform into one of our catalog tags: darwin / win32 / linux."""
+    return sys.platform if sys.platform in ("darwin", "win32") else "linux"
+
+
+def curated_keys(platform=None):
+    """The trigger keys offered on this OS (Command/fn on macOS; Ctrl on Windows/Linux)."""
+    tag = platform or _platform_tag()
+    return [k for k in _ALL_KEYS if tag in k["platforms"]]
+
+
+CURATED_KEYS = curated_keys()
+_DEFAULT_KEY_BY_PLATFORM = {"darwin": "cmd_l", "win32": "ctrl_r", "linux": "ctrl_r"}
+DEFAULT_KEY = _DEFAULT_KEY_BY_PLATFORM[_platform_tag()]
 
 CURATED_MODES = [
     {"mode": "toggle", "label": "toggle (tap to start, tap to stop)"},
@@ -48,7 +70,9 @@ CURATED_MODES = [
 ]
 DEFAULT_MODE = "toggle"
 
-_VALID_KEYS = {k["key"] for k in CURATED_KEYS}
+# Validate against the FULL union, not just this OS's subset: a config written on one OS
+# should round-trip on another (e.g. a synced ~/.dum) instead of silently healing away.
+_VALID_KEYS = {k["key"] for k in _ALL_KEYS}
 _VALID_MODES = {m["mode"] for m in CURATED_MODES}
 
 # Substrings that identify a Mac's built-in microphone across models. The wizard
@@ -61,9 +85,9 @@ BUILTIN_MIC_HINTS = ("macbook", "built-in", "built in", "imac", "mac studio", "s
 
 
 def default_config():
-    """The built-in defaults = today's behavior (double-tap left ⌘ toggle, system
-    default mic). Used when no config file exists and as the fallback for any
-    missing/invalid field."""
+    """The built-in defaults: the platform's default trigger (double-tap left ⌘ on macOS,
+    double-tap right Ctrl on Windows/Linux), toggle mode, system-default mic. Used when no
+    config file exists and as the fallback for any missing/invalid field."""
     return {"mic": None, "hotkey_key": DEFAULT_KEY, "hotkey_mode": DEFAULT_MODE}
 
 
@@ -142,9 +166,13 @@ def recommended_mic_index(devices, default_idx):
 
 
 def key_descriptor(key_token):
-    """Return the CURATED_KEYS entry for a config token (or the default's)."""
-    for k in CURATED_KEYS:
+    """Return the catalog entry for a config token (searching the full union, so a key
+    saved on another OS still resolves), or this OS's default entry if unknown."""
+    for k in _ALL_KEYS:
         if k["key"] == key_token:
+            return k
+    for k in _ALL_KEYS:
+        if k["key"] == DEFAULT_KEY:
             return k
     return CURATED_KEYS[0]
 
