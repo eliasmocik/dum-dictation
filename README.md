@@ -101,10 +101,13 @@ robot owns the mic and hotkey.
 
 ## On Windows
 
+> ⚠️ **Experimental — not yet tested on real Windows hardware.** Treat it as a preview.
+
 Same idea, same tech-vocab smarts — it types into any focused Windows app (VS Code, the
-Claude Code box, Chrome, Slack, a WSL terminal). The one difference: the homophone LLM
-(`grep`/`grab`, `git`/`get`) is Apple-Silicon only, so on Windows you get the phonetic +
-alias layers — the main value — without it.
+Claude Code box, Chrome, Slack, a WSL terminal). The homophone LLM (`grep`/`grab`,
+`git`/`get`) now runs on Windows too via the portable llama.cpp backend (the same model as
+Mac), so you get the full phonetic + alias + LLM stack — though that path is still unverified
+on real hardware.
 
 In **PowerShell** (Python 3.12 from python.org on your PATH):
 
@@ -135,6 +138,8 @@ Want the tray icon and start-at-logon?
 > or on a remote server; it lives on the machine in front of you.
 
 ## On Linux
+
+> ⚠️ **Experimental / parked — no maintainer testing this yet.** Code is present but unverified.
 
 Same again, for a Linux **desktop** you sit in front of (not a headless server — there's no mic
 or screen to dictate into there). It uses the standard X11 tools:
