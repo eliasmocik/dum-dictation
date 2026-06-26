@@ -5,8 +5,9 @@
 #   .\dum.ps1 --config        # re-run the first-run mic/hotkey wizard
 #   .\dum.ps1 --install-autostart   # start at logon (Task Scheduler); --uninstall-autostart
 #
-# No --llm here: the MLX homophone model is Apple-Silicon only, so Windows runs the
-# phonetic + alias layers (the main value) without it.
+# --llm is ON by default (mirrors ./dum): the homophone LLM now runs on Windows via the
+# portable llama.cpp backend, so Windows gets the same dictation as Mac. It degrades
+# gracefully if the backend can't load. Pass --no-llm-equivalent by editing here if too slow.
 param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $Rest)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
@@ -30,4 +31,4 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-& $exe "src\live.py" "--double-cmd" "--overlay" @Rest
+& $exe "src\live.py" "--double-cmd" "--overlay" "--llm" @Rest
