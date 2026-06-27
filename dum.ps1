@@ -1,6 +1,7 @@
-# dum.ps1 — Windows launcher for the dum dictation daily driver (the mirror of ./dum).
+# dum.ps1 - Windows launcher for the dum dictation daily driver (the mirror of ./dum).
 #
 #   .\dum.ps1                 # run the daily driver (double-tap RIGHT Ctrl to start/stop)
+#   .\dum.ps1 --paste         # paste-at-commit instead of live overlay (use this over RDP/remote desktop)
 #   .\dum.ps1 --tray          # menu-bar/tray icon instead of a console window
 #   .\dum.ps1 --config        # re-run the first-run mic/hotkey wizard
 #   .\dum.ps1 --install-autostart   # start at logon (Task Scheduler); --uninstall-autostart
@@ -12,7 +13,7 @@ param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $Rest)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
-# DUM_* env defaults — same knobs the bash launcher sets; each overridable per-run.
+# DUM_* env defaults - same knobs the bash launcher sets; each overridable per-run.
 if (-not $env:DUM_EVENTS)        { $env:DUM_EVENTS = "dogfood\events.jsonl" }
 if (-not $env:DUM_DOGFOOD_FULL)  { $env:DUM_DOGFOOD_FULL = "1" }
 if (-not $env:DUM_VSCODE_BRIDGE) { $env:DUM_VSCODE_BRIDGE = "1" }
@@ -27,8 +28,19 @@ if ($Rest -contains "--tray") {
     $exe = ".venv\Scripts\python.exe"
 }
 if (-not (Test-Path $exe)) {
-    Write-Error "$exe not found — run .\setup.ps1 first."
+    Write-Error "$exe not found - run .\setup.ps1 first."
     exit 1
 }
 
-& $exe "src\live.py" "--double-cmd" "--overlay" "--llm" @Rest
+# Insertion mode: default is the live word-by-word overlay (best when local). Over a remote
+# desktop (RDP) the overlay's many synthetic keystrokes get scrambled by the link latency, so
+# --paste switches to paste-at-commit (one clipboard paste per finished sentence - reliable
+# remotely). Everything else (--mic, --config, --install-autostart, ...) passes straight through.
+$liveArgs = @("--double-cmd")
+if ($Rest -contains "--paste") {
+    $Rest = @($Rest | Where-Object { $_ -ne "--paste" })
+} else {
+    $liveArgs += "--overlay"
+}
+$liveArgs += "--llm"
+& $exe "src\live.py" @liveArgs @Rest
