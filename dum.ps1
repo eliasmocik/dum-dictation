@@ -1,4 +1,4 @@
-# dum.ps1 — Windows launcher for the dum dictation daily driver (the mirror of ./dum).
+# dum.ps1 - Windows launcher for the dum dictation daily driver (the mirror of ./dum).
 #
 #   .\dum.ps1                 # run the daily driver (double-tap RIGHT Ctrl to start/stop)
 #   .\dum.ps1 --tray          # menu-bar/tray icon instead of a console window
@@ -12,7 +12,7 @@ param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $Rest)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
-# DUM_* env defaults — same knobs the bash launcher sets; each overridable per-run.
+# DUM_* env defaults - same knobs the bash launcher sets; each overridable per-run.
 if (-not $env:DUM_EVENTS)        { $env:DUM_EVENTS = "dogfood\events.jsonl" }
 if (-not $env:DUM_DOGFOOD_FULL)  { $env:DUM_DOGFOOD_FULL = "1" }
 if (-not $env:DUM_VSCODE_BRIDGE) { $env:DUM_VSCODE_BRIDGE = "1" }
@@ -27,7 +27,7 @@ if ($Rest -contains "--tray") {
     $exe = ".venv\Scripts\python.exe"
 }
 if (-not (Test-Path $exe)) {
-    Write-Error "$exe not found — run .\setup.ps1 first."
+    Write-Error "$exe not found - run .\setup.ps1 first."
     exit 1
 }
 
