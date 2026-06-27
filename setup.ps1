@@ -21,6 +21,14 @@ if (-not (Test-Path $py)) {
     python -m venv .venv
 }
 & $py -m pip install --upgrade pip | Out-Null
+# llama-cpp-python (the portable homophone-LLM backend) ships NO prebuilt wheel on PyPI, so a
+# plain `-r requirements.txt` would try to COMPILE it from source and fail on Windows (needs MSVC
+# + CMake). Install it FIRST from the maintainer's prebuilt index, so the `-r` step below finds it
+# already satisfied. CPU wheels are right for the tiny 1B-4bit model; for an NVIDIA GPU swap
+# whl/cpu -> whl/cu124 (set $LlamaIndex below). See requirements.txt for the full note.
+$LlamaIndex = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+Write-Host "    installing llama-cpp-python==0.3.30 from prebuilt index ($LlamaIndex)"
+& $py -m pip install "llama-cpp-python==0.3.30" --extra-index-url $LlamaIndex
 & $py -m pip install -r requirements.txt
 
 Write-Host ""
@@ -49,7 +57,7 @@ Write-Host "     double-tap hotkey work without extra grants.)"
 
 Write-Host ""
 Write-Host "==> 4/4  Import sanity check (dependencies + the engine itself)"
-& $py -c "import sherpa_onnx, sounddevice, pynput, pystray; print('    ok: dependencies import')"
+& $py -c "import sherpa_onnx, sounddevice, pynput, pystray, llama_cpp; print('    ok: dependencies import (incl. llama_cpp)')"
 $env:PYTHONPATH = (Join-Path $PSScriptRoot "src")
 & $py -c "import live, pipeline, overlay, config, platform_io; print('    ok: engine imports')"
 
