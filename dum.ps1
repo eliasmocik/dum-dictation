@@ -1,6 +1,7 @@
 # dum.ps1 - Windows launcher for the dum dictation daily driver (the mirror of ./dum).
 #
 #   .\dum.ps1                 # run the daily driver (double-tap RIGHT Ctrl to start/stop)
+#   .\dum.ps1 --paste         # paste-at-commit instead of live overlay (use this over RDP/remote desktop)
 #   .\dum.ps1 --tray          # menu-bar/tray icon instead of a console window
 #   .\dum.ps1 --config        # re-run the first-run mic/hotkey wizard
 #   .\dum.ps1 --install-autostart   # start at logon (Task Scheduler); --uninstall-autostart
@@ -31,4 +32,15 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-& $exe "src\live.py" "--double-cmd" "--overlay" "--llm" @Rest
+# Insertion mode: default is the live word-by-word overlay (best when local). Over a remote
+# desktop (RDP) the overlay's many synthetic keystrokes get scrambled by the link latency, so
+# --paste switches to paste-at-commit (one clipboard paste per finished sentence - reliable
+# remotely). Everything else (--mic, --config, --install-autostart, ...) passes straight through.
+$liveArgs = @("--double-cmd")
+if ($Rest -contains "--paste") {
+    $Rest = @($Rest | Where-Object { $_ -ne "--paste" })
+} else {
+    $liveArgs += "--overlay"
+}
+$liveArgs += "--llm"
+& $exe "src\live.py" @liveArgs @Rest
