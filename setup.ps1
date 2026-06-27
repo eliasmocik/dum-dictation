@@ -1,4 +1,4 @@
-# setup.ps1 — one command to make a freshly-cloned checkout runnable on Windows.
+# setup.ps1 - one command to make a freshly-cloned checkout runnable on Windows.
 #
 #   .\setup.ps1
 #
@@ -34,25 +34,25 @@ Write-Host "    installing llama-cpp-python==0.3.30 from prebuilt index ($LlamaI
 Write-Host ""
 Write-Host "==> 2/4  Parakeet speech model"
 if ((Test-Path "$ParakeetDir\encoder.int8.onnx") -and (Test-Path "$ParakeetDir\tokens.txt")) {
-    Write-Host "    already present at $ParakeetDir — skipping download"
+    Write-Host "    already present at $ParakeetDir - skipping download"
 } else {
     New-Item -ItemType Directory -Force -Path models | Out-Null
     Write-Host "    downloading + extracting $Tarball (~480 MB) ..."
     # Download + extract via the venv Python (urllib + tarfile handle .tar.bz2 natively),
-    # so this needs no curl/tar — works on any Windows.
+    # so this needs no curl/tar - works on any Windows.
     & $py -c "import urllib.request,tarfile,tempfile,os,sys; url=sys.argv[1]; tmp=os.path.join(tempfile.gettempdir(),'parakeet.tar.bz2'); print('    fetching...'); urllib.request.urlretrieve(url,tmp); print('    extracting...'); tarfile.open(tmp,'r:bz2').extractall('models'); os.remove(tmp)" $Url
 }
 $missing = $false
 foreach ($f in @("encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt")) {
     if (-not (Test-Path "$ParakeetDir\$f")) { Write-Host "    [!] missing $ParakeetDir\$f"; $missing = $true }
 }
-if ($missing) { Write-Host "    [!] Parakeet model is incomplete — re-run .\setup.ps1"; exit 1 }
+if ($missing) { Write-Host "    [!] Parakeet model is incomplete - re-run .\setup.ps1"; exit 1 }
 Write-Host "    ok: 3 .onnx files + tokens.txt in $ParakeetDir"
 
 Write-Host ""
 Write-Host "==> 3/4  Microphone permission"
-Write-Host "    Settings > Privacy & security > Microphone: turn ON 'Let desktop apps access your microphone'."
-Write-Host "    (No Accessibility / Input-Monitoring step like macOS — SendInput typing and the global"
+Write-Host "    Settings -> Privacy and security -> Microphone: turn ON 'Let desktop apps access your microphone'."
+Write-Host "    (No Accessibility / Input-Monitoring step like macOS. SendInput typing and the global"
 Write-Host "     double-tap hotkey work without extra grants.)"
 
 Write-Host ""
