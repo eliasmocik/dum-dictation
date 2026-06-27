@@ -22,6 +22,9 @@ os.makedirs(logdir, exist_ok=True)
 _log = open(os.path.join(logdir, "tray.log"), "a", buffering=1, encoding="utf-8")
 sys.stdout = _log
 sys.stderr = _log
+# pythonw gives a None stdin too; live.main() calls sys.stdin.isatty(), so hand it a real
+# (non-tty) handle -> isatty() is False -> the interactive config wizard is correctly skipped.
+sys.stdin = open(os.devnull, "r")
 
 sys.argv = ["live.py", "--double-cmd", "--tray", "--llm"]
 
