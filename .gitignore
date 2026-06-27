@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 
+# Local editor settings (machine-specific; may reference private extensions/paths)
+.vscode/
+
 # Generated locally by make-shortcut.ps1 (the Desktop icon image)
 dum.ico
 
