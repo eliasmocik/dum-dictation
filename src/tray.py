@@ -90,6 +90,31 @@ def run(app, on_quit=None):
     """
     import pystray
 
+    # Free llama.cpp's Metal context before AppKit exits. Every quit path (menu, Ctrl+C via
+    # pystray's own SIGINT handler, Apple-menu Quit, logout) routes through
+    # -[NSApplication terminate:], which calls C exit() — bypassing Python's atexit and
+    # asserting in ggml's Metal device-free if a Llama is still alive. macOS posts
+    # NSApplicationWillTerminate BEFORE that exit(), so freeing here is the one hook that
+    # covers all paths (can't rely on intercepting SIGINT — pystray overrides our handler).
+    # Kept in a list so the observer token + block outlive this call (run() blocks until quit).
+    _keepalive = []
+    try:
+        from AppKit import NSApplicationWillTerminateNotification
+        from Foundation import NSNotificationCenter
+
+        def _free_backends(_note):
+            try:
+                from llm_backend import close_all_backends
+                close_all_backends()
+            except Exception:
+                pass
+
+        _keepalive.append(NSNotificationCenter.defaultCenter()
+                          .addObserverForName_object_queue_usingBlock_(
+                              NSApplicationWillTerminateNotification, None, None, _free_backends))
+    except Exception:
+        pass    # non-macOS (Windows/Linux tray) — Metal assert is macOS-only
+
     controller = TrayController(app, on_quit=on_quit)
 
     def _do_quit(icon, _item):
