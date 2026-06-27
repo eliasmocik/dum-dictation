@@ -1016,7 +1016,11 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     if not block:
         return listener
     try:
-        while listener.running:
+        # Use the Thread's is_alive(), NOT pynput's `listener.running`: `running` is set True
+        # INSIDE the listener thread's run(), which may not have executed yet when we first check
+        # — a startup race that on Windows reliably loses (the loop sees False and exits instantly,
+        # so the daily driver quits the moment it starts). is_alive() is True from start() onward.
+        while listener.is_alive():
             time.sleep(0.2)
     except KeyboardInterrupt:
         pass
