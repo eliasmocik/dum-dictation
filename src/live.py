@@ -494,19 +494,19 @@ class LiveDictation:
         return not (bool(app) and app.strip().lower() in self.overlay_block)
 
     def _build_llm(self):
-        """Build the LLM stage HERE, on the consumer thread, so every MLX op
-        (load + inference) shares this thread's GPU stream. Loading it on the
-        main thread crashes with 'no Stream(gpu, N) in current thread' because
-        MLX streams are thread-local. Inserted before the external (paid) seam.
+        """Build the LLM stage HERE, on the consumer thread, so the backend's load +
+        inference share one thread (MLX GPU streams are thread-local; LLMWorker pins
+        them). Inserted before the external (paid) seam.
 
-        MLX is Apple-Silicon only, so on Windows/Linux the import fails — we degrade
-        gracefully (log once, disable the stage) instead of crashing, so the shared
-        `dum` launcher can pass --llm everywhere and the homophone layer is simply
-        absent off macOS (the phonetic + alias layers, the main value, still run)."""
+        Failure-tolerant: if the backend can't load — most often because the GGUF model
+        didn't download (~770MB, pulled on first run), or an inference lib is missing — we
+        log the REAL error once and disable the stage instead of crashing, so the shared
+        `dum` launcher can pass --llm everywhere and dictation (phonetic + alias layers,
+        the main value) still runs."""
         try:
             from llm_stage import LLMWorker
-            log("loading LLM stage (cached; ~700MB download only if not already present)...")
-            # LLMWorker pins the MLX model to its own persistent thread, so it survives
+            log("loading LLM stage (downloads the ~770MB GGUF model on first run if not cached)...")
+            # LLMWorker pins the model to its own persistent thread, so it survives
             # the consumer thread being recreated on every start/stop toggle.
             self.llm_stage = LLMStage(LLMWorker(self.terms))      # Layer 3: free, built-in
             # insert right before the external seam, so trailing stages (fuzzysym, sentcap) stay after it
@@ -517,8 +517,9 @@ class LiveDictation:
         except Exception as e:
             # disable so we don't retry on every sentence; the rest of the pipeline runs unchanged
             self.use_llm = False
-            log(f"[llm] homophone stage unavailable on this platform ({type(e).__name__}); "
-                "continuing without it (phonetic + alias layers still active)")
+            log(f"[llm] homophone stage FAILED to load -> {type(e).__name__}: {e}")
+            log("[llm]   continuing without it (phonetic + alias layers still active). Most common "
+                "cause: the GGUF model didn't download — pre-pull it or check your network/HF access.")
 
     # ---- the single consumer thread: VAD + streaming + commit ----------------
     def _consume(self):
