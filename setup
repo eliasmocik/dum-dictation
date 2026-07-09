@@ -17,14 +17,71 @@ PARAKEET_TARBALL="sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
 PARAKEET_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${PARAKEET_TARBALL}"
 LLM_MODEL="mlx-community/Llama-3.2-1B-Instruct-4bit"
 
+# macOS support is Apple Silicon only: the correction LLM (mlx-lm) and several pins ship
+# no Intel-mac wheels, so an Intel/Rosetta run would fail deep into the install. Fail fast.
+if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" != "arm64" ]; then
+  echo "[!] On macOS, dum needs Apple Silicon (M-series). Intel Macs aren't supported"
+  echo "    (the speech + correction models ship Apple-Silicon-only wheels)."
+  exit 1
+fi
+
 echo "==> 1/5  Python venv + pinned dependencies"
+# Hard requirement: CPython 3.12.x. Several pins (numpy, sherpa-onnx, mlx-lm) ship wheels
+# only for 3.12, so any other Python dies mid-install with a cryptic compile error.
+py_is_312() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)' 2>/dev/null; }
 if [ ! -x "$PY" ]; then
-  PYBIN="$(command -v python3.12 || command -v python3)"
+  PYBIN="$(command -v python3.12 || command -v python3 || true)"
+  if [ -z "$PYBIN" ]; then
+    echo "    [!] no python3 on PATH - Python 3.12 is required."
+    echo "        macOS:  brew install python@3.12"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Then re-run ./setup."
+    exit 1
+  fi
+  if ! py_is_312 "$PYBIN"; then
+    echo "    [!] Python 3.12 required, but $PYBIN is $("$PYBIN" -V 2>&1)."
+    echo "        macOS:  brew install python@3.12"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Then re-run ./setup."
+    exit 1
+  fi
   echo "    creating .venv with $PYBIN"
   "$PYBIN" -m venv .venv
+elif ! py_is_312 "$PY"; then
+  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12 - rebuild it:"
+  echo "        rm -rf .venv && ./setup"
+  exit 1
 fi
-"$PY" -m pip install --upgrade pip >/dev/null
-"$PY" -m pip install -r requirements.txt
+"$PY" -m pip install --upgrade pip >/dev/null || {
+  echo "    [!] this .venv has no working pip (a partial venv - common on Debian/Ubuntu without"
+  echo "        python3.12-venv). Install it (sudo apt install python3.12-venv), then rebuild:"
+  echo "        rm -rf .venv && ./setup"
+  exit 1
+}
+# llama-cpp-python (the portable homophone-LLM backend) is SOURCE-ONLY on PyPI - a plain
+# `-r requirements.txt` tries to compile it, which needs cmake + a C++ toolchain and is the
+# #1 fresh-machine failure. Install it FIRST from the maintainer's prebuilt wheel index so
+# the `-r` step below finds the pin already satisfied and never builds from source.
+# Metal (Apple GPU) wheels on Apple Silicon, CPU wheels everywhere else.
+if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+  LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/metal"
+else
+  LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/cpu"
+fi
+echo "    installing llama-cpp-python==0.3.30 from prebuilt index ($LLAMA_INDEX)"
+# --only-binary bars pip from EVER falling back to the PyPI source build (which is the whole
+# failure we're avoiding): if no wheel matches this platform, it fails fast with a clear
+# "no matching distribution" instead of a 20-minute compile that then errors out.
+"$PY" -m pip install "llama-cpp-python==0.3.30" --only-binary=llama-cpp-python --extra-index-url "$LLAMA_INDEX" || {
+  echo "    [!] no prebuilt llama-cpp-python wheel installed - either the wheel index was"
+  echo "        unreachable (check your network) or there's no wheel for your platform."
+  echo "        manual retry:  $PY -m pip install 'llama-cpp-python==0.3.30' --only-binary=llama-cpp-python --extra-index-url $LLAMA_INDEX"
+  exit 1
+}
+"$PY" -m pip install -r requirements.txt || {
+  echo "    [!] dependency install failed - scroll up for pip's actual error, fix it, then re-run ./setup"
+  exit 1
+}
 
 echo ""
 echo "==> 2/5  Parakeet speech model"
@@ -33,9 +90,16 @@ if [ -f "$PARAKEET_DIR/encoder.int8.onnx" ] && [ -f "$PARAKEET_DIR/tokens.txt" ]
 else
   mkdir -p models
   echo "    downloading $PARAKEET_TARBALL (~480 MB) ..."
-  curl -L --fail -o "models/$PARAKEET_TARBALL" "$PARAKEET_URL"
+  curl -L --fail -o "models/$PARAKEET_TARBALL" "$PARAKEET_URL" || {
+    echo "    [!] model download failed - check your network, then re-run ./setup"
+    exit 1
+  }
   echo "    extracting ..."
-  tar -xjf "models/$PARAKEET_TARBALL" -C models
+  tar -xjf "models/$PARAKEET_TARBALL" -C models || {
+    echo "    [!] extract failed (corrupt download?) - clean up and re-run:"
+    echo "        rm -f models/$PARAKEET_TARBALL && ./setup"
+    exit 1
+  }
   rm -f "models/$PARAKEET_TARBALL"
 fi
 # Verify the layout find_model_dir() expects.
@@ -50,7 +114,11 @@ echo ""
 echo "==> 3/5  Pre-pull the on-device correction LLM ($LLM_MODEL)"
 if [ "$(uname)" = "Darwin" ]; then
   echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
-  .venv/bin/hf download "$LLM_MODEL" >/dev/null
+  .venv/bin/hf download "$LLM_MODEL" >/dev/null || {
+    echo "    [!] LLM pre-pull failed - check your network, then re-run ./setup"
+    echo "        (or skip for now: it also downloads on first --llm dictation)"
+    exit 1
+  }
   echo "    ok"
 else
   echo "    skipped - the MLX homophone LLM is Apple-Silicon only; this OS runs without it."
@@ -80,13 +148,21 @@ echo ""
 echo "==> 5/5  Import sanity check (dependencies + the engine itself)"
 # mlx_lm is imported only on macOS - it's an Apple-Silicon wheel and is marked darwin-only in
 # requirements.txt, so it isn't installed elsewhere (the LLM stage is lazy + gated regardless).
-"$PY" -c "import sys, sherpa_onnx, sounddevice, pynput, pystray
+"$PY" -c "import sys, sherpa_onnx, sounddevice, pynput, pystray, llama_cpp
 if sys.platform == 'darwin':
     import mlx_lm
-print('    ok: dependencies import')"
+print('    ok: dependencies import')" || {
+  echo "    [!] dependency import failed (see traceback above) - re-run ./setup;"
+  echo "        if it keeps failing:  rm -rf .venv && ./setup"
+  exit 1
+}
 # Also import the engine (src/ on the path) so a broken layout fails HERE, with a clear
 # message, instead of at first dictation.
-PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform_io; print('    ok: engine imports')"
+PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform_io; print('    ok: engine imports')" || {
+  echo "    [!] engine import failed (see traceback above) - your checkout may be incomplete;"
+  echo "        make sure src/ is intact, then re-run ./setup"
+  exit 1
+}
 
 echo ""
 echo "Done. Now run:  ./dum"

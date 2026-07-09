@@ -31,16 +31,27 @@ for you.
 
 ## Install
 
-Three commands:
+One command (macOS / Linux):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/eliasmocik/dum-dictation/main/install.sh | bash
+```
+
+(On Windows, follow [On Windows](#on-windows) below instead - the one-liner is bash-only.)
+
+That clones the repo into `./dum-dictation` and runs `./setup`, which makes a virtualenv,
+installs the deps, downloads the speech model + the on-device correction model, and then tells
+you which permissions to grant. That's the whole setup. (On a Mac you'll still have to click
+through the permission prompts afterwards - see [Permissions](#permissions-one-time---mac-makes-you-do-this)
+right below.)
+
+Prefer not to pipe curl into bash? Same thing in three commands:
 
 ```sh
 git clone https://github.com/eliasmocik/dum-dictation.git
 cd dum-dictation
 ./setup
 ```
-
-`./setup` makes a virtualenv, installs the deps, downloads the speech model + the on-device
-correction model, and then tells you which permissions to grant. That's the whole setup.
 
 ## Permissions (one time - Mac makes you do this)
 
