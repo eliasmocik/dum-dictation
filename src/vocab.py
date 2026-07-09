@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-SEAM 2 — vocab as a pluggable data source.
+SEAM 2 - vocab as a pluggable data source.
 
 Base vocab (free, shipped) loads from base files. Additional vocab packs load from
 an optional extra directory (env DUM_VOCAB_DIR). Paid/closed vocab packs are then
-just .txt files dropped into that dir — no code change. The free core never depends
+just .txt files dropped into that dir - no code change. The free core never depends
 on the extra dir existing.
 """
 import os
@@ -45,7 +45,7 @@ def load_phrase_aliases(extra_dir=None):
     PHRASE_ALIASES in correct_phonetic.py so the two merge uniformly (same
     re.sub(..., flags=IGNORECASE) loop). Returns a list of (pattern, replacement)
     tuples; empty when no packs are present. Value mechanism for the tech-vocab
-    dictionary — additive, never replaces the base."""
+    dictionary - additive, never replaces the base."""
     out = []
     extra_dir = extra_dir or os.environ.get("DUM_VOCAB_DIR")
     if not (extra_dir and Path(extra_dir).is_dir()):

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-InsertionBackend — the ONE narrow seam through which the core puts text on screen.
+InsertionBackend - the ONE narrow seam through which the core puts text on screen.
 
 The platform-neutral core (audio -> VAD -> recognizer -> correction pipeline -> telemetry) drives this
 interface and NEVER knows the implementation: IMK (macOS marked text), clipboard paste, the synthetic
-keystroke overlay, Windows TSF, Linux IBus/Fcitx, etc. Backends do INSERTION ONLY — no recognition,
+keystroke overlay, Windows TSF, Linux IBus/Fcitx, etc. Backends do INSERTION ONLY - no recognition,
 correction, vocab, telemetry, personalization, or business logic lives in a backend (this is a hard
 architectural rule, esp. for the IMK backend). Goal: Apple-grade insertion on macOS without locking the
 product to Apple.
@@ -21,15 +21,15 @@ Capability + context:
     target = {"app","surface",...}  # optional per-call hint about where text is going, when known
 
 Concrete backends (built out in Phase 1):
-  * IMKBackend          — macOS marked text via the dum IMK over IPC (supports_marked_text=True)
-  * OverlayBackend      — the existing synthetic keystroke overlay (VS Code fallback)
-  * PasteBackend        — clipboard paste at commit (universal last-resort; no live preview)
+  * IMKBackend          - macOS marked text via the dum IMK over IPC (supports_marked_text=True)
+  * OverlayBackend      - the existing synthetic keystroke overlay (VS Code fallback)
+  * PasteBackend        - clipboard paste at commit (universal last-resort; no live preview)
 """
 
 
 class InsertionBackend:
     """Interface. Subclass per OS/mechanism. Every method must be safe to call and never raise into
-    the core (guard internally) — insertion must never break dictation."""
+    the core (guard internally) - insertion must never break dictation."""
 
     name = "base"
 
@@ -56,7 +56,7 @@ class InsertionBackend:
 
 
 class IMKBackend(InsertionBackend):
-    """macOS marked-text backend — drives the dum IMK input method (spikes/imk-dum) over IPC.
+    """macOS marked-text backend - drives the dum IMK input method (spikes/imk-dum) over IPC.
     INSERTION ONLY. Built in spike Checkpoint 2; stub for now so the interface + wiring exist."""
 
     name = "imk"

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Phase R — auto repo/path vocabulary harvester.
+Phase R - auto repo/path vocabulary harvester.
 
 Parse a git repo's tracked source, harvest DISTINCTIVE multi-component identifiers
 (camelCase / snake_case / SCREAMING_SNAKE / PascalCase), decompose each to the words
 you'd SPEAK ("ArgumentParser" -> "argument parser"), and emit a phrase-alias pack
 (`spoken form => CanonicalIdentifier`) in the exact format vocab.load_phrase_aliases
 already loads. The pack then flows through the same correction layers as the global
-pack — no new correction code.
+pack - no new correction code.
 
 Why ONLY multi-component identifiers (the de-risked safe rule): a multi-word spoken
-form is high-precision by construction — it can't collide with a single ordinary
+form is high-precision by construction - it can't collide with a single ordinary
 spoken word. Single-token identifiers (even distinctive ones like "kubectl") go to
-the fuzzy path, which the de-risk proved over-corrects at scale — so the auto-harvester
+the fuzzy path, which the de-risk proved over-corrects at scale - so the auto-harvester
 does NOT emit single-token aliases. Plus a drop rule for all-common-English short
 decompositions ("DataModel" -> "data model") that WOULD collide with ordinary speech.
 
@@ -37,7 +37,7 @@ SOURCE_EXTS = {
 
 # An identifier token: starts with a letter, contains letters/digits/_; we also keep
 # camelCase runs. We deliberately do NOT match all-lowercase single words here at the
-# distinctiveness stage — those are filtered out by is_multicomponent.
+# distinctiveness stage - those are filtered out by is_multicomponent.
 _IDENT = re.compile(r"[A-Za-z][A-Za-z0-9_]*[A-Za-z0-9]")
 
 # Common English + generic-code words. Used ONLY by the drop rule: a decomposition whose
@@ -84,12 +84,12 @@ def split_identifier(ident):
 
 def is_multicomponent(ident):
     """True if the identifier decomposes into >= 2 spoken words (camel/snake/SCREAMING).
-    The de-risked safe rule — only these become phrase-aliases."""
+    The de-risked safe rule - only these become phrase-aliases."""
     return len(split_identifier(ident)) >= 2
 
 
 def keep_decomposition(words):
-    """Drop a decomposition that is ALL common-English words AND short (< 3 words) — it
+    """Drop a decomposition that is ALL common-English words AND short (< 3 words) - it
     would collide with ordinary speech ('data model'). Longer or jargon-bearing phrases
     are high-precision and kept."""
     if len(words) >= 3:
@@ -127,7 +127,7 @@ def build_aliases(counter, min_freq=3, top_k=500):
     """Counter[identifier]->freq  =>  list of (spoken_form, canonical) alias pairs.
 
     Keep identifiers seen >= min_freq, drop all-common short decompositions, rank by
-    frequency and cap at top_k (the fuzzy/phrase layer stays precision-safe — the de-risk
+    frequency and cap at top_k (the fuzzy/phrase layer stays precision-safe - the de-risk
     proved dumping thousands over-corrects). When two identifiers share a spoken form
     (argumentParser vs ArgumentParser), the more frequent canonical wins."""
     by_spoken = {}   # spoken -> (canonical, freq)
@@ -157,7 +157,7 @@ def harvest_repo(root, min_freq=3, top_k=500):
 
 def aliases_to_pack(aliases):
     """Render alias pairs as a *.aliases pack body (vocab.load_phrase_aliases format)."""
-    lines = ["# auto-harvested repo vocabulary (repo_harvest.py) — spoken form => CanonicalIdentifier"]
+    lines = ["# auto-harvested repo vocabulary (repo_harvest.py) - spoken form => CanonicalIdentifier"]
     lines += [f"{spoken} => {canon}" for spoken, canon in aliases]
     return "\n".join(lines) + "\n"
 
@@ -177,11 +177,11 @@ def _cache_root():
 def ensure_repo_pack(cwd=None, min_freq=3, top_k=500):
     """Auto-at-launch entry (Decision G). Detect the git repo containing cwd, harvest the
     cwd subtree's vocabulary into a HEAD-keyed cache, and return the cache DIR (holding
-    repo.aliases, ready for load_phrase_aliases) — or None if cwd isn't in a git repo.
+    repo.aliases, ready for load_phrase_aliases) - or None if cwd isn't in a git repo.
 
     Harvest is scoped to cwd (not the repo toplevel) so a monorepo subproject doesn't pull
     in sibling projects. Regenerates only when HEAD changes or the cache is missing, so a
-    warm launch is a cheap file read (R.2 — never block the hotkey on re-harvest)."""
+    warm launch is a cheap file read (R.2 - never block the hotkey on re-harvest)."""
     cwd = os.path.abspath(cwd or os.getcwd())
     root = _git(["rev-parse", "--show-toplevel"], cwd)
     if not root:

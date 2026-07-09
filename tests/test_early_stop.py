@@ -3,7 +3,7 @@
 data-loss bug. Headless: no mic, no focused field.
 
 THE BUG (Elias-reported): dictate "...we grab the logs"; the LLM wants grab->grep on the final
-clause; double-tap LEFT Command to STOP the instant the last word is out — i.e. before the grep fix
+clause; double-tap LEFT Command to STOP the instant the last word is out - i.e. before the grep fix
 finishes applying. The commit reconcile (overlay backspace-then-retype, or the smart min-edit span
 replace) is a DESTRUCTIVE phase (backspace old chars) followed by a CONSTRUCTIVE phase (type new
 chars). If a stop/teardown cuts it in the middle, the backspaces land but the retype doesn't, leaving
@@ -21,11 +21,11 @@ WHY a stop can cut it (mapped in live.py):
 
 TWO THINGS THIS FILE PROVES
   (1) PRIMITIVE (documentation of the failure mode): an UNGUARDED reconcile cut at the
-      backspace->type seam half-applies — and DUM_MIN_EDIT only SHRINKS the loss (whole tail ->
+      backspace->type seam half-applies - and DUM_MIN_EDIT only SHRINKS the loss (whole tail ->
       one diff span), it does NOT make it atomic. This is asserted, so if someone "fixes" it by
       tweaking min-edit alone, this test still shows the half-apply is possible at the primitive.
   (2) ORCHESTRATION (the actual fix): the live.py `_reconcile_lock` barrier means stop()/teardown
-      WAITS for an in-flight reconcile to finish as one atomic unit before tearing down — so the
+      WAITS for an in-flight reconcile to finish as one atomic unit before tearing down - so the
       ON-SCREEN result is always atomic (full grep fix, or untouched original), never a truncation.
       Tested with REAL threads in the racing interleave, and proven NOT to deadlock (bounded drain).
 
@@ -107,7 +107,7 @@ def typed_start(cut_at_seam=False, min_edit=True):
 
 
 # --------------------------------------------------------------------------------------------------
-# (1) PRIMITIVE — the failure mode, on record. An unguarded reconcile cut at the seam half-applies.
+# (1) PRIMITIVE - the failure mode, on record. An unguarded reconcile cut at the seam half-applies.
 # --------------------------------------------------------------------------------------------------
 def test_primitive_half_apply():
     print("== (1) primitive: an unguarded reconcile cut at the backspace->type seam half-applies ==")
@@ -140,14 +140,14 @@ def test_primitive_half_apply():
 
 
 # --------------------------------------------------------------------------------------------------
-# (2) ORCHESTRATION — the actual fix: a _reconcile_lock barrier makes stop()/teardown wait for an
+# (2) ORCHESTRATION - the actual fix: a _reconcile_lock barrier makes stop()/teardown wait for an
 # in-flight reconcile, so the on-screen result is ATOMIC. Real threads, real racing interleave.
 #
 # This faithfully models live.py:
 #   * a daemon "worker" runs the flush-commit reconcile, holding `_reconcile_lock` for the whole
 #     destructive+constructive insertion (live.py commit());
 #   * stop() clears `running`, then uses the lock as a BARRIER (acquire+release, bounded) before
-#     "tearing down" — and never KILLS the worker, it joins it.
+#     "tearing down" - and never KILLS the worker, it joins it.
 # We force the worst interleave (stop fires DURING the reconcile) with events, and assert the
 # reconstructed on-screen buffer is atomic. We also assert no deadlock and a bounded drain.
 # --------------------------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ def test_orchestration_atomic():
     drained = reconcile_lock.acquire(timeout=3.0)   # barrier: WAITS for the reconcile to finish
     if drained:
         reconcile_lock.release()
-    # teardown joins the worker (never kills it) — in live.py the daemon would only be killed on
+    # teardown joins the worker (never kills it) - in live.py the daemon would only be killed on
     # process exit, which now happens AFTER this join returns.
     w.join(timeout=3.0)
 
@@ -193,7 +193,7 @@ def test_orchestration_atomic():
 
 def test_no_deadlock_bounded_drain():
     """If a reconcile somehow never finishes, the barrier MUST time out (bounded) and let teardown
-    proceed — so stop()/Ctrl-C can never hang. Models a stuck reconcile holding the lock forever."""
+    proceed - so stop()/Ctrl-C can never hang. Models a stuck reconcile holding the lock forever."""
     print("\n== (3) bounded drain: barrier never hangs teardown (Ctrl-C safety) ==")
     lock = threading.Lock()
     stuck = threading.Event()
@@ -212,7 +212,7 @@ def test_no_deadlock_bounded_drain():
     if got:
         lock.release()
     check(not got, "barrier returns without acquiring when a reconcile is stuck (proceeds with warning)")
-    check(elapsed < 1.0, f"barrier is BOUNDED ({elapsed:.2f}s) — teardown/Ctrl-C cannot deadlock")
+    check(elapsed < 1.0, f"barrier is BOUNDED ({elapsed:.2f}s) - teardown/Ctrl-C cannot deadlock")
 
 
 if __name__ == "__main__":

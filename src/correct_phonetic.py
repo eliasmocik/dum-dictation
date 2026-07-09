@@ -77,7 +77,7 @@ class PhoneticCorrector:
         # explicit multi-word aliases first (shipped base + pack-loaded, see __init__)
         for pat, rep in self.phrase_aliases:
             text = re.sub(pat, rep, text, flags=re.IGNORECASE)
-        # collapse immediate duplicate words ("cache cache" -> "cache") — ASR stutter.
+        # collapse immediate duplicate words ("cache cache" -> "cache") - ASR stutter.
         # BUT keep the repeat when the first copy carries trailing punctuation ("very,
         # very important"): that comma is a deliberate pause/emphasis, not a stutter, and
         # collapsing it drops a meaningful word. True stutter has no punctuation between

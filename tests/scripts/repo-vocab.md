@@ -1,8 +1,8 @@
-# R payoff script — READ THESE ALOUD (proves the auto-harvested REPO pack lands)
+# R payoff script - READ THESE ALOUD (proves the auto-harvested REPO pack lands)
 
-Goal: confirm the repo harvester's aliases actually fire on real mic audio — i.e. when you talk about
+Goal: confirm the repo harvester's aliases actually fire on real mic audio - i.e. when you talk about
 *this codebase's* symbols, they come out as the real identifiers. Read each line naturally, **pause
-~1s between lines**. Say the **spoken** form (the words), not the identifier — that's the whole point.
+~1s between lines**. Say the **spoken** form (the words), not the identifier - that's the whole point.
 
 Run this WITH the harvested repo pack loaded (commands below the lines).
 
@@ -17,7 +17,7 @@ Run this WITH the harvested repo pack loaded (commands below the lines).
 7. set dum vocab dir to point at the pack
 8. build parakeet then call event bus
 
-## Controls — must stay untouched
+## Controls - must stay untouched
 
 9. let's grab a coffee and talk about the weekend
 10. the quick brown fox jumps over the lazy dog
@@ -39,6 +39,6 @@ mkdir -p /tmp/repo_pack && .venv/bin/python repo_harvest.py . /tmp/repo_pack/rep
 # 2. record (~40s):
 scripts/record.sh recordings/repo-vocab.wav 40
 
-# 3. pack ON (global + repo): read the FIXED column — do the identifiers land?
+# 3. pack ON (global + repo): read the FIXED column - do the identifiers land?
 DUM_VOCAB_DIR=/tmp/repo_pack .venv/bin/python probe.py recordings/repo-vocab.wav
 ```

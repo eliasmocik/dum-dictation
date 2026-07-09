@@ -73,7 +73,7 @@ check("stream: eager follows a revised word 0",
 # eager no-op on empty input
 check("stream: eager empty preview", streaming_prefix([], [], eager_first=True), [])
 # eager REFUSES a leading onset filler from a single preview (no "what"/"oh"/"okay"
-# flash) — it waits for two-preview agreement instead
+# flash) - it waits for two-preview agreement instead
 check("stream: eager skips leading filler",
       streaming_prefix([], ["what", "is", "the"], eager_first=True),
       [])
@@ -333,7 +333,7 @@ check("stream e2e: eager word-0 self-corrects", ov.typed, "transcriptor as good"
 check("stream e2e: a mid-stream correction backspaced",
       any(k == "backspace" for k, _ in ov.ops), True)
 
-# clean speech (no revision) stays append-only — NO backspaces, no churn
+# clean speech (no revision) stays append-only - NO backspaces, no churn
 ov2 = stream([["open"], ["open", "the"], ["open", "the", "config"],
               ["open", "the", "config"]])
 check("stream e2e: clean append result", ov2.typed, "open the config")
@@ -363,7 +363,7 @@ check("hold: no alias involvement", hold_alias_prefix(["hello", "world"], PS), [
 check("hold: empty prefix set passthrough", hold_alias_prefix(["V", "S"], frozenset()), ["V", "S"])
 check("hold: idempotent", hold_alias_prefix(hold_alias_prefix(["I", "V", "S"], PS), PS), ["I"])
 
-# end-to-end: with the hold, the overlay types "VS Code" in ONE shot — NO backspace/retype.
+# end-to-end: with the hold, the overlay types "VS Code" in ONE shot - NO backspace/retype.
 # previews arrive already corrected (live.py runs the preview corrector first), so the letters
 # merge to "VS Code" on the tick "code" lands.
 def stream_held(previews, prefix_set):

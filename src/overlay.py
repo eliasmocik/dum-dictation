@@ -5,7 +5,7 @@ Word-by-word live overlay (Milestone A).
 Streams *stabilized* words to the cursor as you speak, then does ONE minimal
 backspace+retype "reconcile" at sentence-final to apply the correction pipeline's
 fixes (e.g. grab->grep). The hard constraint: we cannot read the screen, only
-type characters and send backspaces — so a wrong diff deletes real text. The
+type characters and send backspaces - so a wrong diff deletes real text. The
 design avoids that:
 
   * During speech we ONLY append. A word "locks" once two consecutive growing-
@@ -17,7 +17,7 @@ design avoids that:
 
 The two decision functions below are PURE (unit-tested in test_overlay.py).
 OverlayTyper is the thin side-effectful keystroke layer (pynput), with a `dry`
-mode that records ops instead of sending them — for safe testing without a cursor.
+mode that records ops instead of sending them - for safe testing without a cursor.
 """
 import os, re, difflib
 
@@ -25,7 +25,7 @@ _PUNCT = re.compile(r"[^\w]+")
 
 
 def _norm_word(w):
-    """A word stripped to its bare alphanumerics, lowercased — for deciding whether
+    """A word stripped to its bare alphanumerics, lowercased - for deciding whether
     two words differ *meaningfully* (grab vs grep) or only cosmetically (Hello. vs
     Hello,, github vs GitHub)."""
     return _PUNCT.sub("", w).lower()
@@ -38,7 +38,7 @@ def _norm_word(w):
 # hallucinated one never flashes. Normalized (lowercase, no punctuation).
 # Onset breath artifacts: a breath in/out at the very start of dictation reliably
 # decodes to one of these across TWO consecutive previews, so it clears the two-preview
-# agreement gate and would show. We hold a lone leading one until a real word joins it —
+# agreement gate and would show. We hold a lone leading one until a real word joins it -
 # the breath gets revised away before that happens (never shown), while a genuine
 # "yeah let's go" / "sh deploy.sh" shows intact one preview later. Scoped narrowly so
 # genuine "so"/"okay" openers are NOT delayed through this path. Verified by Elias:
@@ -77,19 +77,19 @@ def streaming_prefix(prev_words, cur_words, eager_first=False, at_start=False, s
     to the first word of this single preview so typing STARTS a preview sooner.
 
     `stable` lets the caller SUPPLY the stable prefix instead of computing two-preview
-    agreement here — Phase 1 passes the age-based reveal prefix (see age_stable_count),
+    agreement here - Phase 1 passes the age-based reveal prefix (see age_stable_count),
     while all the onset gates below (breath/filler/eager) still apply unchanged. Pass a
     list (possibly empty = nothing stable yet) to use it; None = compute agreement (old).
 
     The overlay reconciles its on-screen text TO this string each tick, which both
     appends newly-stable words (cheap, no backspaces) AND corrects an earlier word the
-    model has since revised — turning an eager mis-guess from a wrong word that lingers
+    model has since revised - turning an eager mis-guess from a wrong word that lingers
     until commit into a ~one-preview flash that self-corrects as more audio arrives.
 
     `at_start` (nothing typed yet) additionally suppresses an all-breath stable prefix:
     a breath at the onset reliably decodes to "yeah" / "h" / "sh" across TWO previews,
     so it clears the agreement gate and would show. We hold such a lone leading token
-    until a real word joins it — the breath gets revised away before that happens (never
+    until a real word joins it - the breath gets revised away before that happens (never
     shown), while a genuine "yeah let's go" shows intact one preview later. Scoped to
     BREATH_FILLERS so genuine "so"/"okay" openers are NOT delayed through this path."""
     sp = stable_prefix(prev_words, cur_words) if stable is None else stable
@@ -98,7 +98,7 @@ def streaming_prefix(prev_words, cur_words, eager_first=False, at_start=False, s
             return []
         return sp
     if eager_first and cur_words and _norm_word(cur_words[0]) not in EAGER_FILLERS:
-        # Don't eager-flash a leading onset filler from a single preview — wait for
+        # Don't eager-flash a leading onset filler from a single preview - wait for
         # two-preview agreement so a hallucinated "what"/"oh"/"okay" never shows. A
         # real filler is confirmed (and shown) one preview later. See EAGER_FILLERS.
         return cur_words[:1]
@@ -127,7 +127,7 @@ def hold_alias_prefix(words, prefix_set):
 
     Suffix-only by design: when the alias completes, the corrector has already collapsed the tokens
     to the canonical form (no longer a prefix) so the whole phrase reveals; when the prefix BREAKS
-    (you actually said "V S Go"), the trailing run stops matching and everything reveals — one preview
+    (you actually said "V S Go"), the trailing run stops matching and everything reveals - one preview
     later, never a backspace-retype. Pure; never mutates kept tokens. Empty prefix_set => unchanged.
     commit() retypes the full corrected text, so a held phrase is never lost even if held to commit."""
     if not prefix_set or not words:
@@ -141,10 +141,10 @@ def hold_alias_prefix(words, prefix_set):
 
 
 def age_stable_count(starts, window_len_s, margin):
-    """How many leading words are stable *by audio age* — Phase 1 (one-by-one reveal).
+    """How many leading words are stable *by audio age* - Phase 1 (one-by-one reveal).
 
     A word is age-stable once its SUCCESSOR starts at or before `window_len_s - margin`,
-    i.e. the word's right boundary sits at least `margin` seconds behind the live edge —
+    i.e. the word's right boundary sits at least `margin` seconds behind the live edge -
     enough right-context that the recognizer won't revise it. We always leave >=1 trailing
     word unstable (the word still being spoken), so the last word never reveals on its own
     half-formed guess. `starts` are per-word start times in seconds within the decode
@@ -155,7 +155,7 @@ def age_stable_count(starts, window_len_s, margin):
     trim its audio) and the smaller DISPLAY margin (reveal the word on screen sooner). A
     smaller margin => larger count => earlier reveal; `margin == LOCK_MARGIN_S` reproduces
     the lock count exactly. Because it keys on the audio timeline (not on two consecutive
-    previews agreeing), it skips the extra preview the old two-preview gate waited for —
+    previews agreeing), it skips the extra preview the old two-preview gate waited for -
     the cause of the 3-4 word clumps / "freeze while it confirms" feel."""
     cutoff = window_len_s - margin
     n = 0
@@ -169,7 +169,7 @@ def reconcile_ops(typed, target):
 
     Backspace everything after the longest common character prefix, then type the
     remainder. Returns (n_backspace, to_type). Cursor-at-end only (no repositioning),
-    so we can't exploit a common suffix — but it's always correct and stays at the
+    so we can't exploit a common suffix - but it's always correct and stays at the
     end where dictation leaves it."""
     n = 0
     m = min(len(typed), len(target))
@@ -180,7 +180,7 @@ def reconcile_ops(typed, target):
 
 def reconcile_words(typed, target):
     """Lower-churn reconcile: skip leading words that differ only cosmetically
-    (punctuation/case) — keep them as typed — then char-level reconcile from the
+    (punctuation/case) - keep them as typed - then char-level reconcile from the
     first *meaningfully* changed word onward.
 
     This is the daily-driver win: `Hello.`->`Hello,` (cosmetic) costs zero edits,
@@ -200,7 +200,7 @@ def reconcile_words(typed, target):
 
 
 def min_edit_script(typed, target, max_spans=8):
-    """Multi-span minimal cursor edit from `typed` to `target` (Phase 2 — smart
+    """Multi-span minimal cursor edit from `typed` to `target` (Phase 2 - smart
     cursor-edit). Returns a list of `(start, n_backspace, text)` ops in ascending
     `start` order; the caller (OverlayTyper.apply_edits) applies them RIGHT-TO-LEFT
     so each left span's offset stays valid as the right ones rewrite.
@@ -238,7 +238,7 @@ class OverlayTyper:
     def __init__(self, dry=False, max_backspace=300, platform=None, quiet=None,
                  min_edit=None, max_travel=200):
         self.dry = dry
-        # quiet dry mode still records ops (tests read them) but skips the per-op print —
+        # quiet dry mode still records ops (tests read them) but skips the per-op print -
         # used by bench/replay so the regression output isn't buried in keystroke logs.
         self.quiet = (os.environ.get("DUM_OVERLAY_QUIET") == "1") if quiet is None else quiet
         self.max_backspace = max_backspace
@@ -266,7 +266,7 @@ class OverlayTyper:
             if not self.quiet:
                 print(f"   [overlay] type {s!r}", flush=True)
         elif self.platform is not None:
-            self.platform.type_text(s)    # Unicode insertion — not mangled by Slovak/etc layouts
+            self.platform.type_text(s)    # Unicode insertion - not mangled by Slovak/etc layouts
         else:
             self.kb.type(s)
 
@@ -340,11 +340,11 @@ class OverlayTyper:
 
     def reconcile(self, target, exact=False):
         """Edit the on-screen text to `target`. Returns True if applied, False if the
-        edit would exceed max_backspace (a safety bail-out — leaves text untouched).
+        edit would exceed max_backspace (a safety bail-out - leaves text untouched).
 
         exact=False (streaming): low-churn word diff that SKIPS cosmetic-only leading
         words (punctuation/case) to avoid retyping the tail every preview.
-        exact=True (commit): char-level diff that reproduces `target` EXACTLY — so the
+        exact=True (commit): char-level diff that reproduces `target` EXACTLY - so the
         final text keeps Parakeet's real punctuation (?, .) and casing instead of the
         cosmetic-skipped version (which silently dropped sentence-final '?'/'.').
 

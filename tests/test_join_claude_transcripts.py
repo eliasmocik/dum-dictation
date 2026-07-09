@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for scripts/join_claude_transcripts.py — the Claude Code transcript join that recovers
+"""Unit tests for scripts/join_claude_transcripts.py - the Claude Code transcript join that recovers
 the EXACT post-commit edit signal for dictation into the Claude Code prompt (which no VS Code
 extension can read). Tests the pure core: timestamp parsing, windowed best-match, and join_session."""
 import os, sys

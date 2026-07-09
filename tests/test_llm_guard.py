@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for the LLM correction GUARDS — the deterministic logic that decides whether and
+Unit tests for the LLM correction GUARDS - the deterministic logic that decides whether and
 where a homophone swap lands, WITHOUT loading the model. Run: .venv/bin/python test_llm_guard.py
 
 Covers the two bugs the live feel-check surfaced:

@@ -33,9 +33,9 @@ POS = [
     ("the overlay applies the min edited script.", "the overlay applies the min_edit_script."),
     ("clean punked runs here", "clean_punct runs here"),
 ]
-# NEGATIVE: must stay UNTOUCHED — the safety invariants
+# NEGATIVE: must stay UNTOUCHED - the safety invariants
 NEG = [
-    "I saw a deer in the forest",              # standalone 'deer' — no anchor, never single-word
+    "I saw a deer in the forest",              # standalone 'deer' - no anchor, never single-word
     "open a web socket now",                   # exact match -> that's the regular alias's job
     "the engine is down so restart",           # 'engine' alone ('engine x' needs the 'x' anchor)
     "move the needle on this project",         # ordinary prose

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# draft-ref <wav> — offline-transcribe a clip into a DRAFT reference for the bench corpus.
+# draft-ref <wav> - offline-transcribe a clip into a DRAFT reference for the bench corpus.
 # Writes <wav-without-ext>.ref.txt using the full-utterance Parakeet (the accuracy ceiling),
 # so you only have to FIX the few wrong words instead of typing the whole thing.
 #

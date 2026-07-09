@@ -1,8 +1,8 @@
-# Feel-check — the manual UX gate (~2 min)
+# Feel-check - the manual UX gate (~2 min)
 
 The bench (`scripts/test`) measures correctness + latency objectively. It **cannot** judge
 how the tool *feels*: snappiness, word-by-word smoothness, wrong-word flicker, and the one
-thing that matters most — **does it ever corrupt or lose text**. Run this by hand after any
+thing that matters most - **does it ever corrupt or lose text**. Run this by hand after any
 change that could affect the live overlay, and a few times a week while dogfooding.
 
 > Lesson that created this file (2026-06-15): the bench *disproved* the theory that chunkiness
@@ -17,14 +17,14 @@ Launch the real daily driver and put the cursor in a **scratch** doc (never real
 ./dum
 ```
 
-Test in **both** surfaces — they take different overlay paths:
+Test in **both** surfaces - they take different overlay paths:
 - a plain-text app (TextEdit / a scratch note) → live-typed overlay
 - a VS Code editor or terminal → live-typed overlay
 - (optional) a rich-text app (Notes) → paste-at-commit path
 
 Double-tap **left ⌘** to start/stop.
 
-## Probes — dictate each, watch the screen
+## Probes - dictate each, watch the screen
 
 1. **Short:** "Let's ship this today."
 2. **Long run-on (no pause):** "So the plan is to grow the corpus first and then fix the
@@ -44,7 +44,7 @@ Double-tap **left ⌘** to start/stop.
 | 6 | **Accuracy/terms** | tech terms right; "grab a coffee" stays grab; "grep the logs" becomes grep | |
 | 7 | **Annoyance** | no stray sounds, no double-spaces, nothing that breaks flow | |
 
-**Dimension 1 is a hard gate** — any text corruption = fail, stop and report, regardless of the rest.
+**Dimension 1 is a hard gate** - any text corruption = fail, stop and report, regardless of the rest.
 
 ## Log it
 

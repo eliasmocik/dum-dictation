@@ -5,11 +5,11 @@ Headless: every interactive path is driven with a mocked input_fn + a StringIO `
 so no TTY/mic is needed. Covers:
   * load/save round-trip
   * default-when-missing (no file) and default-healing (corrupt/partial file)
-  * wizard input parsing — numbered choice AND Enter-for-default — with mocked stdin
+  * wizard input parsing - numbered choice AND Enter-for-default - with mocked stdin
   * the no-regression default (recommended choices == today's behavior)
 
 The interactive hotkey firing / push-to-talk / real mic capture are NOT testable
-headlessly — flagged PENDING in the build report.
+headlessly - flagged PENDING in the build report.
 """
 import io
 import json
@@ -22,7 +22,7 @@ import config
 
 def _feed(*answers):
     """Build an input_fn that returns the given answers in order (then raises if
-    over-consumed — catches a picker that loops when it shouldn't)."""
+    over-consumed - catches a picker that loops when it shouldn't)."""
     it = iter(answers)
 
     def _fn():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test the clipboard-safe atomic paste algorithm (platform_io.MacPlatform.paste_atomic) — the fix for
+"""Test the clipboard-safe atomic paste algorithm (platform_io.MacPlatform.paste_atomic) - the fix for
 the long-standing clipboard-clobber bug now that EVERY surface pastes (HUD/session model). We exercise
 the ALGORITHM (snapshot -> set our text -> Cmd+V -> restore-on-success, leave-on-block) against an
 in-memory fake clipboard, so the real NSPasteboard and a real Cmd+V are never touched."""
@@ -69,7 +69,7 @@ ok = p.paste_atomic("git status")
 check(ok is True, "success: paste_atomic returns True")
 check(p.pastes_sent == 1, "success: exactly one Cmd+V sent")
 check(p.text() == "USER ORIGINAL", "success: user's clipboard text restored")
-check(p._items[0].get(RTF_T) == b"{\\rtf USER}", "success: full fidelity — RTF type also restored")
+check(p._items[0].get(RTF_T) == b"{\\rtf USER}", "success: full fidelity - RTF type also restored")
 
 # --- blocked path (secure input): returns False, our text LEFT on clipboard, NO paste, NO restore -----
 p = FakeClipboardMac(ORIGINAL, secure=True)

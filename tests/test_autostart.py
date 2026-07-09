@@ -2,8 +2,8 @@
 """Unit tests for the auto-start builders (autostart.py).
 
 Both builders are PURE (no launchctl / no schtasks), so they're tested on any OS:
-  * macOS launchd plist — RunAtLoad + KeepAlive-on-crash-only + GUI session
-  * Windows Task Scheduler XML — LogonTrigger + RestartOnFailure + InteractiveToken
+  * macOS launchd plist - RunAtLoad + KeepAlive-on-crash-only + GUI session
+  * Windows Task Scheduler XML - LogonTrigger + RestartOnFailure + InteractiveToken
 The install/uninstall/status verbs shell out to the OS scheduler; macOS + Windows are
 implemented, so only Linux still raises NotImplementedError (asserted on Linux).
 """

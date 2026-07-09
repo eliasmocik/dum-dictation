@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Linux (systemd --user) auto-start backend (split out of autostart.py).
-Owner: unassigned — parked. Public install/uninstall/status dispatch lives in autostart.py."""
+Owner: unassigned - parked. Public install/uninstall/status dispatch lives in autostart.py."""
 import subprocess
 from pathlib import Path
 
@@ -14,12 +14,12 @@ def service_unit_path():
 
 
 def build_unit(exec_start, workdir):
-    """The systemd --user unit text (pure — unit-testable without systemctl). Starts after the
+    """The systemd --user unit text (pure - unit-testable without systemctl). Starts after the
     graphical session (so DISPLAY/clipboard are up), relaunches on crash (Restart=on-failure =
     the KeepAlive analog), and is pulled in at login by default.target."""
     return (
         "[Unit]\n"
-        "Description=dum dictation — start at login, relaunch on crash\n"
+        "Description=dum dictation - start at login, relaunch on crash\n"
         "After=graphical-session.target\n"
         "PartOf=graphical-session.target\n"
         "\n"
@@ -45,7 +45,7 @@ def _linux_install(args=None):
     venv_python = REPO_ROOT / ".venv" / "bin" / "python"
     if not venv_python.exists():
         raise FileNotFoundError(
-            f"{venv_python} not found — run ./setup first so the venv exists before installing auto-start.")
+            f"{venv_python} not found - run ./setup first so the venv exists before installing auto-start.")
     exec_start = " ".join([str(launcher), *args])
     path = service_unit_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,7 @@ def _linux_install(args=None):
     ok = r.returncode == 0
     print(f"[autostart] wrote {path}")
     if ok:
-        print(f"[autostart] enabled {SERVICE_NAME} — dum starts at login and relaunches on crash.")
+        print(f"[autostart] enabled {SERVICE_NAME} - dum starts at login and relaunches on crash.")
         print("            (needs an X11 session for xdotool/xclip; on Wayland install ydotool + "
               "wl-clipboard. If the tray doesn't appear at login, check `systemctl --user status dum`.)")
     else:
@@ -70,7 +70,7 @@ def _linux_uninstall():
     if existed:
         path.unlink()
         _systemctl("daemon-reload")
-        print(f"[autostart] removed {path} — dum will no longer start at login.")
+        print(f"[autostart] removed {path} - dum will no longer start at login.")
     else:
         print("[autostart] nothing to remove (no systemd unit installed).")
     return existed

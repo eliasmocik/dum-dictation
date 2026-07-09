@@ -1,7 +1,7 @@
 # Read this aloud (for the bake-off)
 
 Start speaking **immediately** when recording begins (don't leave dead air at the
-front — it inflates the latency number), at a normal dictation pace.
+front - it inflates the latency number), at a normal dictation pace.
 
 ---
 

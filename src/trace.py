@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Latency tracer — the instrumentation behind `live.py --trace`.
+Latency tracer - the instrumentation behind `live.py --trace`.
 
 Writes one JSON object per line with a high-resolution monotonic timestamp (`t`,
 seconds since the tracer was created) so a recorded session can be decomposed into

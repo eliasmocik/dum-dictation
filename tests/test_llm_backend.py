@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LLMBackend seam tests — prove the inference seam is correct WITHOUT loading any model.
+LLMBackend seam tests - prove the inference seam is correct WITHOUT loading any model.
 
 The point of the seam: model load + token generation are the only platform-specific atoms;
 all the gating/validation lives once in LLMCorrector. So we inject a FakeBackend (canned raw
@@ -60,7 +60,7 @@ out, fired, dt = c.correct("first get clone the repo then push", force=True)
 check("seam applies validated pair (get->git in git context)", out == "first git clone the repo then push")
 check("correct() reports fired through the seam", fired is True)
 
-# 5) the corrector — not the backend — still enforces the IT-term safety filter
+# 5) the corrector - not the backend - still enforces the IT-term safety filter
 fb2 = FakeBackend("coffee->latte")           # 'latte' is not an IT term => must be dropped
 c2 = LLMCorrector(TERMS, backend=fb2)
 out2, _, _ = c2.correct("grab a coffee at noon", force=True)
@@ -81,7 +81,7 @@ check("backend receives the input text as the final user turn",
       msgs[-1]["role"] == "user" and msgs[-1]["content"] == "first get clone the repo then push")
 check("max_tokens forwarded to backend", mt == 48)
 
-# 8) MlxBackend exists and conforms to the interface (don't instantiate — needs Apple Silicon + model)
+# 8) MlxBackend exists and conforms to the interface (don't instantiate - needs Apple Silicon + model)
 check("MlxBackend is an LLMBackend", issubclass(MlxBackend, LLMBackend))
 
 print("\n" + ("ALL CHECKS PASSED" if not fail else "SOME CHECKS FAILED"))

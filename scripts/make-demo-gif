@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make-demo-gif — turn a screen recording into the optimized docs/demo.gif for the README.
+# make-demo-gif - turn a screen recording into the optimized docs/demo.gif for the README.
 #
 # You record (Cmd+Shift+5 => "Record Selected Portion"), this does ALL the editing:
 # trims (optional), scales, sets a sane frame rate, and runs a two-pass palette for
@@ -14,7 +14,7 @@
 #   --dur SEC     keep only SEC seconds from the start point (cut the tail)
 #   --speed N     speed up by N× (e.g. 1.4 = a little quicker; default 1 = original)
 #   --width PX    output width in px           (default 1000; height auto, keeps aspect)
-#   --fps N       frames per second            (default 14 — smooth enough, small file)
+#   --fps N       frames per second            (default 14 - smooth enough, small file)
 #   --out PATH    output path                  (default docs/demo.gif)
 #
 # Tip: keep the recording TIGHT (start talking right away, stop right after) and you

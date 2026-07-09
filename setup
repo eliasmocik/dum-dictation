@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup — one command to make a freshly-cloned checkout runnable.
+# setup - one command to make a freshly-cloned checkout runnable.
 #
 #   ./setup
 #
@@ -29,7 +29,7 @@ fi
 echo ""
 echo "==> 2/5  Parakeet speech model"
 if [ -f "$PARAKEET_DIR/encoder.int8.onnx" ] && [ -f "$PARAKEET_DIR/tokens.txt" ]; then
-  echo "    already present at $PARAKEET_DIR — skipping download"
+  echo "    already present at $PARAKEET_DIR - skipping download"
 else
   mkdir -p models
   echo "    downloading $PARAKEET_TARBALL (~480 MB) ..."
@@ -43,7 +43,7 @@ missing=0
 for f in encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt; do
   if [ ! -f "$PARAKEET_DIR/$f" ]; then echo "    [!] missing $PARAKEET_DIR/$f"; missing=1; fi
 done
-if [ "$missing" -ne 0 ]; then echo "    [!] Parakeet model is incomplete — re-run ./setup"; exit 1; fi
+if [ "$missing" -ne 0 ]; then echo "    [!] Parakeet model is incomplete - re-run ./setup"; exit 1; fi
 echo "    ok: 3 .onnx files + tokens.txt in $PARAKEET_DIR"
 
 echo ""
@@ -53,7 +53,7 @@ if [ "$(uname)" = "Darwin" ]; then
   .venv/bin/hf download "$LLM_MODEL" >/dev/null
   echo "    ok"
 else
-  echo "    skipped — the MLX homophone LLM is Apple-Silicon only; this OS runs without it."
+  echo "    skipped - the MLX homophone LLM is Apple-Silicon only; this OS runs without it."
 fi
 
 echo ""
@@ -61,9 +61,9 @@ if [ "$(uname)" = "Darwin" ]; then
   echo "==> 4/5  macOS permissions (grant these to your TERMINAL app, then relaunch it)"
   cat <<'PERMS'
     System Settings > Privacy & Security, grant to your terminal app:
-      1. Microphone        — to capture your voice
-      2. Accessibility     — to type/paste text into the focused app
-      3. Input Monitoring  — to detect the double-tap left Command hotkey
+      1. Microphone        - to capture your voice
+      2. Accessibility     - to type/paste text into the focused app
+      3. Input Monitoring  - to detect the double-tap left Command hotkey
     Then QUIT and reopen the terminal so the grants take effect.
 PERMS
 else
@@ -71,14 +71,14 @@ else
   cat <<'PERMS'
     Install the typing/clipboard tools if you haven't:  xdotool  xclip   (or wl-clipboard on Wayland)
       e.g.  sudo apt install xdotool xclip
-    Make sure your user can use the microphone (PulseAudio/PipeWire) — usually already fine.
+    Make sure your user can use the microphone (PulseAudio/PipeWire) - usually already fine.
     Default hotkey: double-tap RIGHT Ctrl (change it with ./dum --config).
 PERMS
 fi
 
 echo ""
 echo "==> 5/5  Import sanity check (dependencies + the engine itself)"
-# mlx_lm is imported only on macOS — it's an Apple-Silicon wheel and is marked darwin-only in
+# mlx_lm is imported only on macOS - it's an Apple-Silicon wheel and is marked darwin-only in
 # requirements.txt, so it isn't installed elsewhere (the LLM stage is lazy + gated regardless).
 "$PY" -c "import sys, sherpa_onnx, sounddevice, pynput, pystray
 if sys.platform == 'darwin':

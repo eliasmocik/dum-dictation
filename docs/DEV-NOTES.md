@@ -12,12 +12,12 @@ Before changing anything, establish a known-good baseline:
    ```
    It must end with `ALL GREEN`.
 2. **Manual mic feel-check** (subjective: the gate can't judge how it *feels*). Launch
-   `./dum` and dictate a couple of sentences into a scratch document — see
+   `./dum` and dictate a couple of sentences into a scratch document - see
    [`tests/FEEL-CHECK.md`](tests/FEEL-CHECK.md) and [`smoke-test.md`](smoke-test.md) for the
    read-aloud lines. You're watching for: snappy word-by-word reveal, no wrong-word flicker,
    and above all **no corrupted or lost text**.
 
-Numbers and feel catch different bugs — run both.
+Numbers and feel catch different bugs - run both.
 
 ## The gate: `scripts/test`
 
@@ -32,7 +32,7 @@ scripts/test --update     # accept current bench numbers as the new baseline
   insertion seam, atomic paste.
 - **Bench** (`bench.py`) replays golden fixtures through the *real* `live.py` loop and scores
   WER, IT-term recall, and per-preview proc latency against `tests/baseline.json`.
-- The corpus audio (`tests/corpus/*.wav`) is **local-only voice data and gitignored** — the
+- The corpus audio (`tests/corpus/*.wav`) is **local-only voice data and gitignored** - the
   bench skips any fixture whose WAV isn't present, so a fresh clone runs the unit suites and
   benches whatever audio you've recorded locally.
 
@@ -40,19 +40,19 @@ scripts/test --update     # accept current bench numbers as the new baseline
 
 - Correctness must not regress: aim for `inject=0` everywhere, with term recall and WER matching
   the baseline.
-- A `proc_med` (median preview latency) flag is usually **CPU-contention noise** — e.g. the
-  bench running while `./dum` is also live — not a code regression. Re-run the bench alone
+- A `proc_med` (median preview latency) flag is usually **CPU-contention noise** - e.g. the
+  bench running while `./dum` is also live - not a code regression. Re-run the bench alone
   to confirm before treating it as real.
 
 ## Known-bugs watch list
 
-- **Quick-stop truncation** — stopping dictation immediately after speaking can leave a
+- **Quick-stop truncation** - stopping dictation immediately after speaking can leave a
   half-applied overlay reconcile (backspaces land but the retype is dropped), truncating the
   sentence tail. Watch for this when touching the overlay commit/reconcile path.
-- **Editor AX blindness** — VS Code (Electron) doesn't expose its text to macOS Accessibility,
+- **Editor AX blindness** - VS Code (Electron) doesn't expose its text to macOS Accessibility,
   so post-commit edit capture falls back to a content-free keystroke proxy there. The optional
   VS Code telemetry extension exists to close this gap.
-- **Rich-text live preview** — apps that paste-at-commit (rich-text surfaces) don't show the
+- **Rich-text live preview** - apps that paste-at-commit (rich-text surfaces) don't show the
   word-by-word reveal; that's by design (overlay keystrokes would mangle rich text), not a bug.
 
 ## Useful env toggles

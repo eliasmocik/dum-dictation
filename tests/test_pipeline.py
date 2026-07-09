@@ -51,7 +51,7 @@ for src, want in CAP_CASES:
 
 # --- strip_fillers: remove standalone disfluencies from settled (commit) text ---
 FILLER_CASES = [
-    # (strip_fillers also runs capitalize_sentences, so the sentence start ends up capitalized —
+    # (strip_fillers also runs capitalize_sentences, so the sentence start ends up capitalized -
     #  in the real flow `fixed` is already capitalized by SentenceCapStage, so that's a no-op there;
     #  here it just means lowercase-initial test inputs come back capitalized.)
     ("I think um the plan works", "I think the plan works"),          # mid-sentence
@@ -60,11 +60,11 @@ FILLER_CASES = [
     ("I think, uh, the plan", "I think, the plan"),                   # filler between commas (keep the first)
     ("restart it right now. Uh", "Restart it right now."),            # trailing filler + stranded period
     ("um er the server is hmm down", "The server is down"),           # multiple fillers, incl. recap of new lead
-    # whole-token only — real words that START like a filler must survive
+    # whole-token only - real words that START like a filler must survive
     ("grab an umbrella before the storm", "Grab an umbrella before the storm"),
     ("go ahead and run the error handler", "Go ahead and run the error handler"),
     ("the umma model is under review", "The umma model is under review"),
-    # nasal-grunt variants Parakeet actually emits ("Mm"/"Hm", not just "mmm") — must strip
+    # nasal-grunt variants Parakeet actually emits ("Mm"/"Hm", not just "mmm") - must strip
     ("Mm okay let's go", "Okay let's go"),
     ("no hm fill words here", "No fill words here"),
     ("the plan is mm solid", "The plan is solid"),
@@ -161,7 +161,7 @@ with tempfile.TemporaryDirectory() as _d:
 assert load_phrase_aliases("/nonexistent/dir/xyz") == [], "missing dir should yield no aliases"
 print("ok  missing pack dir -> [] (free core safe)")
 
-# --- G2 Layer 1: the shipped global-tech pack — precision (positives + near-miss negatives) ---
+# --- G2 Layer 1: the shipped global-tech pack - precision (positives + near-miss negatives) ---
 _gpack = load_phrase_aliases("packs")
 assert _gpack, "packs/global-tech.aliases should load some aliases"
 _pcg = PhoneticCorrector(_terms, extra_phrase_aliases=_gpack)
@@ -181,7 +181,7 @@ G2_CASES = [
     ("use the nemo DB for sessions", "use the DynamoDB for sessions"),
     ("run it with o lama", "run it with Ollama"),                       # "O Lama" form...
     ("I saw a llama at the zoo", "I saw a llama at the zoo"),           # ...but "a llama" still safe
-    # group 5: "dum dictation" brand — phrase alias fires to the canonical (intentionally-misspelled) brand
+    # group 5: "dum dictation" brand - phrase alias fires to the canonical (intentionally-misspelled) brand
     ("I use dumb dictation every day", "I use dum dictation every day"),                  # required brand phrase
     ("try dom dictation on your mac", "try dum dictation on your mac"),                   # near-mishear variant
     # over-correction GUARD: a bare "dumb"/"done" in normal prose must NEVER be remapped to "dum"
@@ -260,15 +260,15 @@ passed += 1
 print("ok  ProtectedWordsStage reverts word->jargon corruptions unless command context is clear")
 
 # --- decap_interior: lowercase stray boundary capitals on the closed SAFE_LOWER set ---
-# (CAP face of the over-eager-boundary bug — within one commit AND across commits. The closed set
+# (CAP face of the over-eager-boundary bug - within one commit AND across commits. The closed set
 #  is the entire name protection. Fixes the capital only; the period face is out of scope.)
 from pipeline import (decap_interior, _ends_sentence, _safe_to_lower, SAFE_LOWER,
                       CorrectionPipeline as _CP, PunctuationStage as _PS, SentenceCapStage as _SCS)
 
-# (A) HIGHEST-RISK INTERACTION — decap vs capitalize_sentences, through the FULL ORDERED commit path.
+# (A) HIGHEST-RISK INTERACTION - decap vs capitalize_sentences, through the FULL ORDERED commit path.
 # Mirrors live.py commit ordering: pipeline (... SentenceCapStage) -> strip_fillers -> decap. The
 # pipeline + strip_fillers BOTH recapitalize the first word; decap must undo that for a continuation
-# and leave it alone for a real sentence start. Ordering is load-bearing — this proves it.
+# and leave it alone for a real sentence start. Ordering is load-bearing - this proves it.
 _ORDER = _CP([_PS(), _SCS()])
 def _commit_order(raw, after_sentence):
     fixed, _ = _ORDER.run(raw)          # ends with SentenceCapStage (caps word 0)
@@ -303,14 +303,14 @@ DECAP_CASES = [
     (True,  "Push to GitHub and restart Nginx.", "Push to GitHub and restart Nginx."),
     (True,  "Deploy to Jetson and VS Code.",     "Deploy to Jetson and VS Code."),
     (False, "Open Apple menu then run Redis.",   "Open Apple menu then run Redis."),  # word0 "Open" not in set
-    # TOKEN GUARDS: single letter A/I, all-caps acronym, CamelCase — never lowered even mid-utterance
+    # TOKEN GUARDS: single letter A/I, all-caps acronym, CamelCase - never lowered even mid-utterance
     (True,  "make A switch here",                "make A switch here"),   # lone "A" is a label/grade
     (True,  "and I think so",                    "and I think so"),       # lone "I" pronoun
     (True,  "we ship IT to US today",            "we ship IT to US today"),  # IT/US acronyms
     (True,  "push to GitHub now",                "push to GitHub now"),   # CamelCase identifier
     # known-acceptable border: continuation lowers a leading "For" even if it reads "for for" at the seam
     (False, "For the config we set",             "for the config we set"),
-    # 2026-06-22 additions (my/as/is/what/whatever/more/both/oh) — grammatical, never names
+    # 2026-06-22 additions (my/as/is/what/whatever/more/both/oh) - grammatical, never names
     (False, "My laptop is the one",              "my laptop is the one"),
     (False, "As far as I can tell",              "as far as I can tell"),
     (False, "Is that the right path",            "is that the right path"),

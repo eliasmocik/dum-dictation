@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Linux (X11) platform backend (split out of platform_io.py).
-Owner: unassigned — parked. The shared interface is platform_base.Platform; the dispatcher is
+Owner: unassigned - parked. The shared interface is platform_base.Platform; the dispatcher is
 platform_io.get_platform(). OS-specific imports stay lazy/method-local."""
 import subprocess
 import sys
@@ -13,16 +13,16 @@ class LinuxPlatform(Platform):
     """Linux (X11) I/O via the standard CLI tools, each used only if present so the app still
     starts on a minimal box:
 
-      * type_text  — `xdotool type` (layout-independent Unicode, like the mac/win native paths);
+      * type_text  - `xdotool type` (layout-independent Unicode, like the mac/win native paths);
                      falls back to pynput typing if xdotool is absent.
-      * paste      — `wl-copy`/`wl-paste` (Wayland) or `xclip` (X11) for clipboard save/restore,
+      * paste      - `wl-copy`/`wl-paste` (Wayland) or `xclip` (X11) for clipboard save/restore,
                      then Ctrl+V; falls back to typing if no clipboard tool is present.
-      * notify     — `canberra-gtk-play` bell if available, else the terminal bell (\\a).
-      * frontmost  — `xdotool getactivewindow getwindowclassname` (X11 only).
+      * notify     - `canberra-gtk-play` bell if available, else the terminal bell (\\a).
+      * frontmost  - `xdotool getactivewindow getwindowclassname` (X11 only).
 
     Wayland note: xdotool/xclip are X11; under a pure Wayland session install wl-clipboard (paste
     works) and ydotool (typing) or run under XWayland. With nothing available it degrades to pynput
-    typing + no focus guard — i.e. exactly the old FallbackPlatform behaviour, never a hard failure.
+    typing + no focus guard - i.e. exactly the old FallbackPlatform behaviour, never a hard failure.
     """
 
     def __init__(self):
@@ -86,7 +86,7 @@ class LinuxPlatform(Platform):
 
     def paste_atomic(self, text):
         if not self._clip:
-            self.type_text(text)            # no clipboard tool — type it (nothing to preserve)
+            self.type_text(text)            # no clipboard tool - type it (nothing to preserve)
             return True
         try:
             prev = self._clip_get()

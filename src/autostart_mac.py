@@ -16,7 +16,7 @@ def agent_plist_path():
 
 
 def build_plist_dict(program_args, workdir, out_log, err_log):
-    """The launchd job description, as a plain dict (pure — unit-testable without launchctl).
+    """The launchd job description, as a plain dict (pure - unit-testable without launchctl).
     `program_args` is the full argv launchd should exec, e.g. ["/repo/dum", "--tray"]."""
     return {
         "Label": LABEL,
@@ -72,7 +72,7 @@ def _mac_install(args=None):
     venv_python = REPO_ROOT / ".venv" / "bin" / "python"
     if not venv_python.exists():
         raise FileNotFoundError(
-            f"{venv_python} not found — run ./setup first so the venv exists before installing auto-start.")
+            f"{venv_python} not found - run ./setup first so the venv exists before installing auto-start.")
     out_log.parent.mkdir(parents=True, exist_ok=True)
     plist = agent_plist_path()
     plist.parent.mkdir(parents=True, exist_ok=True)
@@ -82,7 +82,7 @@ def _mac_install(args=None):
     ok = r.returncode == 0
     print(f"[autostart] wrote {plist}")
     if ok:
-        print("[autostart] loaded — dum will start at login and relaunch on crash.")
+        print("[autostart] loaded - dum will start at login and relaunch on crash.")
         print("            ⚠️  macOS will re-ask for Mic/Accessibility/Input-Monitoring for the")
         print(f"            venv python ({venv_python}); grant them once, then log out/in.")
     else:
@@ -96,7 +96,7 @@ def _mac_uninstall():
     existed = plist.exists()
     if existed:
         plist.unlink()
-        print(f"[autostart] removed {plist} — dum will no longer start at login.")
+        print(f"[autostart] removed {plist} - dum will no longer start at login.")
     else:
         print("[autostart] nothing to remove (no LaunchAgent installed).")
     return existed

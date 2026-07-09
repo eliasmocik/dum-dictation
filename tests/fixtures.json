@@ -1,5 +1,5 @@
 {
-  "_comment": "Golden corpus for bench.py. Each fixture replays a WAV through the REAL live.py pipeline and scores it. 'ref' = reference transcript (relative to bakeoff/); 'terms' = file of IT terms expected in the output (recall). Add more fixtures here as we dogfood — record a clip, write its reference once, append an entry.",
+  "_comment": "Golden corpus for bench.py. Each fixture replays a WAV through the REAL live.py pipeline and scores it. 'ref' = reference transcript (relative to bakeoff/); 'terms' = file of IT terms expected in the output (recall). Add more fixtures here as we dogfood - record a clip, write its reference once, append an entry.",
   "fixtures": [
     {
       "name": "script-read-1",
@@ -34,14 +34,14 @@
       "wav": "tests/corpus/messy.wav",
       "ref": "tests/corpus/messy.ref.txt",
       "terms": "terms.txt",
-      "note": "ordinary speech, NO tech terms — over-correction test (injected should stay 0)"
+      "note": "ordinary speech, NO tech terms - over-correction test (injected should stay 0)"
     },
     {
       "name": "global-vocab",
       "wav": "tests/corpus/global-vocab.wav",
       "ref": "tests/corpus/global-vocab.ref.txt",
       "terms": "tests/corpus/global-vocab.terms.txt",
-      "note": "G2 payoff fixture — sentences USING global-pack jargon (web socket->WebSocket, oh llama->Ollama...). Guards that the default-on pack keeps landing terms; controls (a llama, type a script) stay. Recall gated against the canonical terms file."
+      "note": "G2 payoff fixture - sentences USING global-pack jargon (web socket->WebSocket, oh llama->Ollama...). Guards that the default-on pack keeps landing terms; controls (a llama, type a script) stay. Recall gated against the canonical terms file."
     }
   ]
 }

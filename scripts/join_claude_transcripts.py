@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-join_claude_transcripts.py — recover the EXACT post-commit edit signal for dictation that went into
+join_claude_transcripts.py - recover the EXACT post-commit edit signal for dictation that went into
 the Claude Code prompt, which no VS Code extension can see.
 
 WHY: in the VS Code integrated terminal, Claude Code runs as a TUI. macOS Accessibility is blind to
-it and the document-model extension can't read it either (it's not a TextDocument) — so dum's
+it and the document-model extension can't read it either (it's not a TextDocument) - so dum's
 commits there fall back to the keystroke proxy, which can't tell a correction from normal typing.
 But Claude Code persists EXACTLY what the user submitted in its own transcript
 (~/.claude/projects/<mangled-cwd>/*.jsonl). So we join post-hoc: for each dum dictation commit,
@@ -12,7 +12,7 @@ find the human Claude-Code message that contains it (time window + fuzzy match),
 the committed text against what was actually submitted. That diff is the real correction signal.
 
 This is LOCAL-ONLY (reads files already on this machine) and writes only metrics + the minimal
-changed token span (REDACT_MAX-capped, same redaction policy as dogfood_log) — never whole messages.
+changed token span (REDACT_MAX-capped, same redaction policy as dogfood_log) - never whole messages.
 It is the Claude-Code analogue of the VS Code extension's vscode-ext refix: same shape, joined by
 commit_id, capture_method="claude-transcript". Idempotent: rewrites claude-join-<session>.jsonl each
 run (derived data), so re-running never duplicates events.
@@ -31,8 +31,8 @@ dl.KEEP_CORRECTIONS = True          # joiner always captures the committed->subm
 
 # Surfaces where a Claude Code TUI can live and the live bucket couldn't see the prompt: the current
 # coarse "vscode", the legacy pre-v5 VS Code bucket "editor", and standalone terminals ("shell", and
-# its pre-v5 name "terminal") running `claude`. The match itself is self-gating — only text that
-# actually appears as a submitted human Claude message in the time window joins — so this filter is a
+# its pre-v5 name "terminal") running `claude`. The match itself is self-gating - only text that
+# actually appears as a submitted human Claude message in the time window joins - so this filter is a
 # scope guard, not the safety mechanism. Surfaces that never host Claude Code (browser, rich-text)
 # are excluded so a coincidental same-window message can't pull them in.
 JOIN_SURFACES = {"vscode", "editor", "shell", "terminal"}
@@ -159,7 +159,7 @@ def main(argv):
     by_session = load_commits(paths)
     msgs = load_transcript_messages()
     if not msgs:
-        print("no Claude Code transcripts found under ~/.claude/projects/ — nothing to join.")
+        print("no Claude Code transcripts found under ~/.claude/projects/ - nothing to join.")
         return 0
 
     out_dir = Path(paths[0]).parent
