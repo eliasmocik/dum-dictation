@@ -9,10 +9,10 @@ __pycache__/
 # Generated locally by make-shortcut.ps1 (the Desktop icon image)
 dum.ico
 
-# Models — downloaded by ./setup, never committed (large)
+# Models - downloaded by ./setup, never committed (large)
 models/
 
-# Local-only dictation history + telemetry (your voice/text — never committed)
+# Local-only dictation history + telemetry (your voice/text - never committed)
 dogfood/
 sessions/
 recordings/
@@ -30,5 +30,5 @@ results/
 .env
 *.env
 
-# Local-only Claude context (points to the private aios brain — must never go public)
+# Local-only Claude context (points to the private aios brain - must never go public)
 CLAUDE.local.md

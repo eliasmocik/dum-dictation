@@ -3,9 +3,9 @@
 
 Persists the user's chosen microphone and dictation start/stop hotkey to
 ``~/.dum/config.json`` (the ``~/.dum/`` dir is already used for the VS Code
-bridge — reused here). On the very first run (no config file yet) an interactive
+bridge - reused here). On the very first run (no config file yet) an interactive
 CLI wizard lets the user pick; every subsequent run loads silently and launches
-straight in (this is a daily driver — no nagging). ``./dum --config`` re-runs the
+straight in (this is a daily driver - no nagging). ``./dum --config`` re-runs the
 wizard and overwrites the saved config.
 
 Scope (v1): ONLY the dictation start/stop hotkey (key + toggle/push mode) and the
@@ -19,7 +19,7 @@ Schema (config.json):
     }
 
 Everything that touches stdin/stdout in the wizard is parameterised so it can be
-driven with mocked streams in tests — no real TTY needed.
+driven with mocked streams in tests - no real TTY needed.
 """
 import json
 import os
@@ -30,14 +30,14 @@ CONFIG_DIR = Path.home() / ".dum"
 CONFIG_PATH = CONFIG_DIR / "config.json"
 
 # --- Curated, SAFE hotkey catalog ------------------------------------------------
-# v1 deliberately offers a small curated list — NOT arbitrary "press any key to
+# v1 deliberately offers a small curated list - NOT arbitrary "press any key to
 # bind" capture. Each entry maps a stable config token -> how the listener detects
 # it. "double" gestures fire on a double-tap of the named pynput modifier key;
 # "single" gestures (fn) fire on a single press/hold of that key.
 #
 # The catalog is platform-aware: macOS offers the Command/fn keys (default: double-tap
-# LEFT ⌘ — today's behavior, unchanged); Windows + Linux have no Command key, so they
-# offer the Ctrl keys (default: double-tap RIGHT Ctrl — rarely pressed alone, the natural
+# LEFT ⌘ - today's behavior, unchanged); Windows + Linux have no Command key, so they
+# offer the Ctrl keys (default: double-tap RIGHT Ctrl - rarely pressed alone, the natural
 # analog of the Mac right-Command choice). `_ALL_KEYS` is the full union; `CURATED_KEYS`
 # is the subset offered on THIS OS (what the wizard shows).
 _ALL_KEYS = [
@@ -98,7 +98,7 @@ def config_exists(path=CONFIG_PATH):
 def load_config(path=CONFIG_PATH):
     """Load config from disk, healing missing/invalid fields against the defaults.
     Returns the defaults (does NOT write anything) if the file is absent or
-    unreadable — callers decide when to run the wizard."""
+    unreadable - callers decide when to run the wizard."""
     base = default_config()
     p = Path(path)
     if not p.exists():
@@ -215,7 +215,7 @@ def pick_mic(devices, default_idx, input_fn, out):
     Returns the chosen device name (str) or None for "use system default".
     `devices` is [(index, name), ...]."""
     if not devices:
-        out.write("No input devices found — using system default.\n")
+        out.write("No input devices found - using system default.\n")
         return None
     rec_pos = recommended_mic_index(devices, default_idx)  # built-in mic preferred
     out.write("\nChoose your microphone:\n")
@@ -231,7 +231,7 @@ def pick_mic(devices, default_idx, input_fn, out):
         elif raw.isdigit() and 1 <= int(raw) <= len(devices):
             chosen_pos = int(raw)
         else:
-            out.write(f"  '{raw}' is not 1-{len(devices)} or Enter — try again.\n")
+            out.write(f"  '{raw}' is not 1-{len(devices)} or Enter - try again.\n")
             continue
         idx, name = devices[chosen_pos - 1]
         # Persist by NAME (robust to index shifts), matching DUM_MIC's name path.
@@ -256,7 +256,7 @@ def pick_mode(input_fn, out):
         elif raw.isdigit() and 1 <= int(raw) <= len(CURATED_MODES):
             pos = int(raw)
         else:
-            out.write(f"  '{raw}' is not 1-{len(CURATED_MODES)} or Enter — try again.\n")
+            out.write(f"  '{raw}' is not 1-{len(CURATED_MODES)} or Enter - try again.\n")
             continue
         return CURATED_MODES[pos - 1]["mode"]
 
@@ -279,7 +279,7 @@ def pick_key(input_fn, out):
         elif raw.isdigit() and 1 <= int(raw) <= len(CURATED_KEYS):
             pos = int(raw)
         else:
-            out.write(f"  '{raw}' is not 1-{len(CURATED_KEYS)} or Enter — try again.\n")
+            out.write(f"  '{raw}' is not 1-{len(CURATED_KEYS)} or Enter - try again.\n")
             continue
         return CURATED_KEYS[pos - 1]["key"]
 

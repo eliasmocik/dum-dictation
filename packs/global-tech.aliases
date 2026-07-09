@@ -1,16 +1,16 @@
-# global-tech.aliases — curated GLOBAL tech-vocab phrase-alias pack (GLOBAL-VOCAB-PLAN.md G2)
+# global-tech.aliases - curated GLOBAL tech-vocab phrase-alias pack (GLOBAL-VOCAB-PLAN.md G2)
 # Format: spoken form => CanonicalForm   (left matched case-insensitively, word-bounded)
 # Rule: distinctive MISHEARD jargon only, multi-word-when-spoken. NOT common English words.
 # Left side = the form Parakeet emits (verify on the payoff recording, §6/§7). Drop any that the
 # recognizer already gets right (the alias would just never fire = dead weight).
 #
-# Group 1 — VERIFIED on Elias's mic (G0, 2026-06-17): these fire today.
+# Group 1 - VERIFIED on Elias's mic (G0, 2026-06-17): these fire today.
 engine x      => nginx
 cube control  => kubectl
 cube ctl      => kubectl
 local host    => localhost
 
-# Group 2 — confirmed word list (Elias, 2026-06-17); spoken forms to verify on the payoff recording.
+# Group 2 - confirmed word list (Elias, 2026-06-17); spoken forms to verify on the payoff recording.
 web pack      => webpack
 pie test      => pytest
 kuber netes   => Kubernetes
@@ -28,31 +28,31 @@ sherpa onnx   => sherpa-onnx
 whisper cpp   => whisper.cpp
 zip former    => Zipformer
 
-# Group 2b — TRUE spoken forms captured from the 2026-06-17 payoff recording (§7). The guessed
+# Group 2b - TRUE spoken forms captured from the 2026-06-17 payoff recording (§7). The guessed
 # forms above missed because Parakeet emits these instead; both are kept (insurance across contexts).
 sherpa onyx   => sherpa-onnx
 nemo DB       => DynamoDB
 o lama        => Ollama
 web webpack   => webpack
 
-# Group 3 — captured from dogfood telemetry (correction_pair / user.verdict, 2026-06-20). Distinctive
+# Group 3 - captured from dogfood telemetry (correction_pair / user.verdict, 2026-06-20). Distinctive
 # non-word mishears of jargon the recognizer drops; the user manually fixed these post-commit.
 ugres         => Postgres
 postgress     => Postgres
 
-# Group 4 — "VS Code" the editor. Parakeet usually gets it right ("VS Code" x28 in telemetry) but emits
+# Group 4 - "VS Code" the editor. Parakeet usually gets it right ("VS Code" x28 in telemetry) but emits
 # two distinctive mishears: the letters split as separate tokens ("V S Code"/"V S code", x4) and the
 # acronym as one capitalized token ("Vs Code"). Both forms aliased. The "vs code" form is SAFE despite
 # "vs"=versus: across the whole dogfood corpus every "vs"+"code" adjacency was the editor (0 versus usage
-# — in speech "versus" transcribes as "versus", not "vs"). Verified on Elias's mic (2026-06-21).
+# - in speech "versus" transcribes as "versus", not "vs"). Verified on Elias's mic (2026-06-21).
 v s code      => VS Code
 vs code       => VS Code
 
-# Group 5 — "dum dictation", the tool's OWN brand name. "dum" is an INTENTIONAL misspelling of
+# Group 5 - "dum dictation", the tool's OWN brand name. "dum" is an INTENTIONAL misspelling of
 # "dumb", so Parakeet will hear the brand as "dumb dictation" (or near-mishears "done"/"dom"
 # dictation) and emit the wrong spelling. PHRASE-level only: the multi-word "<x> dictation" form is
 # unambiguously the product (nobody says "dumb dictation" / "dom dictation" literally), so it's safe.
-# We deliberately do NOT alias bare "dumb"/"done"/"dum" — those are everyday words and remapping them
+# We deliberately do NOT alias bare "dumb"/"done"/"dum" - those are everyday words and remapping them
 # bare would corrupt normal dictation ("that's a dumb idea"). Bare "dum" as the short command is NOT
 # recoverable from "dumb" alone; documented limitation, not attempted here. Brand vocab, not idiolect.
 dumb dictation => dum dictation

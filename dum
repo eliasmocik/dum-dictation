@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dum — launch the dum dictation daily-driver.
+# dum - launch the dum dictation daily-driver.
 #
 # Double-tap the LEFT Command key to start/stop dictation (globally), with the
 # word-by-word overlay + eager first-word lock + the homophone LLM layer on.
@@ -9,7 +9,7 @@
 # MIN_SIL 0.45 cadence (0.10 preview cadence = the word-by-word feel, affordable because
 # lock-and-trim caps preview proc ~70ms), app-aware overlay (live-type in editors/terminals,
 # paste in rich-text apps), 1B homophone model. STABLE start (word 1 appears once two previews
-# agree — no morphing). Add --eager for the instant-but-self-correcting start instead.
+# agree - no morphing). Add --eager for the instant-but-self-correcting start instead.
 # Override with DUM_* env (STEP/MIN_SIL/LLM_MODEL/…); DUM_LOCK_TRIM=0 reverts to the old
 # growing-window decode.
 #
@@ -23,16 +23,16 @@ cd "$(dirname "$0")" || exit 1
 # Mic selection (precedence handled in live.py): explicit --mic / DUM_MIC (flag/env) >
 # saved ~/.dum/config.json > built-in default ("MacBook Air"). The first-run wizard
 # (./dum --config to re-run) writes the saved choice. We intentionally DON'T bake a
-# DUM_MIC default here anymore — doing so would shadow the user's saved config; the
+# DUM_MIC default here anymore - doing so would shadow the user's saved config; the
 # built-in fallback now lives in live.py so config can take effect.
 if [[ -n "${DUM_MIC:-}" ]]; then export DUM_MIC; fi
 # Dogfood log: append every committed sentence (raw / fixed / changed / app / llm) so the
 # real mistranscriptions can be mined later to seed Milestone B vocab packs. Local-only
-# (gitignored — it's your dictation history). Override/disable with DUM_EVENTS=.
+# (gitignored - it's your dictation history). Override/disable with DUM_EVENTS=.
 : "${DUM_EVENTS:=dogfood/events.jsonl}"
 export DUM_EVENTS
 mkdir -p "$(dirname "$DUM_EVENTS")"
-# Dogfood MASTER switch (Elias): ONE flag turns the whole capture stack on — dogfood logging, audio
+# Dogfood MASTER switch (Elias): ONE flag turns the whole capture stack on - dogfood logging, audio
 # retention, keystroke proxy, correction pairs, and fuzzy-symbol recovery. All LOCAL-ONLY (dogfood/
 # is gitignored). Each piece is still individually reversible per-run, e.g. DUM_KEEP_AUDIO=0
 # ./dum, DUM_DOGFOOD_LOG=0 ./dum, DUM_FUZZY_SYMBOLS=0 ./dum. Disable everything:
@@ -42,12 +42,21 @@ mkdir -p "$(dirname "$DUM_EVENTS")"
 # Announce each VS Code commit to the dum-telemetry extension over ~/.dum/vscode-bridge.jsonl, so
 # dictation into a real editor DOCUMENT gets the exact post-commit edit (capture_method=vscode-ext)
 # instead of only the keystroke proxy. Harmless if the extension isn't installed. (The Claude Code
-# prompt is covered separately by scripts/join_claude_transcripts.py — that needs no bridge.)
+# prompt is covered separately by scripts/join_claude_transcripts.py - that needs no bridge.)
 # Reversible per-run: DUM_VSCODE_BRIDGE=0 ./dum
 : "${DUM_VSCODE_BRIDGE:=1}"; export DUM_VSCODE_BRIDGE
 # Strip filler words (uh/um/hmm/…) from the preview + committed text. Verbatim: DUM_STRIP_FILLERS=0 ./dum
 : "${DUM_STRIP_FILLERS:=1}"; export DUM_STRIP_FILLERS
 # Decapitalize stray boundary capitals on a closed safe-word set (the/and/it/…) when not a real
-# sentence start — the CAP face of the over-eager-boundary bug. Verbatim/off: DUM_DECAP_CAPS=0 ./dum
+# sentence start - the CAP face of the over-eager-boundary bug. Verbatim/off: DUM_DECAP_CAPS=0 ./dum
 : "${DUM_DECAP_CAPS:=1}"; export DUM_DECAP_CAPS
+# One-time feedback nudge: printed once ever (marker in ~/.dum), never again. The whole product
+# is local/no-phone-home, so a friendly pull-based ask is the only way I hear how it's going.
+_dum_seen="$HOME/.dum/.feedback_shown"
+if [[ ! -f "$_dum_seen" ]]; then
+  mkdir -p "$HOME/.dum"
+  printf '\n  \033[1mhey - dum is running.\033[0m if it works (or if it breaks), I would love to know.\n' >&2
+  printf '  good or bad, one line helps: https://github.com/eliasmocik/dum-dictation/discussions\n\n' >&2
+  : > "$_dum_seen"
+fi
 exec .venv/bin/python src/live.py --double-cmd --overlay --llm "$@"

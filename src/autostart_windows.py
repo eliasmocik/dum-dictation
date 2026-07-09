@@ -11,7 +11,7 @@ TASK_NAME = "dum-dictation"      # Windows Task Scheduler task name
 
 def windows_launcher_command(args):
     """(command, arguments) to run the dum.ps1 launcher HIDDEN (no console flash) via
-    PowerShell — single source of truth for flags + env, mirroring the macOS `dum` launcher."""
+    PowerShell - single source of truth for flags + env, mirroring the macOS `dum` launcher."""
     launcher = REPO_ROOT / "dum.ps1"
     arguments = " ".join(["-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
                           "-File", f'"{launcher}"', *args])
@@ -20,14 +20,14 @@ def windows_launcher_command(args):
 
 def build_task_xml(command, arguments, workdir):
     """Task Scheduler XML: start at logon, relaunch on failure (the KeepAlive analog), run in
-    the interactive GUI session. Pure — unit-testable without schtasks. (schtasks /Create /XML
+    the interactive GUI session. Pure - unit-testable without schtasks. (schtasks /Create /XML
     wants the file as UTF-16; _win_install encodes it so.)"""
     from xml.sax.saxutils import escape
     return (
         '<?xml version="1.0" encoding="UTF-16"?>\n'
         '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n'
         "  <RegistrationInfo>\n"
-        "    <Description>dum dictation — start at logon, relaunch on crash</Description>\n"
+        "    <Description>dum dictation - start at logon, relaunch on crash</Description>\n"
         "  </RegistrationInfo>\n"
         "  <Triggers>\n"
         "    <LogonTrigger><Enabled>true</Enabled></LogonTrigger>\n"
@@ -75,7 +75,7 @@ def _win_install(args=None):
     venv_python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
     if not venv_python.exists():
         raise FileNotFoundError(
-            f"{venv_python} not found — run setup.ps1 first so the venv exists before installing auto-start.")
+            f"{venv_python} not found - run setup.ps1 first so the venv exists before installing auto-start.")
     command, arguments = windows_launcher_command(args)
     xml = build_task_xml(command, arguments, REPO_ROOT)
     xml_path = Path(tempfile.gettempdir()) / "dum-dictation-task.xml"
@@ -83,7 +83,7 @@ def _win_install(args=None):
     r = _schtasks("/Create", "/TN", TASK_NAME, "/XML", str(xml_path), "/F")
     ok = r.returncode == 0
     if ok:
-        print(f"[autostart] registered Task Scheduler task '{TASK_NAME}' — dum starts at logon "
+        print(f"[autostart] registered Task Scheduler task '{TASK_NAME}' - dum starts at logon "
               "and relaunches on crash.")
     else:
         print(f"[autostart] schtasks reported: {r.stderr.strip() or r.stdout.strip()}")
@@ -94,7 +94,7 @@ def _win_uninstall():
     r = _schtasks("/Delete", "/TN", TASK_NAME, "/F")
     existed = r.returncode == 0
     if existed:
-        print(f"[autostart] removed task '{TASK_NAME}' — dum will no longer start at logon.")
+        print(f"[autostart] removed task '{TASK_NAME}' - dum will no longer start at logon.")
     else:
         print(f"[autostart] nothing to remove ({r.stderr.strip() or 'no such task'}).")
     return existed

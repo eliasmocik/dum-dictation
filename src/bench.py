@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-bench.py — regression bench for the dum dictation pipeline.
+bench.py - regression bench for the dum dictation pipeline.
 
 Replays each golden fixture (tests/fixtures.json) through the REAL live.py loop
 (VAD -> previews -> lock-trim -> corrections -> commit, via LiveDictation.replay),
-then scores the ACTUAL output — not a re-implementation. Metrics per fixture:
+then scores the ACTUAL output - not a re-implementation. Metrics per fixture:
 
   WER%        word error rate of the committed text vs the reference (lower=better)
   raw WER%    same, on the pre-correction transcript (shows what corrections buy)
   terms       IT-term recall: expected terms found in the output / total
-  proc med/max  preview decode time (ms) — responsiveness (should stay < STEP budget)
+  proc med/max  preview decode time (ms) - responsiveness (should stay < STEP budget)
   over%       % of previews slower than the cadence budget (chunk risk; want ~0)
   deferred    big tail rewrites pushed to commit (lower=streams more, dumps less)
 
 Compares against tests/baseline.json and FAILS (exit 1) on regression beyond tolerance.
 
-  .venv/bin/python bench.py                 # fast (WER/terms/proc) — the commit gate
+  .venv/bin/python bench.py                 # fast (WER/terms/proc) - the commit gate
   .venv/bin/python bench.py --realtime      # also true first-word/settle latency
   .venv/bin/python bench.py --update-baseline   # accept current numbers as the baseline
 """
@@ -59,7 +59,7 @@ def _terms_in(text, vocab):
 
 def term_stats(ref, hyp, vocab):
     """Expected terms are derived from the REFERENCE (what was actually said), not a fixed
-    list — so each clip is scored on its own content. Returns recall + the over-correction
+    list - so each clip is scored on its own content. Returns recall + the over-correction
     signal: IT terms present in the output but NOT in the reference = wrongly injected."""
     rset, hset = _terms_in(ref, vocab), _terms_in(hyp, vocab)
     found = rset & hset
@@ -101,7 +101,7 @@ def run_fixture(rec, fx, realtime, use_llm=False):
     # Elias feels). Tracked via a per-sentence high-water mark of words shown, so we count
     # only genuinely-new words and correction churn (early_fix backspace+regrow) doesn't
     # inflate it. mean ~1.0 == true one-by-one; >2 == words arrive in clumps. This is the
-    # Phase-1 baseline metric we tune DISPLAY_MARGIN against (not a gate — a feel signal).
+    # Phase-1 baseline metric we tune DISPLAY_MARGIN against (not a gate - a feel signal).
     reveals, hwm = [], 0
     for l in tr_path.read_text().splitlines():
         if not l.strip():
@@ -153,7 +153,7 @@ def main():
     for fx in missing:
         print(f"  [skip] {fx['name']}: {fx['wav']} not found (corpus audio is local-only)")
     if not present:
-        print("no fixture audio found — nothing to bench. Place the corpus WAVs locally.")
+        print("no fixture audio found - nothing to bench. Place the corpus WAVs locally.")
         return 0
 
     print("building model (once)...")
@@ -195,7 +195,7 @@ def main():
     for name, m in results.items():
         b = base.get(name)
         if not b:
-            print(f"\n[new fixture {name} — no baseline, skipping gate]")
+            print(f"\n[new fixture {name} - no baseline, skipping gate]")
             continue
         if m["wer"] > b["wer"] + TOL_WER:
             fails.append(f"{name}: WER {b['wer']}->{m['wer']} (> +{TOL_WER})")

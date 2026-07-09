@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MVP-0 (Path A) — the LIVE dictation app.
+MVP-0 (Path A) - the LIVE dictation app.
 
 Continuous mic capture -> energy VAD (sentence boundaries at pauses) ->
 streaming Parakeet (growing-window, reset per sentence) -> the correction
@@ -10,22 +10,22 @@ COMMITTED sentence at the cursor.
 This is the real-time sibling of prototype.py: the prototype proved the loop on
 WAV files (silence-split + growing-window streaming + dictionary correction);
 this drives the exact same core from a live microphone and types into whatever
-app is focused — made for dictating into the VS Code terminal to drive Claude
+app is focused - made for dictating into the VS Code terminal to drive Claude
 Code. It reuses dum's paste-at-cursor + beep trick.
 
 Design notes:
   * The audio callback only ENQUEUES frames; a single consumer thread does all
     transcription, so the recognizer is touched from one thread and capture can
     never block. If transcription falls behind, previews are skipped (never
-    audio) — the commit transcription always runs.
+    audio) - the commit transcription always runs.
   * VAD is an adaptive noise-floor energy gate (zero extra deps, same idea as
     prototype.segment_by_silence). Speech = dBFS > floor + margin. A sentence
     commits after MIN_SIL_S of trailing silence, or at MAX_SEG_S (bounded compute).
-  * Preview is logged to the terminal only — it is NOT pasted (typing+deleting a
+  * Preview is logged to the terminal only - it is NOT pasted (typing+deleting a
     flickering preview into a shell is hostile). Only corrected, committed
     sentences are pasted.
 
-Run (immediate, safe — log only, nothing pasted):
+Run (immediate, safe - log only, nothing pasted):
     .venv/bin/python live.py --no-paste
 Run (paste at cursor, immediate continuous listen until Ctrl+C):
     .venv/bin/python live.py
@@ -33,11 +33,11 @@ Run (toggle daemon: tap the hotkey to start/stop continuous dictation):
     .venv/bin/python live.py --hotkey
 Run (macOS-style: double-tap LEFT Command to start/stop, globally):
     .venv/bin/python live.py --double-cmd --overlay --llm
-Run (menu-bar daily driver — same hotkey, tray icon instead of a babysat terminal):
+Run (menu-bar daily driver - same hotkey, tray icon instead of a babysat terminal):
     .venv/bin/python live.py --double-cmd --overlay --llm --tray
-Run (word-by-word live overlay — types as you speak, reconciles on pause):
+Run (word-by-word live overlay - types as you speak, reconciles on pause):
     .venv/bin/python live.py --overlay
-Run (overlay DRY — prints the type/backspace ops, types nothing; safe to watch):
+Run (overlay DRY - prints the type/backspace ops, types nothing; safe to watch):
     .venv/bin/python live.py --overlay --no-paste
 Auto-start at login (launchd login item; relaunches on crash):
     .venv/bin/python live.py --install-autostart   # also: --uninstall-autostart / --autostart-status
@@ -86,14 +86,14 @@ BLOCK_S = 0.10                       # mic callback granularity
 # Defaults tuned 2026-06-15 from recorded latency sessions (see sessions/ + LATENCY-FINDINGS):
 # STEP 0.30->0.20->0.10 (0.10 finally FELT word-by-word in the A/B test; only affordable
 #   because lock-and-trim caps preview proc at ~70ms, so a 100ms cadence isn't compute-bound
-#   — the 0.15-was-saturating worry no longer holds with a bounded window),
+#   - the 0.15-was-saturating worry no longer holds with a bounded window),
 # MIN_SEG 0.40->0.20 (first preview starts sooner -> first word appears sooner),
 # MIN_SIL 0.60->0.45 (shorter pause to commit; never observed clipping mid-sentence).
 STEP_S = float(os.environ.get("DUM_STEP", 0.10))  # preview re-transcribe cadence (lower = snappier overlay, more compute)
 MIN_SIL_S = float(os.environ.get("DUM_MIN_SIL", 0.45))   # silence that ends a sentence
 MIN_SEG_S = float(os.environ.get("DUM_MIN_SEG", 0.20))  # ignore blips shorter than this; also gates first preview
-# Max backspaces a LIVE (mid-speech) overlay correction may make. Small edits — the eager
-# word-0 flash fix, a 1-word tweak early in the sentence — apply live; a big tail rewrite
+# Max backspaces a LIVE (mid-speech) overlay correction may make. Small edits - the eager
+# word-0 flash fix, a 1-word tweak early in the sentence - apply live; a big tail rewrite
 # (the model revised an early word once many words are typed) would thrash the whole line,
 # so it's deferred to the single commit reconcile that happens anyway. ~2 words of chars.
 STREAM_FIX_MAX = int(os.environ.get("DUM_STREAM_FIX_MAX", 12))
@@ -105,17 +105,17 @@ EAGER_AFTER = float(os.environ.get("DUM_EAGER_AFTER", 0.5))
 # Milestone B step 2: run the instant deterministic corrector (phrase/dictionary aliases,
 # no LLM) on each PREVIEW too, not just at commit, so known IT mishears (engine x->nginx,
 # qctl->kubectl) come out right as words appear instead of being fixed only at the end.
-# Conservative — reuses the precision-first PhoneticCorrector, so ordinary words are left
+# Conservative - reuses the precision-first PhoneticCorrector, so ordinary words are left
 # alone. The LLM homophone layer stays commit-only (too slow per preview). 0 = previews
 # raw (old behaviour, corrected only at commit).
 PREVIEW_FIX = os.environ.get("DUM_PREVIEW_FIX", "1") != "0"
 # Strip standalone filler/disfluency words (uh, um, hmm, ...) from BOTH the live preview and the
-# committed text (General cleanup — everyone says "uh"). DEFAULT ON; DUM_STRIP_FILLERS=0 = verbatim.
+# committed text (General cleanup - everyone says "uh"). DEFAULT ON; DUM_STRIP_FILLERS=0 = verbatim.
 # Helpers are in pipeline (strip_fillers / drop_fillers); the one-tick "don't eat a real word that
 # starts like a filler" gate falls out of the preview's per-tick re-transcription (see drop_fillers).
 STRIP_FILLERS = os.environ.get("DUM_STRIP_FILLERS", "1") != "0"
 # Decapitalize a stray boundary capital on a closed set of safe words (the/and/it/...) when it is NOT a
-# real sentence start — the visible CAP face of the over-eager-boundary bug ("make The switch", or a
+# real sentence start - the visible CAP face of the over-eager-boundary bug ("make The switch", or a
 # continuation segment typed inline as "The window size"). DEFAULT ON; DUM_DECAP_CAPS=0 = verbatim/off.
 # Justified by the measured ~97%+ correct rate over 1,300 real commits (pipeline.decap_interior; the
 # closed SAFE_LOWER set is the name protection). Cross-commit state lives in self._prev_ended_sentence.
@@ -128,10 +128,10 @@ DECAP_CAPS = os.environ.get("DUM_DECAP_CAPS", "1") != "0"
 # DEFAULT ON; DUM_HOLD_ALIAS_PREFIX=0 = old eager-then-retype behaviour.
 HOLD_ALIAS_PREFIX = os.environ.get("DUM_HOLD_ALIAS_PREFIX", "1") != "0"
 # Lock-and-trim (incremental decoding): cap the LIVE preview re-transcription window so its
-# cost stays ~constant on long sentences — the cause of "words arrive in big chunks". A tail
+# cost stays ~constant on long sentences - the cause of "words arrive in big chunks". A tail
 # word whose audio ended more than LOCK_MARGIN_S before the live edge is locked and its audio
 # trimmed out of future previews (Parakeet won't revise a word with that much right-context).
-# commit() still transcribes the FULL sentence, so the final text keeps full accuracy — the
+# commit() still transcribes the FULL sentence, so the final text keeps full accuracy - the
 # trim only bounds the live draft. 0 in DUM_LOCK_TRIM => old growing-window behaviour.
 # A carry-over CONTEXT buffer of audio BEFORE the lock point is still decoded each preview
 # (for acoustic left-context, so trimmed-tail words don't garble/recapitalize) but is not
@@ -140,12 +140,12 @@ LOCK_TRIM = os.environ.get("DUM_LOCK_TRIM", "1") != "0"
 LOCK_MARGIN_S = float(os.environ.get("DUM_LOCK_MARGIN", 1.5))
 # Phase 1 one-by-one reveal. Reveal a word on screen once its right boundary sits
 # DISPLAY_MARGIN_S behind the live edge (age-based, from lock-trim word timestamps), instead of
-# waiting for two previews to agree — which is what caused the freeze-then-dump word clumps.
+# waiting for two previews to agree - which is what caused the freeze-then-dump word clumps.
 # Must be <= LOCK_MARGIN_S (clamped). 0 = OFF (old two-preview agreement gate). Default 0.7:
-# Decision A (2026-06-16) — 0.5/0.7/1.0 all felt the same in the feel-check, so margin isn't the
+# Decision A (2026-06-16) - 0.5/0.7/1.0 all felt the same in the feel-check, so margin isn't the
 # perceived-speed lever in this band; 0.7 is the snappier pick at equal feel. 1.0 is marginally
 # cleaner on the bench (lower defer) if ever revisited. The real "correct words sooner" lever is
-# recognizer biasing (Phase 4/5), which will move this knee — so this is deliberately not over-tuned.
+# recognizer biasing (Phase 4/5), which will move this knee - so this is deliberately not over-tuned.
 DISPLAY_MARGIN_S = min(float(os.environ.get("DUM_DISPLAY_MARGIN", 0.7)), LOCK_MARGIN_S)
 LOCK_CONTEXT_S = float(os.environ.get("DUM_LOCK_CONTEXT", 3.0))
 MIN_SPEECH_S = float(os.environ.get("DUM_MIN_SPEECH", 0.25))  # need this much real speech to commit (drops noise blips)
@@ -161,25 +161,25 @@ DOUBLE_TAP_GAP = float(os.environ.get("DUM_DOUBLE_GAP", 0.40))  # max s between 
 # How long stop()/teardown waits for an IN-FLIGHT commit reconcile to finish before tearing down,
 # so a raced early-stop can't cut the backspace-then-retype in half (data-loss). A reconcile is a
 # handful of keystrokes (<<1s even over pynput); 3.0s is generous headroom yet still bounded so the
-# guard can NEVER deadlock clean shutdown / Ctrl-C — past it, teardown proceeds with a warning.
+# guard can NEVER deadlock clean shutdown / Ctrl-C - past it, teardown proceeds with a warning.
 RECONCILE_DRAIN_S = float(os.environ.get("DUM_RECONCILE_DRAIN", 3.0))
 
 # Live overlay routing: overlay-by-DEFAULT on every app. It streams cleanly in native text views,
-# Electron apps, and browser inputs — feel-checked across TextEdit/Notes/ChatGPT/Mail/Safari/Discord/
+# Electron apps, and browser inputs - feel-checked across TextEdit/Notes/ChatGPT/Mail/Safari/Discord/
 # Obsidian (2026-06-22). The old "rich-text apps must use paste" allowlist was a mechanistic assumption
 # (autocorrect/contenteditable would drift the reconcile) that was never measured per-app and turned out
 # wrong; the one genuinely-measured corruption is the terminal-TUI async-echo scramble (~1.5%, accepted).
-# The overlay can't read the screen, so it still drifts on a field that mutates underneath it — the known
+# The overlay can't read the screen, so it still drifts on a field that mutates underneath it - the known
 # such surfaces are terminal TUIs (accepted) and canvas/non-standard web editors (e.g. Google Docs).
 # Force any app to commit-only clipboard paste with DUM_OVERLAY_APPS_OFF=app1,app2 (the kill-switch).
 # Names match macOS process names (frontmost_app); routing is by APP, so a whole browser is on or off,
 # not per web-page.
-DEFAULT_OVERLAY_BLOCK = set()    # apps forced to paste by default — none proven-bad-by-name yet (seam)
+DEFAULT_OVERLAY_BLOCK = set()    # apps forced to paste by default - none proven-bad-by-name yet (seam)
 
 
 def overlay_block_apps():
     """Apps the live overlay must NOT drive (routed to commit-only paste): the default-empty seam
-    above plus the DUM_OVERLAY_APPS_OFF kill-switch. This is the inverse of the retired allowlist —
+    above plus the DUM_OVERLAY_APPS_OFF kill-switch. This is the inverse of the retired allowlist -
     overlay is now the default everywhere and this names the rare surfaces that scramble."""
     block = set(DEFAULT_OVERLAY_BLOCK)
     off = os.environ.get("DUM_OVERLAY_APPS_OFF")
@@ -232,7 +232,7 @@ def transcribe_words(rec, audio):
     return words, starts
 
 
-# phrases Parakeet/Whisper-family models hallucinate on near-silence — dropped only
+# phrases Parakeet/Whisper-family models hallucinate on near-silence - dropped only
 # when they are the ENTIRE commit (never mid-sentence). Normalized: lowercase, no punct.
 HALLUCINATIONS = {
     "thank you", "thank you very much", "thanks", "thanks for watching",
@@ -276,7 +276,7 @@ class LiveDictation:
         self.do_paste = do_paste
         self.device = device
         self.use_llm = use_llm          # LLM stage is built lazily ON the consumer
-        self.terms = terms or []        # thread — MLX streams are thread-local
+        self.terms = terms or []        # thread - MLX streams are thread-local
         self.llm_stage = None
         self.tr = tracer or Tracer(None)   # no-op tracer unless --trace
         self.dump_dir = dump_dir           # if set, dump each committed segment WAV here
@@ -292,9 +292,9 @@ class LiveDictation:
                                                     extra_phrase_aliases=load_all_aliases())
                                   if PREVIEW_FIX and self.terms else None)
         # Proper-prefix set of multi-word alias spoken-forms, so the preview can hold an in-progress
-        # phrase ("V S code") off-screen until it resolves to "VS Code" — no typed-then-retyped letters.
+        # phrase ("V S code") off-screen until it resolves to "VS Code" - no typed-then-retyped letters.
         # Only meaningful when the preview corrector is active (it produces the resolved form).
-        # SCOPE (safety): only SHORT-token prefixes (≤2 chars: "v","s","vs") — letters/acronyms that are
+        # SCOPE (safety): only SHORT-token prefixes (≤2 chars: "v","s","vs") - letters/acronyms that are
         # never a word the user wants on their own, so holding costs nothing. A common word that merely
         # STARTS an alias ("git" in "git hub", "web" in "web socket") is left to reveal immediately, so
         # daily "git push" / "web page" dictation is NOT delayed a word. Letter-split is exactly the
@@ -320,11 +320,11 @@ class LiveDictation:
         # smart min-edit span replace) is a DESTRUCTIVE-then-CONSTRUCTIVE pair that must not be cut
         # in the middle, or the tail is wiped and never retyped ("...we grab the logs" stopped right
         # as grab->grep applies => left with "...we gr"). It runs on the worker thread, which is a
-        # daemon — so an abrupt teardown (Ctrl-C/SIGTERM, or worker.join() timing out and main()
+        # daemon - so an abrupt teardown (Ctrl-C/SIGTERM, or worker.join() timing out and main()
         # exiting) can kill it between the two phases. `_reconcile_lock` is held for the duration of
         # the on-screen reconcile in commit(); stop()/teardown ACQUIRE it (bounded wait) before
         # closing the stream + joining the worker, so an in-flight reconcile always finishes as one
-        # unit first. Live streaming/preview reconciles are NOT guarded (commit-only change) — a
+        # unit first. Live streaming/preview reconciles are NOT guarded (commit-only change) - a
         # raced stop there loses nothing destructive (preview only ever appends/early-fixes, and a
         # killed preview just leaves the live draft, which the next run ignores). The wait is BOUNDED
         # (RECONCILE_DRAIN_S) and teardown proceeds with a warning if it elapses, so the guard can
@@ -334,7 +334,7 @@ class LiveDictation:
     # ---- mic callback: ONLY enqueue, never block -----------------------------
     def _on_audio(self, indata, frames, time_info, status):
         if status:
-            # overflow/underflow — drop a note but keep going
+            # overflow/underflow - drop a note but keep going
             log(f"[audio] {status}")
         self.q.put(indata[:, 0].copy())
 
@@ -354,12 +354,12 @@ class LiveDictation:
             try:
                 _open(self.device)
             except Exception as e:
-                # The configured/requested mic could not be opened — e.g. it was unplugged, or
+                # The configured/requested mic could not be opened - e.g. it was unplugged, or
                 # its saved name no longer matches any device after the audio devices reshuffled.
                 # Fall back to the system default instead of dead-ending, so dictation still works.
                 if self.device is not None:
                     log(f"[WARN] could not open mic {self.device!r} ({e}); falling back to the "
-                        f"system default — run ./dum --config to pick a different one")
+                        f"system default - run ./dum --config to pick a different one")
                     try:
                         _open(None)
                     except Exception as e2:
@@ -374,7 +374,7 @@ class LiveDictation:
                     self.q.get_nowait()
                 except queue.Empty:
                     break
-            self._prev_ended_sentence = True   # a fresh dictation starts a sentence — protect word 1
+            self._prev_ended_sentence = True   # a fresh dictation starts a sentence - protect word 1
             self.running.set()
             self.worker = threading.Thread(target=self._consume, daemon=True)
             self.worker.start()
@@ -385,7 +385,7 @@ class LiveDictation:
                 if not self.overlay.min_edit:
                     mode += " (smart-edit OFF)"
             else:
-                mode = "paste ON" if self.do_paste else "paste OFF — log only"
+                mode = "paste ON" if self.do_paste else "paste OFF - log only"
             log(f"[REC]  listening... speak in sentences; pauses commit. ({mode})")
 
     def stop(self):
@@ -397,19 +397,19 @@ class LiveDictation:
         # tear down. Clearing `running` makes the worker fall into its flush-commit (end of
         # _consume), whose backspace-then-retype we must NOT cut: the worker is a daemon, so without
         # this a fast stop + process exit could kill it between the destructive and constructive
-        # phases, leaving a truncated tail ("...we gr"). We use the lock purely as a BARRIER — acquire
-        # then immediately release — so it is never held DURING worker.join(): if it were, a worker
+        # phases, leaving a truncated tail ("...we gr"). We use the lock purely as a BARRIER - acquire
+        # then immediately release - so it is never held DURING worker.join(): if it were, a worker
         # that hasn't yet entered its reconcile would block on the lock while stop() blocks in join,
         # deadlocking until the join timed out (and re-opening the very race we close). The flush
         # reconcile takes the lock when it reaches it, so by the time the barrier returns either the
-        # reconcile already completed or it has not started — and once we proceed, the worker's own
+        # reconcile already completed or it has not started - and once we proceed, the worker's own
         # `with self._reconcile_lock` runs uncontended to completion before join() returns. Bounded
-        # (RECONCILE_DRAIN_S) so it can NEVER hang shutdown / Ctrl-C — past it we warn and proceed.
+        # (RECONCILE_DRAIN_S) so it can NEVER hang shutdown / Ctrl-C - past it we warn and proceed.
         if self._reconcile_lock.acquire(timeout=RECONCILE_DRAIN_S):
             self._reconcile_lock.release()
         else:
             log("[!]    stop: a commit reconcile is still running after "
-                f"{RECONCILE_DRAIN_S:.0f}s — tearing down anyway")
+                f"{RECONCILE_DRAIN_S:.0f}s - tearing down anyway")
         if self.stream:
             try:
                 self.stream.stop(); self.stream.close()
@@ -433,7 +433,7 @@ class LiveDictation:
         The audio + correction context are already saved; this just tags the commit_id."""
         cid = self.dogfood.flag_problem()
         if cid:
-            log("[FLAG]  last dictation flagged as a problem — saved for manual review")
+            log("[FLAG]  last dictation flagged as a problem - saved for manual review")
             self.platform.notify("flag")
         else:
             log("[flag]  nothing to flag yet (no commit, or dogfood log off)")
@@ -442,7 +442,7 @@ class LiveDictation:
         """Feed a WAV through the REAL consumer loop (VAD -> previews -> lock-trim ->
         corrections -> commit), exactly as the mic would, with the overlay in dry mode.
         Emits the same trace.jsonl / events.jsonl a live session does, so bench.py can
-        score the actual pipeline headlessly — no mic, deterministic. realtime=True paces
+        score the actual pipeline headlessly - no mic, deterministic. realtime=True paces
         blocks at mic cadence (faithful VAD segmentation); False feeds as fast as the
         consumer drains (quicker, minor batching risk)."""
         import soundfile as sf
@@ -498,8 +498,8 @@ class LiveDictation:
         inference share one thread (MLX GPU streams are thread-local; LLMWorker pins
         them). Inserted before the external (paid) seam.
 
-        Failure-tolerant: if the backend can't load — most often because the GGUF model
-        didn't download (~770MB, pulled on first run), or an inference lib is missing — we
+        Failure-tolerant: if the backend can't load - most often because the GGUF model
+        didn't download (~770MB, pulled on first run), or an inference lib is missing - we
         log the REAL error once and disable the stage instead of crashing, so the shared
         `dum` launcher can pass --llm everywhere and dictation (phonetic + alias layers,
         the main value) still runs."""
@@ -519,7 +519,7 @@ class LiveDictation:
             self.use_llm = False
             log(f"[llm] homophone stage FAILED to load -> {type(e).__name__}: {e}")
             log("[llm]   continuing without it (phonetic + alias layers still active). Most common "
-                "cause: the GGUF model didn't download — pre-pull it or check your network/HF access.")
+                "cause: the GGUF model didn't download - pre-pull it or check your network/HF access.")
 
     # ---- the single consumer thread: VAD + streaming + commit ----------------
     def _consume(self):
@@ -561,7 +561,7 @@ class LiveDictation:
         def commit():
             nonlocal ov_prev, ov_focus
             if speech_blocks * BLOCK_S < MIN_SPEECH_S:
-                drop(f"(too little speech: {speech_blocks * BLOCK_S:.2f}s) — ignored")
+                drop(f"(too little speech: {speech_blocks * BLOCK_S:.2f}s) - ignored")
                 return
             # `sil_run` = trailing silence already elapsed = time since you stopped
             # talking. The settle latency the user FEELS is this + everything below.
@@ -590,7 +590,7 @@ class LiveDictation:
             if STRIP_FILLERS:
                 stripped = strip_fillers(fixed)
                 if not stripped.strip():
-                    drop("(filler-only utterance — nothing to insert)")
+                    drop("(filler-only utterance - nothing to insert)")
                     return
                 fixed = stripped     # clean text everywhere downstream (overlay / paste / log); raw keeps fillers
             if DECAP_CAPS:
@@ -602,7 +602,7 @@ class LiveDictation:
             pipe_ms = (time.monotonic() - t0) * 1000.0
             llm_ms = ((self.llm_stage.time - llm_t0) * 1000.0) if self.llm_stage else 0.0
             llm_fired = bool(self.llm_stage and self.llm_stage.fired > llm_n0)
-            # snapshot eager state + app NOW — reset_overlay() in the overlay block below
+            # snapshot eager state + app NOW - reset_overlay() in the overlay block below
             # wipes ov_eager/ov_focus before the trace emit, so capture them here.
             fw_final = fixed.split()[0] if fixed.split() else ""
             eager_used = ov_eager is not None
@@ -630,9 +630,9 @@ class LiveDictation:
                     # one reconcile applies corrections AND completes the unlocked tail,
                     # but only if focus hasn't moved (else we'd backspace the wrong field)
                     if ov_focus is not None and self.platform.frontmost_app() != ov_focus:
-                        log("[!]    focus changed mid-sentence — overlay reconcile skipped")
+                        log("[!]    focus changed mid-sentence - overlay reconcile skipped")
                     elif not self.overlay.reconcile(fixed, exact=True):
-                        log("[!]    overlay edit too large — skipped (left as dictated)")
+                        log("[!]    overlay edit too large - skipped (left as dictated)")
                     else:
                         # exact reconcile already put Parakeet's real punctuation (?, .) and
                         # casing on screen; just add the trailing space between sentences
@@ -642,7 +642,7 @@ class LiveDictation:
                     self.platform.paste(fixed + " ")
             apply_ms = (time.monotonic() - t_apply0) * 1000.0
             # tell the dogfood activity monitor when dum was typing, so its OWN synthetic keystrokes
-            # (paste Cmd+V, CGEvent typing, overlay backspace+retype) aren't counted as user edits —
+            # (paste Cmd+V, CGEvent typing, overlay backspace+retype) aren't counted as user edits -
             # incl. when this commit's insertion lands inside an earlier commit's observation window.
             self.dogfood.mark_self_typing(apply_wall0, time.time())
             settle_ms = mouth_stop_ago_ms + transcribe_ms + pipe_ms + apply_ms
@@ -733,7 +733,7 @@ class LiveDictation:
                     # tail words don't garble) but only display/lock words PAST the lock point.
                     # Lock any such word old enough that more audio won't revise it and advance
                     # the window past it. commit() re-runs the FULL audio, so the final text is
-                    # unaffected — this only bounds the live draft to ~context+margin seconds.
+                    # unaffected - this only bounds the live draft to ~context+margin seconds.
                     ctx_start = max(0, locked_samples - int(LOCK_CONTEXT_S * SR))
                     window = full[ctx_start:]
                     tw, ts = transcribe_words(self.rec, window)
@@ -761,7 +761,7 @@ class LiveDictation:
                            tail_s=round((len(full) - locked_samples) / SR, 2),
                            q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
                 if self.overlay is not None and ov_active:
-                    # strip terminal .?! from live words — a not-yet-final word's
+                    # strip terminal .?! from live words - a not-yet-final word's
                     # period is unreliable (Parakeet ends every preview with one) and
                     # would get stranded mid-sentence once you keep talking. The real
                     # end mark is added at commit.
@@ -775,7 +775,7 @@ class LiveDictation:
                         # tick-to-tick or a legit first-word capital would flicker. _END_PUNCT already
                         # stripped per-token sentence marks, so interior safe words lower; word 0 is the
                         # only protected position. A genuine in-window marker-start ("Deploy it. So…")
-                        # can read lower live and snap back at commit — rare; surfaced in the feel-check.
+                        # can read lower live and snap back at commit - rare; surfaced in the feel-check.
                         words = decap_interior(" ".join(words),
                                                after_sentence=self._prev_ended_sentence).split()
                     # IGNORE EMPTY previews: the offline model intermittently emits nothing
@@ -792,7 +792,7 @@ class LiveDictation:
                         eager_now = at_start and (secs >= self.eager_after)
                         # Phase 1 one-by-one reveal: when DISPLAY_MARGIN is set, the stable
                         # prefix is decided by audio AGE (lock-trim word timestamps) rather than
-                        # two-preview agreement — a word reveals as soon as its right boundary is
+                        # two-preview agreement - a word reveals as soon as its right boundary is
                         # DISPLAY_MARGIN_S old, skipping the extra preview the agreement gate
                         # waited for. Corrections run on the revealed prefix so IT terms still
                         # come out right. Onset filler/breath/eager gates still apply via
@@ -814,7 +814,7 @@ class LiveDictation:
                                                 at_start=at_start, stable=age)
                         if self._alias_prefixes:
                             # hold an in-progress multi-word alias ("V S code") off-screen until it
-                            # resolves to "VS Code" — reveals whole, never typed-then-retyped
+                            # resolves to "VS Code" - reveals whole, never typed-then-retyped
                             show = hold_alias_prefix(show, self._alias_prefixes)
                         target = " ".join(show)
                         before = self.overlay.typed
@@ -837,7 +837,7 @@ class LiveDictation:
                     log(f"\r[~]    {txt}")
                 since_preview = 0.0
 
-        # flush a sentence in progress on stop. Drain any audio still queued first — when
+        # flush a sentence in progress on stop. Drain any audio still queued first - when
         # you toggle off right after the last word, those frames haven't been consumed yet,
         # and committing without them dropped the tail of the sentence (#2 disappearing text).
         if in_sentence:
@@ -851,7 +851,7 @@ class LiveDictation:
 
 
 def load_all_aliases():
-    """Phrase-aliases for every corrector: the SHIPPED global pack (packs/*.aliases, always on —
+    """Phrase-aliases for every corrector: the SHIPPED global pack (packs/*.aliases, always on -
     this is what makes it a *global* dictionary) PLUS optional user/repo
     packs from $DUM_VOCAB_DIR on top. Deduped so pointing DUM_VOCAB_DIR at packs/ won't
     double-load. load_phrase_aliases stays a pure (dir->aliases) function for clean unit tests;
@@ -878,7 +878,7 @@ def load_all_aliases():
 
 def load_all_alias_pairs():
     """(say_tokens, want) pairs from the same packs load_all_aliases uses (global + DUM_VOCAB_DIR
-    + repo when DUM_REPO_VOCAB) — for the commit-only fuzzy symbol recovery stage. Parses the
+    + repo when DUM_REPO_VOCAB) - for the commit-only fuzzy symbol recovery stage. Parses the
     raw `lhs => rhs` so we keep the spoken-form tokens (load_phrase_aliases only returns regexes)."""
     dirs = [HERE / "packs"]
     env_dir = os.environ.get("DUM_VOCAB_DIR")
@@ -908,19 +908,19 @@ def load_all_alias_pairs():
 
 def build_pipeline(terms):
     """Free built-in stages + the inert paid seam. The optional LLM stage is
-    NOT added here — LiveDictation inserts it on the consumer thread (MLX streams
+    NOT added here - LiveDictation inserts it on the consumer thread (MLX streams
     are thread-local), between phonetic and external."""
     stages = [
         PunctuationStage(),                                    # Layer 1.5: drop micro-pause dots
         # Layer 2: free, built-in. extra_phrase_aliases = shipped global pack (always on) + any
         # user/repo packs via DUM_VOCAB_DIR (SEAM 2).
         PhoneticStage(PhoneticCorrector(terms, extra_phrase_aliases=load_all_aliases())),
-        # SEAM 1: paid external corrector — inert unless DUM_EXTERNAL_CORRECTOR set
+        # SEAM 1: paid external corrector - inert unless DUM_EXTERNAL_CORRECTOR set
         ExternalCorrectorStage(os.environ.get("DUM_EXTERNAL_CORRECTOR")),
-        # V2 SEAM: per-user personalization (learned corrections) — defined, inert in V1 (no learner,
+        # V2 SEAM: per-user personalization (learned corrections) - defined, inert in V1 (no learner,
         # no data). Slots in here; gated by DUM_PERSONAL_CORRECTIONS. See learn/proposer.py.
         PersonalCorrectionStage(),
-        # COMMIT-ONLY constrained fuzzy symbol recovery — inert unless DUM_FUZZY_SYMBOLS=1.
+        # COMMIT-ONLY constrained fuzzy symbol recovery - inert unless DUM_FUZZY_SYMBOLS=1.
         FuzzySymbolStage(load_all_alias_pairs()),
         # Revert common-word/name -> jargon corruptions (get->git, grab->grep, Rado->redis) unless the
         # sentence clearly carries command/code context. Source of truth for the 2026-06-20 theme.
@@ -934,15 +934,15 @@ def build_pipeline(terms):
 def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     """Global hotkey listener on macOS (needs Input Monitoring). The DICTATION start/stop
     trigger is configurable (key + mode, read from ~/.dum/config.json); the ⌥ "flag a problem"
-    gesture stays hardcoded (double-tap LEFT ⌥) — out of scope for v1.
+    gesture stays hardcoded (double-tap LEFT ⌥) - out of scope for v1.
 
     `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "cmd_l" (default,
     reproduces today's behavior exactly), "cmd_r", or "fn".
     `mode`:
-      * "toggle" — a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
-        key between — so single presses and modifier+key shortcuts are untouched) flips
+      * "toggle" - a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
+        key between - so single presses and modifier+key shortcuts are untouched) flips
         start <-> stop. This is the original behavior.
-      * "push"   — push-to-dictate: holding the trigger key starts recording, releasing it
+      * "push"   - push-to-dictate: holding the trigger key starts recording, releasing it
         stops + commits. Wired through the same app.start()/app.stop() entry points.
     Global (needs Input Monitoring)."""
     from pynput import keyboard
@@ -976,7 +976,7 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
 
     def on_press(key):
         now = time.monotonic()
-        # feed the dogfood activity monitor from this SINGLE listener (no second pynput listener —
+        # feed the dogfood activity monitor from this SINGLE listener (no second pynput listener -
         # two would call macOS TIS/TSM from different threads and the OS aborts the process).
         app.dogfood.record_key(_key_category(key))
         if key == trig:
@@ -1003,12 +1003,12 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
 
     if mode == "push":
         log(f"dictate: HOLD {desc['label']} to talk, release to stop + commit (push)")
-        log("double-tap left ⌥ — report a bad transcription")
+        log("double-tap left ⌥ - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     else:
-        log(f"dictate: {desc['label']} — start/stop (toggle)")
-        log("double-tap left ⌥ — report a bad transcription")
+        log(f"dictate: {desc['label']} - start/stop (toggle)")
+        log("double-tap left ⌥ - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press)
     listener.start()
@@ -1019,7 +1019,7 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     try:
         # Use the Thread's is_alive(), NOT pynput's `listener.running`: `running` is set True
         # INSIDE the listener thread's run(), which may not have executed yet when we first check
-        # — a startup race that on Windows reliably loses (the loop sees False and exits instantly,
+        # - a startup race that on Windows reliably loses (the loop sees False and exits instantly,
         # so the daily driver quits the moment it starts). is_alive() is True from start() onward.
         while listener.is_alive():
             time.sleep(0.2)
@@ -1047,14 +1047,14 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
             try:
                 from llm_backend import close_all_backends
                 close_all_backends()    # free llama.cpp Metal BEFORE exit (atexit is bypassed
-                                        # when AppKit/Ctrl+C calls C exit() — would SIGABRT)
+                                        # when AppKit/Ctrl+C calls C exit() - would SIGABRT)
             except Exception:
                 pass
 
     def _on_signal(_sig, _frm):
         # Ctrl+C / SIGTERM in --tray would otherwise hit AppKit's raw exit() and crash in
         # llama.cpp's Metal static destructor. Free the model, then os._exit to skip the C++
-        # finalizers entirely — a clean quit with no native trace.
+        # finalizers entirely - a clean quit with no native trace.
         _teardown()
         os._exit(0)
 
@@ -1076,7 +1076,7 @@ def main():
                 log(f"  {i}: {dv['name']}")
         return
 
-    # Auto-start (login item) admin commands — handle and EXIT before building the engine,
+    # Auto-start (login item) admin commands - handle and EXIT before building the engine,
     # so `./dum --install-autostart` is a quick one-shot, not a dictation launch.
     if any(a in argv for a in ("--install-autostart", "--uninstall-autostart", "--autostart-status")):
         import autostart
@@ -1152,7 +1152,7 @@ def main():
 
     if is_replay:
         # headless: push a WAV through the real loop (for bench.py / regression). No mic,
-        # no global hotkey — so it needs neither the single-instance guard nor a finally.
+        # no global hotkey - so it needs neither the single-instance guard nor a finally.
         wav = argv[argv.index("--replay") + 1]
         log(f"[replay] {wav}")
         app.replay(wav, realtime="--replay-fast" not in argv)
@@ -1161,14 +1161,14 @@ def main():
         log("bye")
         return
 
-    # Live daily-driver modes own single-owner resources — the mic, the global double-tap
+    # Live daily-driver modes own single-owner resources - the mic, the global double-tap
     # hotkey, and the overlay that types into the focused app. A second copy would fight over
     # all three (and on macOS two hotkey listeners can get the process aborted), so refuse it.
     from single_instance import SingleInstance, AlreadyRunning
     try:
         guard = SingleInstance().acquire()
     except AlreadyRunning as e:
-        log(f"dum is already running — {e}. Quit the other copy first "
+        log(f"dum is already running - {e}. Quit the other copy first "
             f"(menu bar > Quit dum, or Ctrl+C in its terminal).")
         return
     try:

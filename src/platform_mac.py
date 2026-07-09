@@ -13,7 +13,7 @@ class MacPlatform(Platform):
     def type_text(self, text):
         """Insert `text` as raw Unicode via CGEvent, bypassing the active keyboard
         layout. pynput types through the layout, so a dead-key layout (Slovak: the
-        apostrophe is a dead acute) mangles output — e.g. what's -> whatś. Posting the
+        apostrophe is a dead acute) mangles output - e.g. what's -> whatś. Posting the
         Unicode string directly produces the exact characters regardless of layout."""
         if not text:
             return
@@ -42,7 +42,7 @@ class MacPlatform(Platform):
 
     # ---- clipboard-safe atomic paste (HUD/session model) ---------------------
     # paste_atomic puts the dictated text on the clipboard, sends Cmd+V, then RESTORES whatever the
-    # user had — fixing the long-standing clipboard-clobber bug now that EVERY surface pastes. The OS
+    # user had - fixing the long-standing clipboard-clobber bug now that EVERY surface pastes. The OS
     # primitives below are factored out so the algorithm (snapshot -> set -> paste -> restore-on-success)
     # is unit-testable with an in-memory fake (test_platform_paste.py) without touching the real
     # pasteboard or pasting Cmd+V into a live app.
@@ -55,7 +55,7 @@ class MacPlatform(Platform):
         return int(self._pasteboard().changeCount())
 
     def _clipboard_snapshot(self):
-        """Full-fidelity capture (Q6): every NSPasteboardItem and all its types, plus changeCount —
+        """Full-fidelity capture (Q6): every NSPasteboardItem and all its types, plus changeCount -
         so RTF / images / file-urls survive, not just plain text."""
         pb = self._pasteboard()
         items = []
@@ -101,7 +101,7 @@ class MacPlatform(Platform):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def paste_atomic(self, text):
-        # Q3: if a secure/password field is focused, synthetic Cmd+V won't land. Don't fight it — leave
+        # Q3: if a secure/password field is focused, synthetic Cmd+V won't land. Don't fight it - leave
         # the dictated text ON the clipboard so the user can paste manually, and report failure (the
         # caller shows the red-pill HUD). Crucially: do NOT restore in this case.
         if self._secure_input_active():
@@ -112,7 +112,7 @@ class MacPlatform(Platform):
         self._send_paste()
         time.sleep(PASTE_SETTLE_S)                    # let Cmd+V read OUR text before we restore
         # Restore the user's clipboard ONLY on success AND only if nothing else grabbed it meanwhile:
-        # our set bumped changeCount to snap+1; if it advanced further, the user copied something new —
+        # our set bumped changeCount to snap+1; if it advanced further, the user copied something new -
         # leave that alone rather than clobber it.
         if self._change_count() == snap["change_count"] + 1:
             self._clipboard_restore(snap)

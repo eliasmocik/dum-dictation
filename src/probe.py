@@ -2,13 +2,13 @@
 """
 G0 mechanism probe.
 
-Replays a WAV through the REAL live.py pipeline — current HARDCODED aliases, NO LLM,
-NO vocab pack — and prints, per committed sentence, the RAW transcript vs the FIXED
+Replays a WAV through the REAL live.py pipeline - current HARDCODED aliases, NO LLM,
+NO vocab pack - and prints, per committed sentence, the RAW transcript vs the FIXED
 (post-phonetic-correction) output. The point: read with your own eyes whether phrase
 aliases (engine x->nginx, cube control->kubectl, local host->localhost) fire on real
 mic audio, and whether prose / near-miss controls survive untouched.
 
-This is test scaffolding, not product code — it ships nothing into the tool.
+This is test scaffolding, not product code - it ships nothing into the tool.
 
 Usage:
     .venv/bin/python probe.py <wav>
@@ -56,7 +56,7 @@ def main():
             rows.append((e.get("raw", ""), e.get("fixed", "")))
 
     print("\n" + "=" * 78)
-    print("G0 PROBE — raw (recognizer) vs fixed (after hardcoded phonetic aliases)")
+    print("G0 PROBE - raw (recognizer) vs fixed (after hardcoded phonetic aliases)")
     print("=" * 78)
     changed = 0
     for i, (raw, fixed) in enumerate(rows, 1):

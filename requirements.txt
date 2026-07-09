@@ -1,15 +1,15 @@
-# dum dictation — pinned runtime + test dependencies (Python 3.12).
+# dum dictation - pinned runtime + test dependencies (Python 3.12).
 # Cross-platform: the engine, audio, hotkey and tray deps install everywhere; the
 # OS-native bridges (pyobjc on macOS, pywin32 on Windows) and the MLX homophone LLM
 # (Apple Silicon only) are guarded by environment markers, so `pip install -r
 # requirements.txt` succeeds on macOS, Windows and Linux alike. `./setup` (or
 # setup.ps1 on Windows) installs these into .venv.
 
-# Speech recognition engine (Parakeet via ONNX) — cross-platform
+# Speech recognition engine (Parakeet via ONNX) - cross-platform
 sherpa-onnx==1.13.2
 
 # On-device LLM for the homophone/correction stage (llm_backend.py seam).
-#   llama-cpp-python = the PORTABLE backend (GGUF) — runs the same model on macOS (Metal),
+#   llama-cpp-python = the PORTABLE backend (GGUF) - runs the same model on macOS (Metal),
 #     Windows & Linux, so the L3 LLM polish is identical on all three OSes. It's the default
 #     backend off-macOS, so Win/Linux now get the homophone fixes too (Rado's port ran without).
 #   mlx-lm = the Apple-Silicon fast path; default on macOS for now, selectable via DUM_LLM_BACKEND.
@@ -22,12 +22,12 @@ sherpa-onnx==1.13.2
 llama-cpp-python==0.3.30
 mlx-lm==0.31.3 ; sys_platform == "darwin"
 
-# Audio capture + WAV I/O — cross-platform (PortAudio)
+# Audio capture + WAV I/O - cross-platform (PortAudio)
 sounddevice==0.5.5
 soundfile==0.14.0
 numpy==2.4.6
 
-# Global hotkey + synthetic keystrokes (double-tap hotkey; overlay typing) — cross-platform
+# Global hotkey + synthetic keystrokes (double-tap hotkey; overlay typing) - cross-platform
 pynput==1.8.2
 
 # Menu-bar / system-tray icon for the robust daily-driver launch (cross-platform:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Auto-start dispatcher — install()/uninstall()/status(), selected by sys.platform.
+"""Auto-start dispatcher - install()/uninstall()/status(), selected by sys.platform.
 
 The "robust launch" so the robot starts at login and self-heals on crash (paired with the
 tray icon + single-instance guard). Each OS backend lives one-per-file
@@ -8,7 +8,7 @@ the pure builders + path helpers (tests reference autostart.build_plist etc.). A
 launch the SAME dum/dum.ps1 launcher + --tray, so the login copy equals a manual launch.
 
 macOS permissions caveat: a launchd-spawned python is a different executable than your
-terminal, so Mic/Accessibility/Input-Monitoring grants don't carry — macOS re-asks once.
+terminal, so Mic/Accessibility/Input-Monitoring grants don't carry - macOS re-asks once.
 """
 import sys
 

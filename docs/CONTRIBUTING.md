@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping make this dictation tool better. The most common contribution is a
-**vocabulary fix** — teaching the tool a technical term it mis-transcribes. Before you add
+**vocabulary fix** - teaching the tool a technical term it mis-transcribes. Before you add
 one, read the rule below. It's the single most important discipline in this project, and a
 wrong call degrades the tool for *everyone*.
 
@@ -14,7 +14,7 @@ belongs in this tool:
 |---|---|---|
 | What happened | a word said normally, mis-transcribed by the model | your own pronunciation is non-standard; the model heard you correctly |
 | Examples | "ten stack query" => `TanStack Query`, "postgress" => `PostgreSQL` | someone says "JITHUB" but means GitHub |
-| Belongs in | **the shipped vocab packs** (helps everyone) | **NOT the shipped tool** — it would *harm* users who don't talk that way |
+| Belongs in | **the shipped vocab packs** (helps everyone) | **NOT the shipped tool** - it would *harm* users who don't talk that way |
 | Why | any user speaking standard English hits the same error | a general user does not make this error; a global "fix" breaks it for them |
 
 ### Litmus test for every candidate
@@ -29,8 +29,8 @@ If you dictate to test the tool, you are *both* a tester and a specific person w
 The danger is letting *your* idiolect leak into the shared packs. Two edits can look identical
 to the machine but have opposite verdicts:
 
-- `Ugres => PostGres` — a recognizer **mishear** of "postgres" => **General**, accept it.
-- `the => this` — you **changed your wording**, not a mishear => **Personal / neither**, never add it.
+- `Ugres => PostGres` - a recognizer **mishear** of "postgres" => **General**, accept it.
+- `the => this` - you **changed your wording**, not a mishear => **Personal / neither**, never add it.
 
 Only a careful human read tells them apart. **When in doubt, leave it out.**
 
@@ -38,7 +38,7 @@ Only a careful human read tells them apart. **When in doubt, leave it out.**
 
 1. Add a phrase alias to the relevant file in `packs/` (look at the existing entries for the
    `spoken form => Canonical Form` format). Use *misheard jargon*, never a common English word.
-2. Run the gate — it must stay green:
+2. Run the gate - it must stay green:
    ```
    scripts/test
    ```

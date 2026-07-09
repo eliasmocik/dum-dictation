@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-SEAM 1 — correction pipeline with an external-corrector boundary.
+SEAM 1 - correction pipeline with an external-corrector boundary.
 
 The correction layer is an ordered list of stages. Built-in stages (phonetic,
 LLM) are free. After them sits ExternalCorrectorStage: a boundary where a CLOSED
 "advanced Layer 3" corrector can plug in later as a separate helper process over
-stdio — defined now, disabled until DUM_EXTERNAL_CORRECTOR points to an executable.
+stdio - defined now, disabled until DUM_EXTERNAL_CORRECTOR points to an executable.
 
 Each stage returns (text, events); events flow to the EventBus (SEAM 3).
 """
@@ -31,22 +31,22 @@ def clean_punct(text):
 # nginx"), dropping the capital the recognizer had put there. Re-capitalize the first letter of the
 # text and the first letter after each sentence end. This runs LAST (after alias + LLM), so it fixes
 # whatever they lowercased. clean_punct already removed micro-pause dots, so a remaining ". lowercase"
-# is a real boundary the alias lowercased — safe to capitalize.
+# is a real boundary the alias lowercased - safe to capitalize.
 _SENT_START = re.compile(r"(^\s*|[.?!]['\"”’]?\s+)([a-z])")
 
 def capitalize_sentences(text):
     return _SENT_START.sub(lambda m: m.group(1) + m.group(2).upper(), text)
 
-# --- filler / disfluency removal (General cleanup — everyone says "uh") --------------------------
+# --- filler / disfluency removal (General cleanup - everyone says "uh") --------------------------
 # A curated set of STANDALONE disfluency tokens, removed from BOTH the live preview and the committed
 # text so they never reach the screen or the field. WHOLE-token match only (never substrings:
 # "umbrella" / "ahead" / "error" are safe). Toggled via DUM_STRIP_FILLERS, gated at the live.py call
-# sites — these helpers are pure (always strip) so they're directly testable. Distinct from
+# sites - these helpers are pure (always strip) so they're directly testable. Distinct from
 # live.HALLUCINATIONS (which drops a commit that is ENTIRELY filler); this removes a filler wherever it sits.
-# Includes the nasal-grunt variants Parakeet actually emits — esp. "mm" / "hm" (it writes a nasal
-# disfluency as "Mm", NOT "mmm") — found leaking into the live preview on real clips (2026-06-21).
+# Includes the nasal-grunt variants Parakeet actually emits - esp. "mm" / "hm" (it writes a nasal
+# disfluency as "Mm", NOT "mmm") - found leaking into the live preview on real clips (2026-06-21).
 # Deliberately EXCLUDED: "oh" (a real interjection/word), "m" (would break "I'm" and is a real flag/var),
-# "yeah" (a meaningful affirmation) — those are kept verbatim.
+# "yeah" (a meaningful affirmation) - those are kept verbatim.
 FILLERS = frozenset({"uh", "uhh", "uhm", "um", "umm", "er", "erm",
                      "hm", "hmm", "mm", "mmm", "mhm", "ah", "eh", "huh"})
 
@@ -74,7 +74,7 @@ def strip_fillers(text):
 
 def drop_fillers(words, at_start=False):
     """Filler-strip a LIVE-PREVIEW word list. A trailing filler-shaped token is simply absent until the
-    re-transcribed window resolves it into a real word ("um" -> "umbrella") — that per-tick re-evaluation
+    re-transcribed window resolves it into a real word ("um" -> "umbrella") - that per-tick re-evaluation
     IS the one-tick gate, so no separate hold-state / reveal-path change is needed. If a leading filler
     is dropped at sentence start, recapitalize the new first word so preview casing == commit casing."""
     led = bool(words) and _is_filler(words[0])
@@ -85,17 +85,17 @@ def drop_fillers(words, at_start=False):
 
 # --- decapitalize stray boundary capitals (the CAP face of the over-eager-boundary bug) ----------
 # An over-eager sentence boundary (Parakeet/VAD cutting mid-utterance) surfaces as a capitalized next
-# word where there should be none — WITHIN one commit ("make The switch") or ACROSS commits (a
+# word where there should be none - WITHIN one commit ("make The switch") or ACROSS commits (a
 # continuation segment, the previous one not ending in .?!, typed inline starting with a capital).
 # This lowercases ONLY a TIGHT, curated closed set of words that are NEVER names/identifiers, and ONLY
-# when the word is NOT a real sentence start. The closed set IS the entire name-protection guarantee —
+# when the word is NOT a real sentence start. The closed set IS the entire name-protection guarantee -
 # adding any word that could plausibly be a name/variable would break it. Measured on the real
 # 1,300-commit dogfood corpus: the cross-commit decap fires ~101×, ~97%+ correct continuations, and the
 # curated set touches zero proper nouns. Pure + idempotent. Toggled via DUM_DECAP_CAPS (default ON in
 # the launcher); gated at the live.py call sites. Distinct from the period face ("…a lot more. Smooth")
 # which is separate boundary/MIN_SIL work and deliberately left alone here (fix the capital, not the dot).
 SAFE_LOWER = frozenset({
-    # articles, conjunctions, common prepositions, non-"I" pronouns, discourse markers — never names
+    # articles, conjunctions, common prepositions, non-"I" pronouns, discourse markers - never names
     "the", "a", "an", "and", "but", "or", "so", "then", "now", "also", "because", "if",
     "when", "while", "to", "of", "in", "on", "at", "for", "with",
     "it", "its", "he", "she", "they", "we", "you", "this", "that", "these", "those",
@@ -144,7 +144,7 @@ def decap_interior(text, after_sentence=True):
     A token is a sentence start iff it is the FIRST token and `after_sentence` is True, OR it is
     immediately preceded by a token that ended a sentence (.?! + optional closing quote). Every other
     token is offered to _safe_to_lower (which protects names/identifiers/acronyms/"I"). Pure +
-    idempotent. Fixes the CAP face only — the period face is out of scope (left untouched)."""
+    idempotent. Fixes the CAP face only - the period face is out of scope (left untouched)."""
     toks = text.split()
     if not toks:
         return text
@@ -181,7 +181,7 @@ class FuzzySymbolStage(Stage):
     """COMMIT-ONLY constrained fuzzy symbol recovery (Path 3 spike → flagged feature). Recovers
     recognizer near-misses that resolve to a KNOWN symbol's spoken form ("find model deer" ->
     find_model_dir). OFF unless DUM_FUZZY_SYMBOLS=1; never added to the live-preview path. Does
-    NOT broaden the matching rule — all logic is the proven fuzzy_recover.recover() (multi-word
+    NOT broaden the matching rule - all logic is the proven fuzzy_recover.recover() (multi-word
     anchors, one near-miss, known-symbol target). Index is built once at construction."""
     name = "fuzzysym"
     def __init__(self, alias_pairs):
@@ -240,10 +240,10 @@ class ExternalCorrectorStage(Stage):
         return out, _ev(self.name, text, out)
 
 class PersonalCorrectionStage(Stage):
-    """V2 SEAM — defined, NOT built. The future per-user personalization layer: applies corrections
+    """V2 SEAM - defined, NOT built. The future per-user personalization layer: applies corrections
     LEARNED from THIS user's telemetry (the correction_pair stream -> learn/proposer.py -> approved
     personal aliases), e.g. this user's "JITHUB" -> "GitHub" (see CONTRIBUTING.md, the General-vs-
-    Personal rule). In V1 there is no learner and no data, so this is a strict passthrough — defined
+    Personal rule). In V1 there is no learner and no data, so this is a strict passthrough - defined
     now so V2 is purely additive: it slots in here, gated by DUM_PERSONAL_CORRECTIONS, and can never
     break the free core (exactly like ExternalCorrectorStage). Populated only in V2."""
     name = "personal"
@@ -273,7 +273,7 @@ _FORBIDDEN = {
 # multiword protected phrase (accent-stripped, space-joined) -> single jargon token it must not become
 _FORBIDDEN_PHRASE = {"a lot": "a_lo"}
 # per-target command/code cues. If ANY appears in the sentence, the swap is "clear command context"
-# and is allowed to stand. Kept STRICT on purpose (logs/errors alone are NOT a clear command cue —
+# and is allowed to stand. Kept STRICT on purpose (logs/errors alone are NOT a clear command cue -
 # "grab the logs" is ordinary speech), so the default is to protect.
 _CUES = {
     "git":   {"clone", "commit", "commits", "push", "pushed", "pull", "checkout", "branch",
@@ -312,7 +312,7 @@ class ProtectedWordsStage(Stage):
             if tag == "equal" or tag == "insert":
                 out.extend(cur_toks[j1:j2])
             elif tag == "delete":
-                continue                                  # a stage removed these (e.g. dedup) — keep removed
+                continue                                  # a stage removed these (e.g. dedup) - keep removed
             else:                                         # replace
                 out.extend(self._maybe_revert(raw_toks[i1:i2], cur_toks[j1:j2], raw_norm))
         after = " ".join(out)

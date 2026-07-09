@@ -4,7 +4,7 @@ Menu-bar / system-tray front-end for the dum daily driver.
 
 This is the "no babysat terminal" half of the robust launch: a little icon in the
 macOS menu bar (and, in later phases, the Windows tray + Linux indicator) that shows
-whether the robot is listening and lets you Start/Stop or Quit — paired with auto-start
+whether the robot is listening and lets you Start/Stop or Quit - paired with auto-start
 (autostart.py) and the single-instance guard (single_instance.py).
 
 THREADING (the important bit): on macOS the GUI run loop MUST own the main thread, so
@@ -14,7 +14,7 @@ The double-tap hotkey and the menu both drive the SAME LiveDictation, so the ico
 whatever state the app is actually in (a watcher thread polls app.running).
 
 Cross-platform by design: `pystray` backs the macOS menu bar, the Windows tray, and the
-Linux AppIndicator/XOrg tray from one code path — phases 2/3 reuse this unchanged. GUI
+Linux AppIndicator/XOrg tray from one code path - phases 2/3 reuse this unchanged. GUI
 deps (pystray, pillow) are imported lazily inside run()/_icon_image so the headless
 controller below (and its tests) need neither.
 """
@@ -23,7 +23,7 @@ import time
 
 
 class TrayController:
-    """Non-GUI glue between the tray menu and LiveDictation — unit-testable on its own.
+    """Non-GUI glue between the tray menu and LiveDictation - unit-testable on its own.
 
     The tray's menu/items call into this; it forwards to the app's thread-safe
     start/stop/toggle and exposes the live listening state for the icon to mirror.
@@ -69,14 +69,14 @@ def _icon_image(active):
 
 
 def _watch(icon, controller, poll_s=0.2):
-    """Mirror the app's real listening state onto the icon — so the double-tap hotkey
+    """Mirror the app's real listening state onto the icon - so the double-tap hotkey
     flipping start/stop also updates the menu bar, not just the menu's own clicks."""
     last = None
     while not controller.stopped:
         cur = controller.listening
         if cur != last:
             icon.icon = _icon_image(cur)
-            icon.title = "dum — listening" if cur else "dum — idle"
+            icon.title = "dum - listening" if cur else "dum - idle"
             icon.update_menu()
             last = cur
         time.sleep(poll_s)
@@ -92,10 +92,10 @@ def run(app, on_quit=None):
 
     # Free llama.cpp's Metal context before AppKit exits. Every quit path (menu, Ctrl+C via
     # pystray's own SIGINT handler, Apple-menu Quit, logout) routes through
-    # -[NSApplication terminate:], which calls C exit() — bypassing Python's atexit and
+    # -[NSApplication terminate:], which calls C exit() - bypassing Python's atexit and
     # asserting in ggml's Metal device-free if a Llama is still alive. macOS posts
     # NSApplicationWillTerminate BEFORE that exit(), so freeing here is the one hook that
-    # covers all paths (can't rely on intercepting SIGINT — pystray overrides our handler).
+    # covers all paths (can't rely on intercepting SIGINT - pystray overrides our handler).
     # Kept in a list so the observer token + block outlive this call (run() blocks until quit).
     _keepalive = []
     try:
@@ -113,7 +113,7 @@ def run(app, on_quit=None):
                           .addObserverForName_object_queue_usingBlock_(
                               NSApplicationWillTerminateNotification, None, None, _free_backends))
     except Exception:
-        pass    # non-macOS (Windows/Linux tray) — Metal assert is macOS-only
+        pass    # non-macOS (Windows/Linux tray) - Metal assert is macOS-only
 
     controller = TrayController(app, on_quit=on_quit)
 
@@ -132,7 +132,7 @@ def run(app, on_quit=None):
     )
     icon = pystray.Icon(
         "dum", icon=_icon_image(controller.listening),
-        title="dum — idle", menu=menu)
+        title="dum - idle", menu=menu)
 
     def _setup(icon):
         icon.visible = True

@@ -15,12 +15,17 @@ Built for vibecoders. The bar I'm going for is **"I forgot I was using it"** so 
 can think clearly. If you just want to talk and have the right text show up, this is
 for you.
 
+> **Tried it? Tell me how it went - good or bad.** One sentence in
+> [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or an
+> [issue](https://github.com/eliasmocik/dum-dictation/issues/new) is the single most useful
+> thing you can send. I'm building this in the open and I read everything.
+
 ## What you need
 
-- A **Mac** with Apple Silicon (M-series) — the full experience, including the homophone LLM
-- …or **Windows 10/11** — same dictation + tech-vocab, minus the (Apple-only) homophone LLM. See
+- A **Mac** with Apple Silicon (M-series) - the full experience, including the homophone LLM
+- …or **Windows 10/11** - same dictation + tech-vocab, minus the (Apple-only) homophone LLM. See
   [On Windows](#on-windows) below.
-- …or **Linux** (X11) — same as Windows, via `xdotool` + `xclip`/`wl-clipboard`. See
+- …or **Linux** (X11) - same as Windows, via `xdotool` + `xclip`/`wl-clipboard`. See
   [On Linux](#on-linux) below.
 - Python 3.12
 
@@ -37,13 +42,13 @@ cd dum-dictation
 `./setup` makes a virtualenv, installs the deps, downloads the speech model + the on-device
 correction model, and then tells you which permissions to grant. That's the whole setup.
 
-## Permissions (one time — Mac makes you do this)
+## Permissions (one time - Mac makes you do this)
 
 Dictation literally can't work without these, so don't skip it. The app you need to grant them to
-is **whatever app you ran `./dum` from** — Terminal, iTerm, or the VS Code terminal. (If you run it
+is **whatever app you ran `./dum` from** - Terminal, iTerm, or the VS Code terminal. (If you run it
 in the VS Code terminal, you grant them to **Visual Studio Code**.)
 
-The first time you run `./dum`, macOS will pop these up on its own — just click **Allow** / **Open
+The first time you run `./dum`, macOS will pop these up on its own - just click **Allow** / **Open
 System Settings**. If it doesn't, set them by hand: open **System Settings → Privacy & Security**,
 then for each of the three, find your terminal app in the list and flip the switch **on**:
 
@@ -52,7 +57,7 @@ then for each of the three, find your terminal app in the list and flip the swit
 3. **Input Monitoring** => so it can catch the double-tap-Command hotkey
 
 ⚠️ **Then fully quit your terminal app and reopen it.** macOS only applies the new permissions to a
-fresh launch — this is the step everyone forgets, and dictation stays silent until you do it.
+fresh launch - this is the step everyone forgets, and dictation stays silent until you do it.
 
 <!-- Optional but recommended for non-technical friends: add 3 small screenshots of the toggles.
 Drop them in docs/ as docs/perm-mic.png, docs/perm-accessibility.png, docs/perm-input.png and
@@ -79,7 +84,7 @@ DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
 
 ### Run it like a real app (menu bar + auto-start)
 
-Don't want to babysit a terminal? Add `--tray` and dum lives in your **menu bar** — a
+Don't want to babysit a terminal? Add `--tray` and dum lives in your **menu bar** - a
 little dot (green = listening, grey = idle) with **Start/Stop** and **Quit**. The hotkey
 still works the same.
 
@@ -95,18 +100,18 @@ To have it **start by itself at login** (and quietly relaunch if it ever crashes
 ```
 
 After the first auto-start, macOS re-asks for Microphone / Accessibility / Input
-Monitoring — this time for the venv's `python` (a login item isn't your terminal). Grant
-those three once and log out/in. Running a second copy is refused automatically — one
+Monitoring - this time for the venv's `python` (a login item isn't your terminal). Grant
+those three once and log out/in. Running a second copy is refused automatically - one
 robot owns the mic and hotkey.
 
 ## On Windows
 
-> ⚠️ **Experimental — not yet tested on real Windows hardware.** Treat it as a preview.
+> ⚠️ **Experimental - not yet tested on real Windows hardware.** Treat it as a preview.
 
-Same idea, same tech-vocab smarts — it types into any focused Windows app (VS Code, the
+Same idea, same tech-vocab smarts - it types into any focused Windows app (VS Code, the
 Claude Code box, Chrome, Slack, a WSL terminal). The homophone LLM (`grep`/`grab`,
 `git`/`get`) now runs on Windows too via the portable llama.cpp backend (the same model as
-Mac), so you get the full phonetic + alias + LLM stack — though that path is still unverified
+Mac), so you get the full phonetic + alias + LLM stack - though that path is still unverified
 on real hardware.
 
 In **PowerShell** (Python 3.12 from python.org on your PATH):
@@ -132,16 +137,16 @@ Want the tray icon and start-at-logon?
 .\dum.ps1 --uninstall-autostart
 ```
 
-> Running in WSL? Dictation needs the real keyboard, mic and screen — which Windows owns —
+> Running in WSL? Dictation needs the real keyboard, mic and screen - which Windows owns -
 > so install and run the **Windows** version above. It still types straight into your WSL
 > terminal (and through it, into anything you've SSH'd to). You don't install dum inside WSL
 > or on a remote server; it lives on the machine in front of you.
 
 ## On Linux
 
-> ⚠️ **Experimental / parked — no maintainer testing this yet.** Code is present but unverified.
+> ⚠️ **Experimental / parked - no maintainer testing this yet.** Code is present but unverified.
 
-Same again, for a Linux **desktop** you sit in front of (not a headless server — there's no mic
+Same again, for a Linux **desktop** you sit in front of (not a headless server - there's no mic
 or screen to dictate into there). It uses the standard X11 tools:
 
 ```sh
@@ -159,7 +164,7 @@ clipboard paste uses `xclip` or `wl-clipboard`. If those tools aren't installed 
 just degraded (types via a generic backend, no focus guard).
 
 > **Wayland:** the typing/clipboard tools above are X11. Under a pure Wayland session, run under
-> XWayland or install `ydotool` + `wl-clipboard`. This is the least-tested path — X11 is the
+> XWayland or install `ydotool` + `wl-clipboard`. This is the least-tested path - X11 is the
 > smooth one for now.
 
 ## Privacy
@@ -171,14 +176,21 @@ breakdown is in [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
 
 ## Want to help?
 
-The most useful thing you can send me is a vocab fix (a word it keeps getting wrong). Ideally read
+**Easiest thing (10 seconds):** tell me if it stuck or if you bounced. Did setup work? Did it get
+your words right? Did you still have it on a week later? Drop it in
+[Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or
+[open an issue](https://github.com/eliasmocik/dum-dictation/issues/new). Blunt is fine - "the setup
+broke here" or "it kept hearing X as Y" is exactly what I need. This is a side project I'm building
+in the open, so real feedback is what moves it.
+
+**Next most useful:** a vocab fix (a word it keeps getting wrong). Ideally read
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md), but the general-vs-personal rule is the whole deal.
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) shows how the pipeline fits together and
 [`docs/DEV-NOTES.md`](docs/DEV-NOTES.md) has the dev loop.
 
 ## License
 
-MIT (see [`LICENSE`](LICENSE)). Free to use, fork, and build on — no strings attached. If you ship
+MIT (see [`LICENSE`](LICENSE)). Free to use, fork, and build on - no strings attached. If you ship
 a vocab fix back, even better, but you never have to.
 
 ---

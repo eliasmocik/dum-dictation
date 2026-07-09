@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test — the dum dictation dev gate. Run before every commit.
+# test - the dum dictation dev gate. Run before every commit.
 #
 #   scripts/test            # unit tests + bench (fast) vs baseline; fails on regression
 #   scripts/test --realtime # bench at mic cadence too (adds true settle latency)
@@ -8,7 +8,7 @@
 # Unit tests (pure logic): pipeline text cleanups + overlay diff/reconcile.
 # Bench (real pipeline): replays the golden corpus through live.py and scores WER /
 # IT-term recall / preview proc, comparing to tests/baseline.json. Corpus audio is
-# local-only (voice) — bench skips fixtures whose WAV isn't present.
+# local-only (voice) - bench skips fixtures whose WAV isn't present.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 # engine code lives in src/; tests/ import it flat (`import pipeline`), so put src/ on the
@@ -61,5 +61,5 @@ BENCH_ARGS=()
 $PY src/bench.py "${BENCH_ARGS[@]:-}" || fail=1
 
 echo ""
-if [[ $fail -eq 0 ]]; then echo "ALL GREEN"; else echo "FAILURES — see above"; fi
+if [[ $fail -eq 0 ]]; then echo "ALL GREEN"; else echo "FAILURES - see above"; fi
 exit $fail

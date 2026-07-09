@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# record-session — capture EVERYTHING needed to diagnose dictation lag, synchronized.
+# record-session - capture EVERYTHING needed to diagnose dictation lag, synchronized.
 #
 # Produces one timestamped folder under sessions/ holding:
-#   screen.mp4    — screen + mic video (ffmpeg avfoundation), so the felt lag is visible
-#   trace.jsonl   — hi-res latency events (onset / preview / lock / commit breakdown)
-#   events.jsonl  — the app's correction + commit events (SEAM 3)
-#   seg_*.wav     — the exact audio the model heard for each committed sentence
-#   live.log      — everything the app printed (previews, [OK] commits, warnings)
-#   report.txt    — the auto-generated latency analysis (also printed to screen)
+#   screen.mp4    - screen + mic video (ffmpeg avfoundation), so the felt lag is visible
+#   trace.jsonl   - hi-res latency events (onset / preview / lock / commit breakdown)
+#   events.jsonl  - the app's correction + commit events (SEAM 3)
+#   seg_*.wav     - the exact audio the model heard for each committed sentence
+#   live.log      - everything the app printed (previews, [OK] commits, warnings)
+#   report.txt    - the auto-generated latency analysis (also printed to screen)
 #
 # Usage:
 #   scripts/record-session                 # daily-driver flags: --double-cmd --overlay --llm
 #   scripts/record-session --snappy        # tuned cadence preset (STEP/MIN_SEG/MIN_SIL)
 #   scripts/record-session --snappy --eager  # + lock word 1 off one preview (snappier start)
 #   scripts/record-session --no-llm        # same, LLM correction off (isolate its cost)
-#   scripts/record-session --plain         # commit-only paste (no overlay) — Apple-like baseline
+#   scripts/record-session --plain         # commit-only paste (no overlay) - Apple-like baseline
 #   scripts/record-session --mic 1         # any extra live.py flags (--eager, --mic …) pass through
 #
 # While recording: dictate normally into your usual target (VS Code terminal etc.).
 # Double-tap RIGHT Command to start/stop dictation as always. Press Ctrl+C in THIS
-# terminal when done — it stops the video cleanly and prints the report.
+# terminal when done - it stops the video cleanly and prints the report.
 #
 # First run prompts for Screen Recording permission for your terminal app
 # (System Settings > Privacy & Security > Screen Recording). Grant it, relaunch.
@@ -31,7 +31,7 @@ DIR="sessions/$STAMP"
 mkdir -p "$DIR"
 
 # avfoundation device indices on Elias's Mac: 2 = "Capture screen 0", 0 = MacBook Air mic.
-# These shift when cameras/displays change — override with SCREEN_IDX / MIC_IDX env, or
+# These shift when cameras/displays change - override with SCREEN_IDX / MIC_IDX env, or
 # re-list: ffmpeg -f avfoundation -list_devices true -i ""
 SCREEN_IDX="${SCREEN_IDX:-2}"
 MIC_IDX="${MIC_IDX:-0}"
@@ -64,7 +64,7 @@ ffmpeg -y -hide_banner -loglevel warning \
   -c:a aac -b:a 128k \
   "$DIR/screen.mp4" &
 FFMPEG_PID=$!
-# epoch when capture began — lets analyze_session map a trace event's `wall` to a
+# epoch when capture began - lets analyze_session map a trace event's `wall` to a
 # video timestamp (video_t = trace.wall - this), so frames can be pulled at any event.
 date +%s.%N > "$DIR/video_start.epoch"
 

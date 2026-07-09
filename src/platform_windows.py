@@ -12,7 +12,7 @@ from platform_base import Platform, PASTE_SETTLE_S
 class WindowsPlatform(Platform):
     """Windows-native I/O.
 
-    Typing is layout-independent Unicode via SendInput (KEYEVENTF_UNICODE) — so a Slovak (or
+    Typing is layout-independent Unicode via SendInput (KEYEVENTF_UNICODE) - so a Slovak (or
     any dead-key) layout does NOT mangle output, the same guarantee MacPlatform gets from its
     CGEvent path, and the reason we don't just type through pynput here. Clipboard save/restore
     and focused-app detection use pywin32; cues use winsound. The global hotkey and the overlay's
@@ -121,7 +121,7 @@ class WindowsPlatform(Platform):
                 self._set_clipboard_text(prev)       # restore
             return True
         except Exception:
-            # clipboard contended/unavailable — never lose the text, type it instead
+            # clipboard contended/unavailable - never lose the text, type it instead
             self.type_text(text)
             return True
 

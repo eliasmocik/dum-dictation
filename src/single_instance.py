@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Single-instance guard — refuse to start a second dum on the same machine.
+Single-instance guard - refuse to start a second dum on the same machine.
 
 Two live copies would FIGHT over shared, single-owner resources:
-  * the global hotkey — two pynput listeners both grab the double-tap; on macOS the
+  * the global hotkey - two pynput listeners both grab the double-tap; on macOS the
     OS can abort the second process outright (the same TIS/TSM-from-two-threads abort
     live.py already guards against, but now across processes).
-  * the microphone — two recognizers racing the same input stream.
-  * the overlay — two robots typing into the focused app at once = corrupted text.
+  * the microphone - two recognizers racing the same input stream.
+  * the overlay - two robots typing into the focused app at once = corrupted text.
 
 So we take an exclusive, advisory OS lock on a file in ~/.dum and the loser exits
 cleanly. The lock is released automatically when the holder dies (even on crash/kill),

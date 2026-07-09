@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for the single-instance guard (single_instance.py).
 
-Runs anywhere fcntl exists (macOS + Linux) — no mic/hotkey/GUI. Covers:
+Runs anywhere fcntl exists (macOS + Linux) - no mic/hotkey/GUI. Covers:
   * acquire() succeeds on a free lock and stamps the holder pid
   * a SECOND acquire on the same path is refused with AlreadyRunning
     (this is what stops two robots fighting over the mic + hotkey)

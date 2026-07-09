@@ -2,7 +2,7 @@
 """Unit tests for the tray controller (tray.py).
 
 The GUI (pystray/pillow, the macOS menu-bar loop) can't run headlessly, so we test the
-non-GUI glue — TrayController — with a fake app. It must mirror the app's real listening
+non-GUI glue - TrayController - with a fake app. It must mirror the app's real listening
 state (so the icon tracks the hotkey too, not just menu clicks) and tear down exactly once
 on quit. Importing tray.py here must NOT require pystray/pillow (they're lazy in run()).
 """
@@ -45,7 +45,7 @@ class TestTrayController(unittest.TestCase):
         calls = []
         c = TrayController(FakeApp(), on_quit=lambda: calls.append(1))
         c.quit()
-        c.quit()                          # idempotent — a second Quit must not re-tear-down
+        c.quit()                          # idempotent - a second Quit must not re-tear-down
         self.assertEqual(calls, [1])
         self.assertTrue(c.stopped)
 

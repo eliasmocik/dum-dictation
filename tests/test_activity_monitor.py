@@ -70,7 +70,7 @@ m4._cur_app = "Code"
 m4.record_key("backspace")
 m4.record_key("other")
 check(len(m4._keys) == 2 and m4._keys[0][1] == "backspace" and m4._keys[0][2] == "Code",
-      "record_key stores (ts, category, app) only — no character")
+      "record_key stores (ts, category, app) only - no character")
 # keystrokes disabled -> record_key is a no-op (DogfoodLogger gates via keystroke_proxy)
 m4b = ActivityMonitor(frontmost_fn=lambda: "Code", keystrokes=False)
 m4b.record_key("backspace")

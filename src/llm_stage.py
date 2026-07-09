@@ -7,10 +7,10 @@ sentence contains a real-word homophone "suspect" (grab/get/...) that the
 deterministic layer must not touch (since those words are valid English).
 This keeps the LLM off the latency path for the easy 95%.
 
-Inference runs through the `llm_backend.LLMBackend` seam — model load + token generation
+Inference runs through the `llm_backend.LLMBackend` seam - model load + token generation
 are the only platform-specific atoms, fenced into one pluggable backend so this corrector
 (prompt, gating, validation) stays single and OS-agnostic. Default: Llama-3.2-1B-Instruct-4bit
-on MLX/Apple-Silicon (~700MB, downloaded once to the HF cache) — chosen over the 3B for ~2.5x
+on MLX/Apple-Silicon (~700MB, downloaded once to the HF cache) - chosen over the 3B for ~2.5x
 lower commit latency at equal task accuracy (constrained output + IT-term filter). Override the
 model with DUM_LLM_MODEL, the backend with DUM_LLM_BACKEND. A portable backend (llama.cpp /
 onnxruntime-genai) drops in behind the same interface to unify dictation across Win/Linux; on
@@ -26,7 +26,7 @@ import os, queue, re, threading, time
 
 # Default homophone-fix model. 1B (vs 3B) is ~2.5x faster (~350ms vs ~900ms) and, with the
 # constrained "wrong->right" output + IT-term validation filter, at least as accurate on the
-# narrow task — so it stays on the latency path without the ~1s commit stall. Override with
+# narrow task - so it stays on the latency path without the ~1s commit stall. Override with
 # DUM_LLM_MODEL (e.g. the 3B for max accuracy on a faster machine).
 DEFAULT_LLM_MODEL = os.environ.get("DUM_LLM_MODEL", "mlx-community/Llama-3.2-1B-Instruct-4bit")
 
@@ -98,7 +98,7 @@ def _lev(a, b):
 
 # Some real-word homophones only become a term in the right CONTEXT. `grep` SEARCHES TEXT,
 # so a swap into grep needs a search-y target nearby (logs, errors, a pattern). Without this
-# the 1B over-fires grep onto any "grab" — e.g. "grab the database" -> "grep the database"
+# the 1B over-fires grep onto any "grab" - e.g. "grab the database" -> "grep the database"
 # (measured over-correction). git/sudo/kubectl swaps aren't ambiguous this way, so unguarded.
 _GREP_CTX = {"log", "logs", "error", "errors", "output", "file", "files", "pattern",
              "string", "stdout", "stderr", "trace", "grep", "match", "search", "regex"}
@@ -108,7 +108,7 @@ def _grep_match(out, wrong):
     """Pick WHICH occurrence of `wrong` to turn into grep: the one whose next few words are a
     search target (logs/errors/pattern/...), since grep's object follows it. This both gates
     the swap (none qualifies -> no grep) AND fixes which word is changed when the sentence has
-    several — 'grab a coffee after we grab the logs' must grep the second grab, not the first."""
+    several - 'grab a coffee after we grab the logs' must grep the second grab, not the first."""
     for m in _WORD(wrong).finditer(out):
         after = {_key(w) for w in out[m.end():].split()[:4]}
         if after & _GREP_CTX:
@@ -116,7 +116,7 @@ def _grep_match(out, wrong):
     return None
 
 
-# `get`->`git` was historically UNGUARDED, so the 1B over-fired it onto ordinary "get" — telemetry
+# `get`->`git` was historically UNGUARDED, so the 1B over-fired it onto ordinary "get" - telemetry
 # caught "get the vision"->"git the vision", "Get the SSH working"->"Git the SSH working" (measured).
 # git is a verb whose SUBCOMMAND follows it (git clone/push/checkout/...), so gate the swap on a git
 # subcommand appearing in the next few words, exactly like grep. No subcommand nearby -> not git.
@@ -143,7 +143,7 @@ def _plausible(wrong, right):
     """A genuine misheard-term swap is PHONETICALLY close (grab->grep, engine x->nginx,
     pseudo->sudo). This rejects the nonsense pairs a small model sometimes emits that
     still pass the term filter because the target IS a term (Redis->ssh, LLM->grep,
-    coffee->grep) — phonetically far, so dropped."""
+    coffee->grep) - phonetically far, so dropped."""
     w, r = _sounds(wrong), _sounds(right)
     if not w or not r:
         return False
@@ -164,7 +164,7 @@ class LLMCorrector:
         """Apply the model's 'wrong->right' corrections to `text`, but ONLY when `right`
         is a known IT term (so the model can never rephrase into a non-term). Each pair
         replaces ONE whole-word occurrence (left-to-right), preserving the matched word's
-        capitalisation — so 'get->git, get->git' fixes the first two technical `get`s while
+        capitalisation - so 'get->git, get->git' fixes the first two technical `get`s while
         an ordinary 'get' the model left out stays. Malformed output => no change."""
         if not raw_out or raw_out.strip().upper().startswith("NONE"):
             return text
@@ -178,7 +178,7 @@ class LLMCorrector:
                 continue                       # safety: only land real IT terms
             if not _plausible(wrong, right):
                 continue                       # reject phonetically-implausible nonsense swaps
-            # context-gated terms (grep, git) only land when their cue is nearby — pick that
+            # context-gated terms (grep, git) only land when their cue is nearby - pick that
             # occurrence or skip. Other terms apply to the first occurrence.
             gate = _CTX_GATE.get(_key(right))
             m = gate(out, wrong) if gate else _WORD(wrong).search(out)
@@ -210,7 +210,7 @@ class LLMWorker:
     """Drop-in for LLMCorrector that owns the MLX model on ONE long-lived thread.
 
     MLX GPU streams are thread-local, and the dictation consumer thread is recreated
-    on every start/stop toggle — so loading or running the model on that ephemeral
+    on every start/stop toggle - so loading or running the model on that ephemeral
     thread crashes with 'no Stream(gpu, N) in current thread' once you toggle again.
     This worker pins ALL MLX work (load + every inference) to a single persistent
     thread for the app's lifetime. `.correct()` is called from any thread and blocks

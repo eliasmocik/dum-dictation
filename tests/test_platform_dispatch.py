@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Unit tests for platform selection (platform_io.get_platform) + the pure bits of
-WindowsPlatform that don't touch Win32 — so they run on any OS, including this Linux gate.
+WindowsPlatform that don't touch Win32 - so they run on any OS, including this Linux gate.
 
 The OS-native behaviour (SendInput typing, win32clipboard, winsound, GetForegroundWindow)
 can only be exercised on Windows; here we cover the dispatch and the no-API guards.
@@ -49,7 +49,7 @@ class TestWindowsPlatformPure(unittest.TestCase):
 
 class TestLinuxPlatformPure(unittest.TestCase):
     """Constructing it (which only probes tool availability via shutil.which) and its no-API
-    paths must be safe on any OS — including a box with no xdotool/xclip, like this gate."""
+    paths must be safe on any OS - including a box with no xdotool/xclip, like this gate."""
 
     def test_construct_is_safe(self):
         platform_io.LinuxPlatform()              # only shutil.which() probes, no execution

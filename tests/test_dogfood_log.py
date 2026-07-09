@@ -21,7 +21,7 @@ def check(cond, msg):
 
 # --- 1. commit event schema ---
 os.environ["DUM_DOGFOOD_LOG"] = "0"          # construct without touching disk
-dl._ax_window_title = lambda: "pipeline.py — bakeoff"   # deterministic (no GUI focus in tests)
+dl._ax_window_title = lambda: "pipeline.py - bakeoff"   # deterministic (no GUI focus in tests)
 log = dl.DogfoodLogger(path="/tmp/dum_dogfood_test.jsonl")
 _STAGES = [{"type": "correction.applied", "stage": "phonetic",
             "before": "get push", "after": "git push", "ms": 0.4}]
@@ -43,7 +43,7 @@ check(evt["schema"] == 5, "schema version bumped to 5 (surface buckets: shell / 
 # --- 1a. real surface bucket + best-effort window_title ---
 # VS Code family -> coarse "vscode" (analyzer refines to editor/vscode-terminal/claude-code post-hoc).
 check(evt["surface"] == "vscode", "surface derived from app: Code -> vscode (coarse parent)")
-check(evt["window_title"] == "pipeline.py — bakeoff", "window_title captured (best-effort AX)")
+check(evt["window_title"] == "pipeline.py - bakeoff", "window_title captured (best-effort AX)")
 check(dl.classify_surface("iTerm2") == "shell" and dl.classify_surface("Google Chrome") == "browser"
       and dl.classify_surface("Cursor") == "vscode" and dl.classify_surface("Sublime Text") == "editor"
       and dl.classify_surface("Notes") == "rich-text" and dl.classify_surface("Some Random App") == "unknown"
@@ -131,7 +131,7 @@ emb = dl.edit_signal("deploy to postgress now", "so we deploy to PostgreSQL now 
 check(emb.get("correction_pair") == {"committed_span": "postgress", "corrected_span": "PostgreSQL"},
       f"correction_pair isolates changed word in context (got {emb.get('correction_pair')})")
 
-# --- Part A: trim neighbour-commit BLEED — anchor the aligned region to the committed word-extent ---
+# --- Part A: trim neighbour-commit BLEED - anchor the aligned region to the committed word-extent ---
 check(dl._trim_field_bleed("of brew whenever you know", "ofbBre whenever you know Should")
       == "ofbBre whenever you know", "_trim_field_bleed drops a trailing neighbour word")
 check(dl._trim_field_bleed("So nothing changed", "anymore. So nothing changed")
@@ -158,17 +158,17 @@ for a, b in [("cloud code", "Claude Code"), ("thing", "VSCODE"), ("Jetson", "Rad
              ("git hub", "GitHub"), ("web socket", "WebSocket"), ("sherpa onnx", "sherpa-onnx"),
              ("deploy to postgress", "deploy to PostgreSQL")]:
     check(_CC(a, b) == "clean", f"classify_correction: genuine '{a}'->'{b}' = clean (kept as learning signal)")
-# scrambles (same letters, sequence/spacing churned) — dum's insertion-corruption bug, NOT a fix
+# scrambles (same letters, sequence/spacing churned) - dum's insertion-corruption bug, NOT a fix
 for a, b in [("it. Uh Get service SH SSHD worked. However,", "it U.h get Sesvice s SHSHD worked, .HHwever,,"),
              ("tool. Uh however", "too.l Uhhhoweve"), ("of brew", "ofbBre")]:
     check(_CC(a, b) == "scramble", f"classify_correction: scramble '{a}'->'{b}' = scramble (overlay corruption)")
-# bleed/accumulation — committed survives as an ordered subsequence inside a longer corrected (a
-# neighbour commit merged, or the user kept writing) — NOT a scramble of this text, NOT a fix
+# bleed/accumulation - committed survives as an ordered subsequence inside a longer corrected (a
+# neighbour commit merged, or the user kept writing) - NOT a scramble of this text, NOT a fix
 check(_CC("Everything else can be plugged in.", "jumper.Everything else can be plugged in,.") == "bleed",
       "classify_correction: neighbour bleed = bleed (not a correction of this text)")
 check(_CC("Tool that I use.", "tool that I use for") == "bleed",
       "classify_correction: user kept writing (subsequence preserved + appended) = bleed, not scramble")
-# trivial — letter-identical, no alnum-token-boundary change: punct/case noise (incl. bad-space split)
+# trivial - letter-identical, no alnum-token-boundary change: punct/case noise (incl. bad-space split)
 for a, b in [("Check.", "Check"), ("Global", "global"), ("weird.", "weird ."), ("two. However,", "two., however")]:
     check(_CC(a, b) == "trivial", f"classify_correction: trivial '{a}'->'{b}' = trivial (low-signal, not a vocab candidate)")
 # edit_signal tags the pair kind inline so live logs self-describe
@@ -317,7 +317,7 @@ s_cp = auc.summarize([
 check(s_cp["top_correction_pairs"][0] == {"committed": "postgress", "corrected": "PostgreSQL", "n": 2},
       "analyzer: repeated correction pairs surfaced (committed->corrected, counted)")
 
-# Part B: insertion-corruption classifier — dum scrambling its own output (overlay reconcile bug)
+# Part B: insertion-corruption classifier - dum scrambling its own output (overlay reconcile bug)
 # is NOT a user correction. Signature = near-identical chars + broken word segmentation.
 check(auc.is_insertion_corruption("tool. Uh however", "too.l Uhhhoweve")
       and auc.is_insertion_corruption("of brew", "ofbBre"),
@@ -331,7 +331,7 @@ check(not auc.is_insertion_corruption("joint", "join")
       and not auc.is_insertion_corruption("thing", "VSCODE")
       and not auc.is_insertion_corruption("recieve", "receive"),
       "is_insertion_corruption: leaves genuine corrections (mishear/casing/typo-fix) alone")
-# CRITICAL: must NOT eat the most valuable vocab candidates — compound/hyphenation/casing fixes keep
+# CRITICAL: must NOT eat the most valuable vocab candidates - compound/hyphenation/casing fixes keep
 # the same letter sequence (only spaces/punct/case move), so they are never corruption.
 check(not auc.is_insertion_corruption("git hub", "GitHub")
       and not auc.is_insertion_corruption("web socket", "WebSocket")
@@ -369,7 +369,7 @@ check(s8["stage_usage"]["phonetic"]["fired"] == 2 and s8["stage_usage"]["sentcap
       "analyzer: STAGE usage counted from embedded stages_fired")
 check(s8["by_app_capture"]["Code"]["keystroke"] == 1 and s8["by_app_capture"]["Code"]["ax"] == 0
       and s8["by_app_capture"]["TextEdit"]["ax"] == 1,
-      "analyzer: per-app capture split (Code=keystroke, TextEdit=ax) — 'where am I blind'")
+      "analyzer: per-app capture split (Code=keystroke, TextEdit=ax) - 'where am I blind'")
 
 # --- 6. flag-as-problem hotkey: writes user.verdict for the last commit; analyzer surfaces it ---
 with tempfile.TemporaryDirectory() as _gd:

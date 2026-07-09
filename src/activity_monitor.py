@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Session-level activity monitor — the Layer-2 backbone for the question Step 4 answers:
+Session-level activity monitor - the Layer-2 backbone for the question Step 4 answers:
 **after dum inserts text, did the user FIX the output, or just CONTINUE working?**
 
 Two cheap, session-wide collectors feed timestamped logs; each commit's observer is a pure reader
 that slices them by [t0, t1]. No per-commit OS taps.
 
-  * app poller       — one thread polling frontmost_app() ~1/s, logging app SWITCHES with timestamps.
+  * app poller       - one thread polling frontmost_app() ~1/s, logging app SWITCHES with timestamps.
                        Robust, works in EVERY app, near-zero cost. The reliable signal for
                        "did they stay and edit, or move on to another task?".
-  * keystroke proxy  — CONTENT-FREE keystroke categories (backspace/delete/nav/other), NEVER which
+  * keystroke proxy  - CONTENT-FREE keystroke categories (backspace/delete/nav/other), NEVER which
                        character, fed in via record_key() from the app's SINGLE keyboard listener.
                        App-attributed via the poller's current app, so edits are scoped to the
                        commit's app. (The monitor deliberately does NOT start its own keyboard
-                       listener — two concurrent pynput listeners both query macOS TIS/TSM from
+                       listener - two concurrent pynput listeners both query macOS TIS/TSM from
                        different threads and the OS aborts the process. One listener, shared.)
 
 Local-only, fully guarded (never raises), and dependency-injected (frontmost_fn) so it's testable
@@ -39,7 +39,7 @@ class ActivityMonitor:
     # ---- lifecycle ----------------------------------------------------------
     def start(self):
         """Start the app poller ONLY. Keystrokes arrive via record_key() from the app's single
-        keyboard listener — the monitor must NOT start a second listener (TIS/TSM abort).
+        keyboard listener - the monitor must NOT start a second listener (TIS/TSM abort).
         Idempotent; never raises."""
         if self._started:
             return

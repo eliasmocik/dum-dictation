@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-SEAM 3 — correction-event hook.
+SEAM 3 - correction-event hook.
 
 Surfaces correction events so a CLOSED personalisation agent can observe them later
 (it learns from what gets fixed). The free core only emits; it never depends on a
 subscriber. Today: in-process callbacks + an optional append-only JSONL sink
 (env DUM_EVENTS). Later: the same emit() also pushes over a Unix socket the
-closed agent connects to — no change to call sites.
+closed agent connects to - no change to call sites.
 
 Event schema (one JSON object per line; `ts` = epoch seconds, added by emit()):
   {"ts": 1.7e9, "type": "correction.applied", "stage": "<phonetic|llm|external>",
    "before": "...", "after": "..."}
   {"ts": 1.7e9, "type": "commit", "raw": "...", "fixed": "...", "changed": true,
    "surface": "terminal", "app": "Code", "mode": "overlay", "llm": false,
-   "n_words": 7}   # one per committed sentence — the end-to-end record for the
+   "n_words": 7}   # one per committed sentence - the end-to-end record for the
                    # future personalisation agent (every commit, corrected or not).
   {"ts": 1.7e9, "type": "user.refix", "before": "...", "after": "..."}  # DEFERRED:
         the user-correction signal. Seam stays defined; not emitted yet (see
-        decisions/log.md 2026-06-14) — capture is premature with no consumer built.
+        decisions/log.md 2026-06-14) - capture is premature with no consumer built.
 """
 import json
 import time

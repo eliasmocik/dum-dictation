@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Constrained fuzzy alias RECOVERY — SPIKE LOGIC ONLY. NOT wired into the live pipeline.
+Constrained fuzzy alias RECOVERY - SPIKE LOGIC ONLY. NOT wired into the live pipeline.
 
 Goal: recover recognizer near-misses (find model DEER -> find_model_dir, min EDITED script ->
-min_edit_script) that the EXACT phrase-alias layer can't catch — but ONLY when the span resolves
+min_edit_script) that the EXACT phrase-alias layer can't catch - but ONLY when the span resolves
 to a KNOWN symbol's spoken form. Deterministic, no global fuzzy, no standalone word rules.
 
-Hard constraints (deliberately tight — this is a kill-or-keep probe):
+Hard constraints (deliberately tight - this is a kill-or-keep probe):
   - multi-word spoken forms only (len >= 2): a single mangled word never recovers on its own
     ("deer -> dir" alone is forbidden; "model deer" ~ "model dir" recovers because "model" anchors it).
   - at most `max_fuzzy` words in the window may be near-misses; the rest must match EXACTLY (anchors).
@@ -30,7 +30,7 @@ def _key(s):
 
 
 def _near(a, b):
-    """'exact' | 'near' | None — how word a relates to alias word b."""
+    """'exact' | 'near' | None - how word a relates to alias word b."""
     ka, kb = _key(a), _key(b)
     if not ka or not kb:
         return None
@@ -46,7 +46,7 @@ def _near(a, b):
 def build_index(alias_pairs):
     """Index multi-word aliases by first- and second-word keys so recover() only fully-checks
     aliases sharing an exact ANCHOR word with the window. Lossless: any firing window has an exact
-    first word (idx0) OR an exact second word with a fuzzy first (idx1) — since at most one word is
+    first word (idx0) OR an exact second word with a fuzzy first (idx1) - since at most one word is
     fuzzy and n>=2, at least one of the first two words is an exact anchor. Build once, reuse per
     utterance (commit-time)."""
     idx0, idx1 = {}, {}
@@ -62,7 +62,7 @@ def recover(text, alias_pairs, max_fuzzy=1, index=None):
     """alias_pairs: list of (say_tokens:list[str], want:str). Returns (new_text, events) where
     events = [(input_span, want, alias_say)]. Non-overlapping; longest spoken form + fewest fuzzy
     words win. Trailing punctuation of the span is preserved on the replacement. `index` (from
-    build_index) makes this O(tokens) instead of O(aliases x tokens) — SAME matches, just faster."""
+    build_index) makes this O(tokens) instead of O(aliases x tokens) - SAME matches, just faster."""
     toks = text.split()
     keys = [_key(t) for t in toks]
     idx0, idx1 = index if index is not None else build_index(alias_pairs)

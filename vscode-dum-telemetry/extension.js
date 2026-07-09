@@ -1,4 +1,4 @@
-// dum dictation Telemetry — VS Code extension (Phase 1, measurement only).
+// dum dictation Telemetry - VS Code extension (Phase 1, measurement only).
 //
 // WHY: in VS Code (Electron) macOS accessibility can't read the editor, so dum's post-commit
 // "did the user fix it?" signal falls back to a keystroke proxy that can't tell a correction from
@@ -7,7 +7,7 @@
 // we locate the inserted span, watch it for a window, and write the EXACT edit distance back as a
 // user.refix event (capture_method="vscode-ext") that analyze_user_corrections.py joins by commit_id.
 //
-// It NEVER inserts or modifies text — observation only.
+// It NEVER inserts or modifies text - observation only.
 
 const vscode = require("vscode");
 const fs = require("fs");
@@ -104,7 +104,7 @@ function onDocChange(e) {
       const cs = ch.rangeOffset, ce = ch.rangeOffset + ch.rangeLength;
       const delta = ch.text.length - ch.rangeLength;
       if (ce <= obs.spanStart) { obs.spanStart += delta; obs.spanEnd += delta; }     // edit before span
-      else if (cs >= obs.spanEnd) { /* edit after span — ignore */ }
+      else if (cs >= obs.spanEnd) { /* edit after span - ignore */ }
       else { obs.edited = true; obs.spanEnd = Math.max(obs.spanStart, obs.spanEnd + delta); }  // edit IN span
     }
   }
@@ -142,7 +142,7 @@ function activate(context) {
     vscode.workspace.onDidChangeTextDocument(onDocChange),
     vscode.commands.registerCommand("dum.telemetry.status", () => {
       vscode.window.showInformationMessage(
-        `dum telemetry — announced ${stats.announced}, observed ${stats.observed}, ` +
+        `dum telemetry - announced ${stats.announced}, observed ${stats.observed}, ` +
         `written ${stats.written}, missed ${stats.missed}. Bridge: ${BRIDGE}`);
     }),
     { dispose: () => clearInterval(poll) }

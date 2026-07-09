@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract test for the InsertionBackend seam (insertion.py) — the narrow, backend-agnostic
+"""Contract test for the InsertionBackend seam (insertion.py) - the narrow, backend-agnostic
 text-insertion interface the core drives. Locks the method names so backends stay swappable."""
 import insertion
 

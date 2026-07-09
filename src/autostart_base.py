@@ -8,5 +8,5 @@ from pathlib import Path
 # AND same DUM_* env (which live inside the launcher). Single source of truth.
 DEFAULT_ARGS = ["--tray"]
 
-# repo root = parent of this file's dir (src/) — same anchor the engine uses for resources.
+# repo root = parent of this file's dir (src/) - same anchor the engine uses for resources.
 REPO_ROOT = Path(__file__).resolve().parent.parent

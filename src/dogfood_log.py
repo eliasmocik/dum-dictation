@@ -3,29 +3,29 @@
 Always-on (opt-in) dogfood logger for the USER CORRECTION RATE metric. Local-only, privacy-conscious.
 
 Default OFF. Enable with DUM_DOGFOOD_LOG=1. Writes one JSONL file per session under
-dogfood/sessions/ (the whole dogfood/ tree is gitignored — it's your dictation history; delete with
+dogfood/sessions/ (the whole dogfood/ tree is gitignored - it's your dictation history; delete with
 `rm -rf dogfood/sessions`). Two event types, joinable by commit_id:
 
   commit     every committed dictation: session, ts, cwd, repo_root, app, surface (real bucket via
-             classify_surface — terminal/editor/browser/rich-text/unknown), window_title
+             classify_surface - terminal/editor/browser/rich-text/unknown), window_title
              (best-effort AX, may be null), mode, raw, fixed, model,
              flags{global_vocab,repo_vocab,fuzzy_symbols,llm}, latency_ms,
-             stages_fired[{stage,before,after,ms}] (the embedded correction trace — which pipeline
+             stages_fired[{stage,before,after,ms}] (the embedded correction trace - which pipeline
              stage changed the text and how; the dogfood-analysis source), audio_ref{path,sha256,
              seconds} (Layer-1: pointer to the saved utterance WAV under dogfood/audio/, or null if
              audio retention is off). Derivable fields (changed=raw!=fixed, committed_len, n_words)
-             are NOT stored — analyzers compute them from `fixed`.
-  user.refix the post-commit behaviour signal (best-effort, BACKGROUND) — answers "did the user FIX
+             are NOT stored - analyzers compute them from `fixed`.
+  user.refix the post-commit behaviour signal (best-effort, BACKGROUND) - answers "did the user FIX
              the output, or move on?". capture_method (ax|keystroke|unavailable) + the AX edit signal
              where readable (edit_distance/normalized/accepted_unchanged + correction_pair, the
-             minimal changed-token diff committed->corrected — the learning signal, opt-out via
+             minimal changed-token diff committed->corrected - the learning signal, opt-out via
              DUM_KEEP_CORRECTIONS), PLUS (every app) the activity timeline: commit_app,
              app_switches[{t_rel,app}], final_app,
              stayed_in_commit_app, switched_away_s, and a CONTENT-FREE keystroke_summary
              {backspaces,deletes,nav_keys,other_keys} gated to the commit app. AX whole-field reads
              that find an empty field (send-and-clear) are marked unavailable, not a giant edit.
 
-PRIVACY: never logs the whole surrounding document — only the dictated text and a truncated window of
+PRIVACY: never logs the whole surrounding document - only the dictated text and a truncated window of
 the edited region (REDACT_MAX chars). Keystroke proxy is COUNTS ONLY, never characters. App-switch
 timeline is app NAMES only. No network, ever. See DOGFOOD.md.
 """
@@ -99,7 +99,7 @@ def stages_fired(events):
 
 # app (macOS frontmost-process name, lowercased) -> insertion-surface bucket. Lets the analyzer
 # answer "where does dictation quality break down" (shell vs editor vs browser vs rich-text).
-# Unknown apps map to "unknown" — NEVER silently to a real bucket (the old hardcoded lie).
+# Unknown apps map to "unknown" - NEVER silently to a real bucket (the old hardcoded lie).
 #
 # NOTE on "vscode": the VS Code family is an Electron app where macOS Accessibility is blind AND a
 # real editor doc, an integrated terminal, and a TUI (Claude Code) all share one app name. We CANNOT
@@ -107,10 +107,10 @@ def stages_fired(events):
 # each "vscode" commit to editor | vscode-terminal | claude-code using post-hoc evidence (a
 # vscode-ext refix => editor; a Claude transcript join => claude-code; else vscode-terminal).
 _SURFACE = {
-    # standalone terminal apps (NOT the VS Code integrated terminal — that's inside "vscode")
+    # standalone terminal apps (NOT the VS Code integrated terminal - that's inside "vscode")
     "terminal": "shell", "iterm2": "shell", "iterm": "shell", "ghostty": "shell",
     "alacritty": "shell", "warp": "shell", "kitty": "shell", "wezterm": "shell", "tabby": "shell",
-    # VS Code family — coarse parent; analyzer splits into editor / vscode-terminal / claude-code
+    # VS Code family - coarse parent; analyzer splits into editor / vscode-terminal / claude-code
     "code": "vscode", "code - insiders": "vscode", "cursor": "vscode", "vscodium": "vscode",
     # other code editors / IDEs (AX-readable, single-surface) -> real editor docs
     "sublime text": "editor", "zed": "editor", "xcode": "editor", "pycharm": "editor", "nova": "editor",
@@ -149,7 +149,7 @@ def feature_flags():
 # ---- best-effort Accessibility read (cross-app focused text value) -----------
 def _ax_focused_value():
     """Focused text-field value via Accessibility, or None if unreadable (untrusted process,
-    app doesn't expose AXValue, etc.). Fully guarded — never raises."""
+    app doesn't expose AXValue, etc.). Fully guarded - never raises."""
     try:
         import ApplicationServices as AS
         if hasattr(AS, "AXIsProcessTrusted") and not AS.AXIsProcessTrusted():
@@ -167,7 +167,7 @@ def _ax_focused_value():
 
 
 def _ax_window_title():
-    """Best-effort title of the focused window via Accessibility, or None. Fully guarded — never
+    """Best-effort title of the focused window via Accessibility, or None. Fully guarded - never
     raises. Helps locate/explain a failure (which file/page/doc). Read AFTER the commit is applied,
     so it's off the perceived-latency path. Truncated like every captured span."""
     try:
@@ -193,7 +193,7 @@ def _trim_field_bleed(committed, region):
     """Anchor the aligned field region to the COMMITTED text's word-extent. When a short commit is
     aligned inside a long field (the full submitted message / a multi-commit editor buffer), the
     partial-match + word-snap can grab a NEIGHBOUR commit's words on either side ("...you know?" +
-    bled "Should"; bled "anymore." + "So nothing changed"). Those words are not part of THIS commit —
+    bled "Should"; bled "anymore." + "So nothing changed"). Those words are not part of THIS commit -
     a correction is a change WITHIN the dictated text, not content appended/prepended beyond it. Drop
     leading/trailing region words that fall outside the committed span; internal changes are untouched.
     Both the edit_distance and the changed-span are then computed on the clean region."""
@@ -208,7 +208,7 @@ def _trim_field_bleed(committed, region):
 
 
 def _changed_span(committed, corrected):
-    """The minimal CHANGED token span on each side — the actual `committed -> corrected` learning
+    """The minimal CHANGED token span on each side - the actual `committed -> corrected` learning
     signal (e.g. "postgress"->"PostgreSQL"), not the whole field. Bounding run from the first
     differing word to the last. Returns (committed_span, corrected_span) or None if nothing differs."""
     import difflib
@@ -238,7 +238,7 @@ def _is_subsequence(a, b):
 
 
 def _dice_chars(a, b):
-    """Sørensen–Dice over the two strings' CHARACTER multisets — 1.0 == identical letter content,
+    """Sørensen–Dice over the two strings' CHARACTER multisets - 1.0 == identical letter content,
     regardless of order. High Dice means 'no genuinely new content, the same letters rearranged'."""
     ca, cb = collections.Counter(a), collections.Counter(b)
     inter = sum((ca & cb).values())
@@ -248,7 +248,7 @@ def _dice_chars(a, b):
 
 def _nontrivial_changed_tokens(a, b):
     """# of word positions whose ALNUM content actually changed. Pure case/punctuation diffs
-    (`Code`->`code`, `well.`->`well,`) do NOT count — only real letter/digit changes — so a genuine
+    (`Code`->`code`, `well.`->`well,`) do NOT count - only real letter/digit changes - so a genuine
     one-word fix wrapped in trailing-punctuation churn still reads as a single change, not many."""
     aw, bw = a.split(), b.split()
     n = 0
@@ -262,25 +262,25 @@ def _nontrivial_changed_tokens(a, b):
 
 def classify_correction(committed_span, corrected_span):
     """Classify a committed->corrected diff so the telemetry can be TRUSTED. The capture layer (AX
-    read-back, Claude-transcript join, vscode-ext) faithfully records what landed in the field — but
+    read-back, Claude-transcript join, vscode-ext) faithfully records what landed in the field - but
     that field can hold three very different things, which earlier code lumped together as one
     'correction', inflating the user-correction rate and polluting vocab candidates:
 
-      * 'clean'    — a genuine correction: word(s) changed to DIFFERENT word(s) (`cloud code`->`Claude
+      * 'clean'    - a genuine correction: word(s) changed to DIFFERENT word(s) (`cloud code`->`Claude
                      Code`, `joint`->`join`, `Jetson`->`Rado's`), OR a meaningful join/split of a
                      technical term that keeps the letters but moves word boundaries (`git hub`->
                      `GitHub`, `web socket`->`WebSocket`). THE learning signal.
-      * 'trivial'  — same letters, same word boundaries: an in-place punctuation/case-only diff
-                     (`Check.`->`Check`, `Global`->`global`). A real but low-value edit — counts toward
+      * 'trivial'  - same letters, same word boundaries: an in-place punctuation/case-only diff
+                     (`Check.`->`Check`, `Global`->`global`). A real but low-value edit - counts toward
                      the correction rate (the user did change a char) but is NOT a vocab candidate. Also
                      where letter-identical overlay punctuation-shuffles land (`two. However,`->`two.,
                      however`): indistinguishable from a legit trim by letters alone, so reported as
                      low-signal rather than guessed either way.
-      * 'scramble' — the overlay/AX captured a CHARACTER-SHUFFLE of the same text: letters preserved,
+      * 'scramble' - the overlay/AX captured a CHARACTER-SHUFFLE of the same text: letters preserved,
                      sequence/spacing churned (`service SH SSHD`->`Sesvice s SHSHD`, `tool. Uh`->
                      `too.l Uhhh`). This is dum's own terminal/TUI insertion-corruption bug (Part C),
-                     or an AX read taken mid-edit — NEVER a user correction.
-      * 'bleed'    — a neighbour commit merged in at an edge (accumulation): the committed text
+                     or an AX read taken mid-edit - NEVER a user correction.
+      * 'bleed'    - a neighbour commit merged in at an edge (accumulation): the committed text
                      survives intact inside a notably longer corrected text (`Everything else...`->
                      `jumper.Everything else...`). Not a correction of THIS text.
 
@@ -292,13 +292,13 @@ def classify_correction(committed_span, corrected_span):
     if la == lb:
         # same letter sequence: a join/split that changes how many ALNUM-bearing tokens there are is a
         # real fix (`git hub`->`GitHub` 2->1, `web socket`->`WebSocket`). A diff that only moves
-        # case/punctuation — including a bad-space split that spawns a pure-punctuation token
-        # (`weird.`->`weird .`) — leaves the alnum-token count unchanged and is trivial low-signal noise.
+        # case/punctuation - including a bad-space split that spawns a pure-punctuation token
+        # (`weird.`->`weird .`) - leaves the alnum-token count unchanged and is trivial low-signal noise.
         def _alnum_tokens(s):
             return sum(1 for w in s.split() if _alnum(w))
         return "clean" if _alnum_tokens(a) != _alnum_tokens(b) else "trivial"
     # bleed / accumulation: the committed text survives as an ordered SUBSEQUENCE of the corrected one
-    # (its letters still appear, in order — possibly with words inserted/appended) while the corrected
+    # (its letters still appear, in order - possibly with words inserted/appended) while the corrected
     # is meaningfully longer => content was added (a neighbour commit merged, or the user just kept
     # writing), NOT a scramble of THIS text. The order-preservation is the key tell that separates this
     # from a true scramble (`Tool that I use.`->`tool that I use for` survives; `of brew`->`ofbBre`
@@ -308,7 +308,7 @@ def classify_correction(committed_span, corrected_span):
     if len(la) - len(lb) >= 3 and _is_subsequence(lb, la):
         return "bleed"
     # scramble: the same characters, rearranged. The signature is HIGH char-multiset overlap AND
-    # broad disruption — either the word count changed (spaces mangled) or >=3 word positions changed
+    # broad disruption - either the word count changed (spaces mangled) or >=3 word positions changed
     # at once (a localized real fix touches one, maybe two). High Dice rules out genuine word swaps,
     # which introduce new letters and so score low.
     if _dice_chars(la, lb) >= 0.82 and (
@@ -319,17 +319,17 @@ def classify_correction(committed_span, corrected_span):
 
 def edit_signal(inserted, final_value):
     """Compare the dictated text to the focused field after the observation window. Returns
-    edit_distance / normalized / accepted_unchanged, and (when KEEP_CORRECTIONS) a correction_pair —
+    edit_distance / normalized / accepted_unchanged, and (when KEEP_CORRECTIONS) a correction_pair -
     the minimal changed-token diff committed->corrected, the core V2/V3 learning signal. Bounded:
     aligns the dictated text within the field (best partial match), edit-distances only that region,
-    and stores only the changed span — never the whole field."""
+    and stores only the changed span - never the whole field."""
     from rapidfuzz import fuzz
     from rapidfuzz.distance import Levenshtein
     ins, fv = _ws(inserted), _ws(final_value)
     if not ins:
         return {"edit_capture": "ok", "accepted_unchanged": True, "edit_distance": 0, "normalized": 0.0}
     if not fv:
-        # field is EMPTY after the window — almost always send-and-clear / navigation (ChatGPT,
+        # field is EMPTY after the window - almost always send-and-clear / navigation (ChatGPT,
         # Safari, chat inputs), NOT a real correction. Don't fabricate a giant edit; mark it
         # unobservable so it can't inflate the correction rate. (Surfaced by live dogfood data.)
         return {"edit_capture": "unavailable", "reason": "field_empty"}
@@ -448,7 +448,7 @@ class DogfoodLogger:
 
     def _save_audio(self, cid, audio, sr):
         """Write the utterance WAV under dogfood/audio/<session>/ and return its audio_ref
-        {path, sha256, seconds}, or None. Guarded — audio capture must never break dictation.
+        {path, sha256, seconds}, or None. Guarded - audio capture must never break dictation.
         Runs post-apply (off the perceived-latency path)."""
         try:
             import hashlib
@@ -471,7 +471,7 @@ class DogfoodLogger:
     def _prune_audio(self, max_days=None, max_gb=None):
         """Bound dogfood/audio/: delete clips older than max_days, then (oldest-first) any beyond
         max_gb total. Both caps, whichever bites. Writes an audio.prune event if anything was
-        dropped (coverage honesty). Guarded — runs once at session start, never raises."""
+        dropped (coverage honesty). Guarded - runs once at session start, never raises."""
         max_days = AUDIO_MAX_DAYS if max_days is None else max_days
         max_bytes = (AUDIO_MAX_GB if max_gb is None else max_gb) * 1024 ** 3
         try:
@@ -503,7 +503,7 @@ class DogfoodLogger:
 
     def commit_event(self, raw, fixed, app, mode, latency_ms=None, stages=None):
         """Build the commit record (also returned so callers/tests can inspect it). `surface` is
-        derived from `app` and `window_title` is read best-effort (AX) — both here, not passed in.
+        derived from `app` and `window_title` is read best-effort (AX) - both here, not passed in.
         `stages` is the pipeline's correction-event list (CorrectionPipeline.run), embedded as
         stages_fired so the stage trace lives on the commit row. `audio_ref` is set later by
         log_commit (file I/O kept out of this pure builder). Derivable fields are NOT stored."""
@@ -542,7 +542,7 @@ class DogfoodLogger:
         """Best-effort: tell a running dum VS Code extension we just inserted `text` for commit
         `cid`, so it can measure the EXACT post-commit edit from the document model (the AX-blind VS
         Code gap). One JSON line to ~/.dum/vscode-bridge.jsonl, which the extension tails; it writes
-        its own user.refix (capture_method=vscode-ext) into sessions_dir. Fully guarded — the bridge
+        its own user.refix (capture_method=vscode-ext) into sessions_dir. Fully guarded - the bridge
         must never affect dictation."""
         try:
             d = Path.home() / ".dum"
@@ -564,7 +564,7 @@ class DogfoodLogger:
 
     def record_key(self, category):
         """Feed one content-free keystroke category to the activity monitor (from the app's single
-        keyboard listener). No-op if no monitor. Guarded — never breaks the listener."""
+        keyboard listener). No-op if no monitor. Guarded - never breaks the listener."""
         if self._monitor is not None:
             try:
                 self._monitor.record_key(category)
@@ -583,7 +583,7 @@ class DogfoodLogger:
     def close(self):
         """Flush pending post-commit observers so quitting doesn't lose the last commits' refix:
         wake them from their wait (they write whatever they have for the partial window) and join
-        briefly. Bounded — never hangs the exit. Call once at process exit."""
+        briefly. Bounded - never hangs the exit. Call once at process exit."""
         self._shutdown.set()
         for t in list(self._threads):
             try:
