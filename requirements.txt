@@ -19,6 +19,8 @@ sherpa-onnx==1.13.2
 #   pip install llama-cpp-python==0.3.30 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 # (cpu works on every OS; swap to whl/cu124 etc. for GPU, whl/metal for Mac GPU). 0.3.30 is the
 # newest version with prebuilt win/linux/macos wheels. Pre-install it before `pip install -r`.
+# KEEP THIS PIN IN SYNC with `setup` and `setup.ps1` (they pre-install this exact version from
+# the wheel index). Bumping it here alone re-opens the source-build failure on `pip install -r`.
 llama-cpp-python==0.3.30
 mlx-lm==0.31.3 ; sys_platform == "darwin"
 
