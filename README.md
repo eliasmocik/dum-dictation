@@ -180,7 +180,7 @@ just degraded (types via a generic backend, no focus guard).
 
 ## Privacy
 
-Everything stays on your machine. No cloud, nothing uploaded, ever. There's an
+Everything stays on your machine. There's an
 optional local-only log (off by default) that remembers what you dictated so the misheard words
 can get fixed over time, but it never leaves your computer and `dogfood/` is gitignored. The full
 breakdown is in [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
