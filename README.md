@@ -53,19 +53,15 @@ The first time you run `./dum`, macOS will pop these up on its own - just click 
 System Settings**. If it doesn't, set them by hand: open **System Settings → Privacy & Security**,
 then for each of the three, find your terminal app in the list and flip the switch **on**:
 
-1. **Microphone** => so it can hear you
-2. **Accessibility** => so it can type into whatever app you're focused on
-3. **Input Monitoring** => so it can catch the double-tap-Command hotkey
+1. **Microphone**
+2. **Accessibility**
+3. **Input Monitoring**
 
-⚠️ **Then fully quit your terminal app and reopen it.** macOS only applies the new permissions to a
-fresh launch - this is the step everyone forgets, and dictation stays silent until you do it.
+⚠️ **Then fully quit your terminal app and reopen it.**
 
 <!-- Optional but recommended for non-technical friends: add 3 small screenshots of the toggles.
 Drop them in docs/ as docs/perm-mic.png, docs/perm-accessibility.png, docs/perm-input.png and
 reference them here. The grant step is where most people get stuck. -->
-
-Stuck? The most common cause of "it runs but types nothing" is forgetting to **quit and reopen**
-the terminal after granting Accessibility.
 
 ## Using it
 
@@ -85,9 +81,8 @@ DUM_MIC="MacBook Air" ./dum     # by name (survives device-index shuffles)
 
 ### Run it like a real app (menu bar + auto-start)
 
-Don't want to babysit a terminal? Add `--tray` and dum lives in your **menu bar** - a
-little dot (green = listening, grey = idle) with **Start/Stop** and **Quit**. The hotkey
-still works the same.
+Add `--tray` and dum lives in your menu bar - a little dot (green = listening, grey = idle) with
+Start/Stop and Quit. The hotkey still works the same.
 
 ```sh
 ./dum --tray
@@ -100,14 +95,11 @@ To have it **start by itself at login** (and quietly relaunch if it ever crashes
 ./dum --uninstall-autostart    # undo it
 ```
 
-After the first auto-start, macOS re-asks for Microphone / Accessibility / Input
-Monitoring - this time for the venv's `python` (a login item isn't your terminal). Grant
-those three once and log out/in. Running a second copy is refused automatically - one
-robot owns the mic and hotkey.
+After the first auto-start, macOS re-asks for Microphone / Accessibility / Input Monitoring.
 
 ## On Windows
 
-> ✅ **Tested and working on Windows 10/11** (a contributor ran it on real hardware).
+> ✅ **Tested and working on Windows 10/11.**
 
 Same idea, same tech-vocab smarts - it types into any focused Windows app (VS Code, the
 Claude Code box, Chrome, Slack, a WSL terminal). The homophone LLM (`grep`/`grab`,
