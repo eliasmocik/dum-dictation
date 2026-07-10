@@ -144,11 +144,11 @@ Want the tray icon and start-at-logon?
 
 ## On Linux
 
-> ⚠️ **Experimental.** The code is all here and should work, but it's the least-tested path.
+> ⚠️ **Experimental.**
 
-**Linux is untested - I'm looking for a contributor!** If you run Linux and want to help make this
-solid, that would mean a lot. [Open an issue](https://github.com/eliasmocik/dum-dictation/issues/new),
-[start a discussion](https://github.com/eliasmocik/dum-dictation/discussions), or reach me on GitHub
+**We are looking for a contributor!** If you run Linux and want to help make this solid, that would
+mean a lot. [Open an issue](https://github.com/eliasmocik/dum-dictation/issues/new),
+[start a discussion](https://github.com/eliasmocik/dum-dictation/discussions), or reach out on GitHub
 [@eliasmocik](https://github.com/eliasmocik).
 
 Same again, for a Linux **desktop** you sit in front of (not a headless server - there's no mic
@@ -195,7 +195,3 @@ broke here" or "it kept hearing X as Y" is exactly what I need.
 ## License
 
 MIT (see [`LICENSE`](LICENSE)). Free to use, fork and build on.
-
----
-
-Built by Elias, a student in Dublin, because Apple Dictation kept turning "git push" into "get push".
