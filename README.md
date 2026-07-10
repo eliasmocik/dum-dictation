@@ -134,12 +134,8 @@ Want the tray icon and start-at-logon?
 
 ## On Linux
 
-> ⚠️ **Experimental.**
->
-> **We are looking for a contributor!** If you run Linux and want to help make this solid, that
-> would mean a lot. [Open an issue](https://github.com/eliasmocik/dum-dictation/issues/new),
-> [start a discussion](https://github.com/eliasmocik/dum-dictation/discussions), or reach out on
-> GitHub [@eliasmocik](https://github.com/eliasmocik).
+> ⚠️ **Experimental!** We are looking for a Linux contributor. Reach out on
+> [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
 
 ```sh
 sudo apt install xdotool xclip      # (or your distro's equivalent; wl-clipboard for Wayland)
