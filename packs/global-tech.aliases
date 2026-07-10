@@ -57,3 +57,17 @@ vs code       => VS Code
 # recoverable from "dumb" alone; documented limitation, not attempted here. Brand vocab, not idiolect.
 dumb dictation => dum dictation
 dom dictation  => dum dictation
+
+# Group 6 - "ChatGPT" (issue #6). Parakeet hears the brand as "Chad GBT" and emits it either as
+# ONE token or SPLIT tokens; matching is word-bounded, so a two-word left side can never catch a
+# single-token emission (and vice versa) - each shape needs its own line. All lefts are distinctive
+# non-word adjacencies ("gbt" is not a word; "chad gpt"/"chat gpt" adjacency is only ever the brand,
+# same footing as "git hub"). Bare "chad"/"chat" deliberately NOT aliased - real words/names.
+chadgbt       => ChatGPT
+chad gbt      => ChatGPT
+chad g b t    => ChatGPT
+chat gbt      => ChatGPT
+chat g b t    => ChatGPT
+chad gpt      => ChatGPT
+chad g p t    => ChatGPT
+chat gpt      => ChatGPT

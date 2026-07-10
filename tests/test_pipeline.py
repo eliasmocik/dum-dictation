@@ -188,6 +188,18 @@ G2_CASES = [
     ("that's a dumb idea honestly", "that's a dumb idea honestly"),                       # bare "dumb" untouched
     ("I'm done with this task", "I'm done with this task"),                               # bare "done" untouched
     ("dumb luck got me through", "dumb luck got me through"),                             # "dumb" + non-dictation word safe
+    # group 6: "ChatGPT" mishears (issue #6) - single-token AND split emissions each need their own line
+    ("ask ChadGBT about the error", "ask ChatGPT about the error"),                       # single token
+    ("ask chad gbt about the error", "ask ChatGPT about the error"),                      # two-token split
+    ("ask chad g b t about the error", "ask ChatGPT about the error"),                    # letter split
+    ("paste it into chat gbt", "paste it into ChatGPT"),                                  # near-miss: chat right, GBT wrong
+    ("paste it into chat g b t", "paste it into ChatGPT"),                                # near-miss letter split
+    ("chad gpt wrote this function", "ChatGPT wrote this function"),                      # near-miss: GPT right, chad wrong
+    ("chad g p t wrote this function", "ChatGPT wrote this function"),
+    ("open chat GPT in the browser", "open ChatGPT in the browser"),                      # spacing normalization (git hub precedent)
+    # over-correction GUARD: bare "chad"/"chat" in normal prose must NEVER be touched
+    ("I met Chad at the conference", "I met Chad at the conference"),                     # bare name untouched
+    ("open the chat window on the left", "open the chat window on the left"),             # bare "chat" untouched
     # near-miss NEGATIVES: must stay untouched (the over-correction tripwires)
     ("I saw a llama at the zoo last weekend", "I saw a llama at the zoo last weekend"),   # a llama != Ollama
     ("I need to type a script for the video", "I need to type a script for the video"),   # no TypeScript alias
