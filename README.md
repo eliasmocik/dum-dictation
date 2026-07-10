@@ -167,16 +167,9 @@ breakdown is in [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
 
 ## Want to help?
 
-**Easiest thing (10 seconds):** tell me if it stuck or if you bounced. Did setup work? Did it get
-your words right? Did you still have it on a week later? Drop it in
-[Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or
-[open an issue](https://github.com/eliasmocik/dum-dictation/issues/new). Blunt is fine - "the setup
-broke here" or "it kept hearing X as Y" is exactly what I need.
-
-**Next most useful:** a vocab fix (a word it keeps getting wrong). Ideally read
-[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md), but the general-vs-personal rule is the whole deal.
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) shows how the pipeline fits together and
-[`docs/DEV-NOTES.md`](docs/DEV-NOTES.md) has the dev loop.
+- Feedback or bugs: [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [open an issue](https://github.com/eliasmocik/dum-dictation/issues/new)
+- Vocab fix: [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md)
+- How it works: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DEV-NOTES.md`](docs/DEV-NOTES.md)
 
 ## License
 
