@@ -52,6 +52,7 @@ Env (shared with dum where it makes sense):
     DUM_VOCAB_DIR          extra *.txt vocab packs       (SEAM 2)
     DUM_EVENTS             append-only JSONL event sink   (SEAM 3)
     DUM_EXTERNAL_CORRECTOR paid corrector command (stdio) (SEAM 1; unset = off)
+    DUM_FOCUS_GUARD=0      disable the focus-away hard stop (see focus_guard.py)
 """
 import os
 import queue
@@ -78,6 +79,7 @@ from dogfood_log import DogfoodLogger
 from overlay import (OverlayTyper, streaming_prefix, stable_prefix, reconcile_words, age_stable_count,
                      alias_prefix_set, hold_alias_prefix)
 from platform_io import get_platform
+from focus_guard import FocusWatcher, FOCUS_GUARD_ON
 from trace import Tracer
 
 # --- audio / VAD / streaming parameters ---------------------------------------
@@ -330,6 +332,10 @@ class LiveDictation:
         # (RECONCILE_DRAIN_S) and teardown proceeds with a warning if it elapses, so the guard can
         # never deadlock clean shutdown or Ctrl-C.
         self._reconcile_lock = threading.Lock()
+        # Focus-away hard stop (the alt-tab guard, see focus_guard.py): a session-scoped
+        # poller armed by start(), cancelled by stop(). None when idle, when the platform
+        # can't name apps (app_gating False - keeps current behaviour), or DUM_FOCUS_GUARD=0.
+        self._focus_watch = None
 
     # ---- mic callback: ONLY enqueue, never block -----------------------------
     def _on_audio(self, indata, frames, time_info, status):
@@ -378,6 +384,7 @@ class LiveDictation:
             self.running.set()
             self.worker = threading.Thread(target=self._consume, daemon=True)
             self.worker.start()
+            self._start_focus_watch()
             self.platform.notify("start")
             if self.overlay is not None:
                 mode = "overlay DRY (log ops only)" if self.overlay.dry else "overlay (live typing)"
@@ -393,6 +400,14 @@ class LiveDictation:
             if not self.running.is_set():
                 return
             self.running.clear()
+        # Retire the focus watcher for THIS session (cancel only, never join - the focus-away
+        # trip path calls stop() FROM the watcher thread, so joining here would self-deadlock).
+        # A stale watcher must not survive into the next start(): `running` is one shared Event,
+        # so an old thread still in its sleep would otherwise wake, see running set again, and
+        # trip against the OLD session's home app.
+        if self._focus_watch is not None:
+            self._focus_watch.cancel()
+            self._focus_watch = None
         # Wait (bounded) for any IN-FLIGHT commit reconcile to finish as one atomic unit before we
         # tear down. Clearing `running` makes the worker fall into its flush-commit (end of
         # _consume), whose backspace-then-retype we must NOT cut: the worker is a daemon, so without
@@ -493,6 +508,50 @@ class LiveDictation:
             return True
         return not (bool(app) and app.strip().lower() in self.overlay_block)
 
+    # ---- focus-away hard stop (the alt-tab guard, focus_guard.py) -------------
+    def _start_focus_watch(self):
+        """Arm the focus-away hard stop for this session: remember the app dictation started
+        in and stop (exactly like a manual stop - flush-commit + the same "done" cue) once
+        focus SETTLES on a different app. Skipped when the platform can't name the focused
+        app (keeps current behaviour) or when the home app can't be read right now."""
+        if self._focus_watch is not None:      # e.g. a re-start racing an un-cancelled watcher
+            self._focus_watch.cancel()
+            self._focus_watch = None
+        if not (FOCUS_GUARD_ON and self.app_gating):
+            return
+        home = self.platform.frontmost_app()
+        if not home:
+            return                             # can't name home - fail open, guard off this run
+
+        def _trip(app):
+            log(f"[!]    focus moved to {app!r} - dictation stopped (text typed into "
+                f"{home!r} stays; double-tap to dictate again)")
+            self.stop()                        # the manual-stop path: flush commit + "done" cue
+
+        self._focus_watch = FocusWatcher(self.platform.frontmost_app, home, _trip,
+                                         self.running).start()
+
+    def _typing_focus_ok(self, ov_focus):
+        """Forward-path focus guard for the HOT preview loop: may live typing continue for a
+        sentence that began in `ov_focus`? Reads the focus watcher's CACHED last poll - no
+        subprocess on the 100ms tick. Fail open (True) when there is no watcher, the onset
+        app is unknown, or the last poll was unreadable - i.e. exactly current behaviour.
+        A held tick only defers words; the next allowed reconcile catches the draft up, so
+        a sub-debounce focus blip costs a beat of latency and zero stray keystrokes."""
+        fw = self._focus_watch
+        if fw is None or ov_focus is None:
+            return True
+        now = fw.focus_now
+        return now is None or now == ov_focus
+
+    def _commit_insert_ok(self, ov_focus):
+        """FRESH focus check before commit-time insertion (overlay reconcile / paste / drop
+        erase): keystrokes must never land in a different app than the sentence began in.
+        One osascript per commit - off the hot path. ov_focus None = can't compare = allow."""
+        if ov_focus is None:
+            return True
+        return self.platform.frontmost_app() == ov_focus
+
     def _build_llm(self):
         """Build the LLM stage HERE, on the consumer thread, so the backend's load +
         inference share one thread (MLX GPU streams are thread-local; LLMWorker pins
@@ -554,7 +613,7 @@ class LiveDictation:
             typed some of it live, erase that (focus-permitting) so nothing is left."""
             log(f"[--]   {reason}")
             if self.overlay is not None and self.overlay.typed:
-                if ov_focus is None or self.platform.frontmost_app() == ov_focus:
+                if self._commit_insert_ok(ov_focus):
                     self.overlay.reconcile("")
             reset_overlay()
 
@@ -629,7 +688,7 @@ class LiveDictation:
                 if self.overlay is not None and ov_active:
                     # one reconcile applies corrections AND completes the unlocked tail,
                     # but only if focus hasn't moved (else we'd backspace the wrong field)
-                    if ov_focus is not None and self.platform.frontmost_app() != ov_focus:
+                    if not self._commit_insert_ok(ov_focus):
                         log("[!]    focus changed mid-sentence - overlay reconcile skipped")
                     elif not self.overlay.reconcile(fixed, exact=True):
                         log("[!]    overlay edit too large - skipped (left as dictated)")
@@ -639,7 +698,14 @@ class LiveDictation:
                         self.overlay.finish(" ")
                     reset_overlay()
                 elif self.do_paste:
-                    self.platform.paste(fixed + " ")
+                    # same guard on the paste path: never paste into an app the sentence did
+                    # not start in (the focus-away flush commit would otherwise dump text -
+                    # or worse, shortcuts - into the newly focused app). The text is kept in
+                    # the [OK] log + events; nothing can reach the unfocused original field.
+                    if self._commit_insert_ok(ov_focus):
+                        self.platform.paste(fixed + " ")
+                    else:
+                        log("[!]    focus changed mid-sentence - paste skipped (text kept in the log)")
             apply_ms = (time.monotonic() - t_apply0) * 1000.0
             # tell the dogfood activity monitor when dum was typing, so its OWN synthetic keystrokes
             # (paste Cmd+V, CGEvent typing, overlay backspace+retype) aren't counted as user edits -
@@ -697,9 +763,11 @@ class LiveDictation:
                         since_preview = 0.0
                         speech_blocks = 1
                         reset_overlay()
-                        # decide overlay-vs-paste for THIS sentence by the focused app
+                        # capture the sentence's home app - overlay OR paste mode - for the
+                        # focus guards (forward-path typing hold, commit reconcile/paste skip),
+                        # and decide overlay-vs-paste for THIS sentence by it
+                        ov_focus = self.platform.frontmost_app() if self.app_gating else None
                         if self.overlay is not None:
-                            ov_focus = self.platform.frontmost_app() if self.app_gating else None
                             ov_active = self._overlay_safe(ov_focus)
                         self.tr.ev("onset", app=ov_focus,
                                    mode=("overlay" if ov_active else "paste"))
@@ -760,7 +828,12 @@ class LiveDictation:
                            locked=len(locked_words),
                            tail_s=round((len(full) - locked_samples) / SR, 2),
                            q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
-                if self.overlay is not None and ov_active:
+                # _typing_focus_ok = the forward-path focus guard: the moment the watcher's
+                # cached poll says another app is frontmost, HOLD this tick's live typing so
+                # no keystroke lands outside the sentence's app. A blip resumes next tick
+                # (the reconcile catches the draft up); a settled move hard-stops via the
+                # watcher ~a debounce later. Held ticks fall through to the [~] log line.
+                if self.overlay is not None and ov_active and self._typing_focus_ok(ov_focus):
                     # strip terminal .?! from live words - a not-yet-final word's
                     # period is unreliable (Parakeet ends every preview with one) and
                     # would get stranded mid-sentence once you keep talking. The real

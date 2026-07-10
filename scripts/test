@@ -39,6 +39,8 @@ echo "== unit: insertion-seam =="
 $PY tests/test_insertion.py || fail=1
 echo "== unit: early-stop dataloss (half-applied reconcile) =="
 $PY tests/test_early_stop.py || fail=1
+echo "== unit: focus-away guard (alt-tab hard stop) =="
+$PY tests/test_focus_guard.py || fail=1
 echo "== unit: config + first-run wizard =="
 $PY tests/test_config.py || fail=1
 echo "== unit: single-instance guard =="
