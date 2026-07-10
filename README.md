@@ -6,7 +6,7 @@ Opensource local alternative to Wispr Flow.
 
 Ok real talk: this is Apple Dictation, except it doesn't butcher your tech words. It gets `git`,
 `kubectl`, `nginx`, `PostgreSQL`, `TanStack Query` and friends right, where normal dictation hears
-"get hub" or "engine x". It runs on your machine and types into whatever app you're in.
+"get hub" or "engine x". It runs on your machine and types live into whatever application you're in.
 
 > **Tried it? Tell me how it went.** One sentence in
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or an
