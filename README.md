@@ -137,22 +137,17 @@ Want the tray icon and start-at-logon?
 .\dum.ps1 --uninstall-autostart
 ```
 
-> Running in WSL? Dictation needs the real keyboard, mic and screen - which Windows owns -
-> so install and run the **Windows** version above. It still types straight into your WSL
-> terminal (and through it, into anything you've SSH'd to). You don't install dum inside WSL
-> or on a remote server; it lives on the machine in front of you.
+> Running in WSL? The tool needs the real keyboard, mic and screen (which Windows owns), so
+> install and run the **Windows** version above.
 
 ## On Linux
 
 > ⚠️ **Experimental.**
-
-**We are looking for a contributor!** If you run Linux and want to help make this solid, that would
-mean a lot. [Open an issue](https://github.com/eliasmocik/dum-dictation/issues/new),
-[start a discussion](https://github.com/eliasmocik/dum-dictation/discussions), or reach out on GitHub
-[@eliasmocik](https://github.com/eliasmocik).
-
-Same again, for a Linux **desktop** you sit in front of (not a headless server - there's no mic
-or screen to dictate into there). It uses the standard X11 tools:
+>
+> **We are looking for a contributor!** If you run Linux and want to help make this solid, that
+> would mean a lot. [Open an issue](https://github.com/eliasmocik/dum-dictation/issues/new),
+> [start a discussion](https://github.com/eliasmocik/dum-dictation/discussions), or reach out on
+> GitHub [@eliasmocik](https://github.com/eliasmocik).
 
 ```sh
 sudo apt install xdotool xclip      # (or your distro's equivalent; wl-clipboard for Wayland)
@@ -169,8 +164,7 @@ clipboard paste uses `xclip` or `wl-clipboard`. If those tools aren't installed 
 just degraded (types via a generic backend, no focus guard).
 
 > **Wayland:** the typing/clipboard tools above are X11. Under a pure Wayland session, run under
-> XWayland or install `ydotool` + `wl-clipboard`. This is the least-tested path - X11 is the
-> smooth one for now.
+> XWayland or install `ydotool` + `wl-clipboard`.
 
 ## Privacy
 
