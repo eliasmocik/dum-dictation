@@ -1,15 +1,12 @@
 # dum dictation
 
-**The smartest dictating tool.** Type with your words. Everywhere. Accurately. Privately.
-
 An open, local alternative to Wispr Flow.
 
 ![dum dictation demo](docs/demo.gif)
 
 Ok real talk: this is Apple Dictation, except it doesn't butcher your tech words. It gets `git`,
 `kubectl`, `nginx`, `PostgreSQL`, `TanStack Query` and friends right, where normal dictation hears
-"get hub" or "engine x". It runs fully on your machine. No cloud, no account, no network. You talk,
-it precisely types into whatever app you're in.
+"get hub" or "engine x". It runs on your machine and types into whatever app you're in.
 
 Built for vibecoders. The bar I'm going for is **"I forgot I was using it"** so you
 can think clearly. If you just want to talk and have the right text show up, this is
@@ -17,8 +14,7 @@ for you.
 
 > **Tried it? Tell me how it went - good or bad.** One sentence in
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or an
-> [issue](https://github.com/eliasmocik/dum-dictation/issues/new) is the single most useful
-> thing you can send. I'm building this in the open and I read everything.
+> [issue](https://github.com/eliasmocik/dum-dictation/issues/new) really helps.
 
 ## What you need
 
