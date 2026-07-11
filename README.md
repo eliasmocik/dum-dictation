@@ -66,8 +66,6 @@ Auto-start re-asks for the three permissions (this time for the venv `python`).
 
 ## On Windows
 
-✅ Tested and working on Windows 10/11.
-
 In **PowerShell** (Python 3.12 on your PATH):
 
 ```powershell
