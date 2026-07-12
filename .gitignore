@@ -38,3 +38,8 @@ results/
 
 # Local demo-recording driver (never ship - would look like a faked demo)
 demo_local/
+
+# Personal demo recordings / raw clips (local only - not for the public repo)
+docs/demo2vids/
+docs/*.mp4
+docs/*.mov
