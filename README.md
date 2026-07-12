@@ -4,12 +4,18 @@
 
 Local, real-time dictation that gets your technical vocabulary right.
 
-https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
+![dum dictation demo](docs/demo.gif)
 
 Most dictation tools mishear technical terms: `git`, `kubectl`, `nginx`, `PostgreSQL` and
 `TanStack Query` come out as "get hub" or "engine x". dum recognizes them, and adds capitalization
 and punctuation as you speak. Everything runs on your machine, and it types straight into whatever
 application you're in. A local, open alternative to Wispr Flow and Superwhisper.
+
+## Demo
+
+A full walkthrough, with sound:
+
+https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
 ## What you need
 
