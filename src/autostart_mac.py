@@ -83,7 +83,7 @@ def _mac_install(args=None):
     print(f"[autostart] wrote {plist}")
     if ok:
         print("[autostart] loaded - dum will start at login and relaunch on crash.")
-        print("            ⚠️  macOS will re-ask for Mic/Accessibility/Input-Monitoring for the")
+        print("             macOS will re-ask for Mic/Accessibility/Input-Monitoring for the")
         print(f"            venv python ({venv_python}); grant them once, then log out/in.")
     else:
         print(f"[autostart] launchctl reported: {r.stderr.strip() or r.stdout.strip()}")

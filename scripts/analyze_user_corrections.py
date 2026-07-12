@@ -406,7 +406,7 @@ def print_report(s):
     print("=" * 70)
     fp = s.get("flagged_problems", [])
     if fp:
-        print(f"\n🚩 FLAGGED PROBLEMS - {len(fp)} dictation(s) you marked to revisit (double-tap ⌥):")
+        print(f"\nFLAGGED PROBLEMS - {len(fp)} dictation(s) you marked to revisit (double-tap ⌥):")
         for f in fp:
             print(f"    [{f['app']}] raw={f['raw'][:70]!r}")
             if f["raw"] != f["fixed"]:
@@ -439,7 +439,7 @@ def print_report(s):
             rate = "-(blind)" if v["scramble_rate_pct"] is None else f"{v['scramble_rate_pct']}%"
             print(f"    {app[:22]:<22} {v['overlay_n']:>4} {v['observable']:>4} {v['scrambles']:>5} {rate:>7}  {v['blind']:>6}")
         print("    ovl=overlay commits · obs=observable (exact read-back) · scrm=scrambles · rate=scrm/obs · blind=unmeasured")
-        print("    ⚠ blind≈all (Electron: ChatGPT/Discord/Obsidian) = AX can't see -> 0 scrm means UNMEASURED, not clean;")
+        print("    blind≈all (Electron: ChatGPT/Discord/Obsidian) = AX can't see -> 0 scrm means UNMEASURED, not clean;")
         print("      flag those by hand (double-tap ⌥). AX-seen scrambles may include read-mid-edit artifacts -> rate is an upper bound.")
     bs = s.get("by_surface", {})
     if bs:
@@ -455,11 +455,11 @@ def print_report(s):
         if "vscode-terminal" in bs:
             print("    note: vscode-terminal = VS Code integrated terminal, NOT exact-captured yet"
                   " (keystroke proxy only).")
-    print(f"\n  ⚑ ALL correction-rate metrics below are computed ONLY on the {c['rate_eligible']} "
+    print(f"\n  ALL correction-rate metrics below are computed ONLY on the {c['rate_eligible']} "
           f"rate-eligible commits\n    (observable AND not field-divergence). At {c['rate_eligible_pct']}% "
           f"rate-eligible coverage, read them as representative of that subset, not all dictation.")
     if not c["rate_eligible"]:
-        print("\n  ⚠ no rate-eligible commits yet (AX unreadable or only field-divergence) - no correction rate.")
+        print("\n  no rate-eligible commits yet (AX unreadable or only field-divergence) - no correction rate.")
         print("    commit-level stats below (mishears, volume) are still valid.")
     else:
         print(f"\n  [rate-eligible subset, n={c['rate_eligible']}]")
@@ -527,7 +527,7 @@ def print_report(s):
         # the user kept writing), not a fix and not the insertion bug.
         real = sum(v for k, v in sm.items() if k in ("agent-transcript", "vscode-ext"))
         artifact = sum(v for k, v in sm.items() if k in ("ax", "keystroke"))
-        print(f"\n  ⚠ OVERLAY CORRUPTION - {s.get('corruption_pair_count', 0)} pair(s), "
+        print(f"\n  OVERLAY CORRUPTION - {s.get('corruption_pair_count', 0)} pair(s), "
               f"{s.get('corruption_chars', 0)} chars (NOT user corrections - excluded from the rate & vocab above):")
         print(f"    scramble (insertion bug, Part C) : {kinds.get('scramble', 0)}   "
               f"bleed (accumulation / merged) : {kinds.get('bleed', 0)}")

@@ -84,7 +84,7 @@ cd dum-dictation
 
 ## On Linux
 
-> ⚠️ **Experimental!** Looking for a Linux contributor. Reach out on
+> **Experimental!** Looking for a Linux contributor. Reach out on
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
 
 ```sh

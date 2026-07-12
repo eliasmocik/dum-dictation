@@ -19,12 +19,12 @@ the `[breath]` mark on purpose - that tests the dot fix.
 
 ## Checklist (what each part proves)
 
-- `Get clone` → **Git** clone - homophone LLM in command context ✓
-- `grab the errors` → **grep** the errors - homophone LLM in command context ✓
-- `grab a coffee` → stays **grab** - LLM precision (doesn't over-correct ordinary use) ✓
-- GitHub, nginx, localhost, sudo, kubectl, Redis, SSH spelled right - ASR + phonetic terms ✓
-- the `[breath]` pause produced **no stray period** mid-sentence - punctuation cleanup ✓
-- words appeared live as you spoke and settled cleanly on the pause - overlay cadence + reconcile ✓
+- `Get clone` → **Git** clone - homophone LLM in command context
+- `grab the errors` → **grep** the errors - homophone LLM in command context
+- `grab a coffee` → stays **grab** - LLM precision (doesn't over-correct ordinary use)
+- GitHub, nginx, localhost, sudo, kubectl, Redis, SSH spelled right - ASR + phonetic terms
+- the `[breath]` pause produced **no stray period** mid-sentence - punctuation cleanup
+- words appeared live as you spoke and settled cleanly on the pause - overlay cadence + reconcile
 
 ## Two extra 5-second checks
 
