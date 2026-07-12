@@ -31,8 +31,6 @@ echo "== unit: fuzzy-recover (safety gate) =="
 $PY tests/test_fuzzy_recover.py || fail=1
 echo "== unit: dogfood-log =="
 $PY tests/test_dogfood_log.py || fail=1
-echo "== unit: claude-transcript-join =="
-$PY tests/test_join_claude_transcripts.py || fail=1
 echo "== unit: activity-monitor =="
 $PY tests/test_activity_monitor.py || fail=1
 echo "== unit: insertion-seam =="

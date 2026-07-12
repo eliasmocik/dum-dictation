@@ -41,7 +41,7 @@ check(evt["latency_ms"] == 313 and set(evt["flags"]) == {"global_vocab", "repo_v
 check(evt["schema"] == 5, "schema version bumped to 5 (surface buckets: shell / coarse vscode)")
 
 # --- 1a. real surface bucket + best-effort window_title ---
-# VS Code family -> coarse "vscode" (analyzer refines to editor/vscode-terminal/claude-code post-hoc).
+# VS Code family -> coarse "vscode" (analyzer refines to editor/vscode-terminal/agent-cli post-hoc).
 check(evt["surface"] == "vscode", "surface derived from app: Code -> vscode (coarse parent)")
 check(evt["window_title"] == "pipeline.py - bakeoff", "window_title captured (best-effort AX)")
 check(dl.classify_surface("iTerm2") == "shell" and dl.classify_surface("Google Chrome") == "browser"

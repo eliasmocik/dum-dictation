@@ -42,7 +42,7 @@ DIVERGENCE_NORMALIZED = 0.6
 # surfaces where the post-commit KEYSTROKE proxy is confounded: the user types/backspaces as part of
 # normal coding, so a backspace there is NOT reliably a correction of the dictation (AX is also blind
 # in these Electron/terminal apps). Keystroke "edits" here are reported as ambiguous, not FIXED.
-# Uses the REFINED surface (see refined_surface): claude-code is excluded - it's chat prose AND we
+# Uses the REFINED surface (see refined_surface): agent-cli is excluded - it's chat prose AND we
 # have the exact transcript-join signal there, so its keystroke proxy is never the fallback of record.
 _CODING_SURFACES = {"editor", "vscode-terminal", "shell"}
 
@@ -85,12 +85,12 @@ def mishear_pairs(raw, fixed):
 
 
 # capture-quality rank: a commit can get >1 user.refix (dum's keystroke proxy AND an exact reader -
-# the VS Code extension for editor docs, or the Claude transcript join for the Claude Code prompt).
-# Keep the highest-quality one. claude-transcript/vscode-ext/ax are exact; keystroke is a proxy;
+# the VS Code extension for editor docs, or the agent-transcript join for the coding-agent prompt).
+# Keep the highest-quality one. agent-transcript/vscode-ext/ax are exact; keystroke is a proxy;
 # unavailable is no signal.
-_CAP_RANK = {"claude-transcript": 3, "vscode-ext": 3, "ax": 2, "keystroke": 1, "unavailable": 0}
+_CAP_RANK = {"agent-transcript": 3, "vscode-ext": 3, "ax": 2, "keystroke": 1, "unavailable": 0}
 # exact (document/AX/transcript) capture methods - a real edit_distance, not the keystroke proxy.
-_EXACT_CAP = {"claude-transcript", "vscode-ext", "ax"}
+_EXACT_CAP = {"agent-transcript", "vscode-ext", "ax"}
 
 
 def _cap_rank(ev):
@@ -102,13 +102,13 @@ def _cap_rank(ev):
 
 def refined_surface(commit, refix):
     """The precise insertion surface, resolving the coarse live 'vscode' bucket with post-hoc evidence
-    from the winning refix: a Claude transcript join => 'claude-code'; the VS Code extension's
+    from the winning refix: a agent-transcript join => 'agent-cli'; the VS Code extension's
     document-model read => 'editor' (a real editor doc); otherwise a 'vscode' commit is the integrated
     terminal/other => 'vscode-terminal'. Non-vscode surfaces (shell/browser/rich-text/editor/unknown)
     pass through unchanged."""
     cm = (refix or {}).get("capture_method")
-    if cm == "claude-transcript" or (refix or {}).get("surface_refined") == "claude-code":
-        return "claude-code"
+    if cm == "agent-transcript" or (refix or {}).get("surface_refined") == "agent-cli":
+        return "agent-cli"
     surf = commit.get("surface")
     if cm == "vscode-ext":
         return "editor"
@@ -143,7 +143,7 @@ def summarize(events):
     # that made the telemetry untrustworthy (it reported the overlay corrupting its own output as the
     # user correcting the tool). We zero it out of every rate and surface it on its own as the
     # OVERLAY-CORRUPTION (Part C) signal, split by capture_method so a real submitted-text corruption
-    # (claude-transcript) is told apart from an AX-read-mid-edit artifact (ax/keystroke).
+    # (agent-transcript) is told apart from an AX-read-mid-edit artifact (ax/keystroke).
     def _user_dist(r):
         return 0 if pair_kind(r) in _CORRUPTION_KINDS else r.get("edit_distance", 0)
     corruption = [(c, r) for c, r in clean if pair_kind(r) in _CORRUPTION_KINDS]
@@ -172,7 +172,7 @@ def summarize(events):
 
     # BY REFINED SURFACE - the headline slice for "where does my dictation actually go, and how well
     # does it work there?". Uses refined_surface (resolves the coarse 'vscode' bucket into
-    # editor / vscode-terminal / claude-code via the exact-capture evidence). Per surface: total
+    # editor / vscode-terminal / agent-cli via the exact-capture evidence). Per surface: total
     # commits, how many got an EXACT signal (so coverage is honest), corrected count + correction rate
     # on the clean subset.
     clean_ids = {id(r) for _c, r in clean}
@@ -216,7 +216,7 @@ def summarize(events):
     # (General vs Personal, see CONTRIBUTING.md) before hand-adding the General ones to packs. Only
     # 'clean' pairs (genuine word-level fixes) are candidates; 'trivial' punctuation/case diffs are
     # dropped (not worth learning), and 'scramble'/'bleed' OVERLAY CORRUPTION is split out as a bug
-    # signal - broken down by capture_method so a real submitted-text scramble (claude-transcript,
+    # signal - broken down by capture_method so a real submitted-text scramble (agent-transcript,
     # i.e. Part C actually corrupting the prompt) is told apart from an AX-read-mid-edit artifact.
     corr_pairs = collections.Counter()
     corruption_pairs = collections.Counter()
@@ -278,7 +278,7 @@ def summarize(events):
 
     # PER-APP OVERLAY SCRAMBLE - the overlay-everywhere experiment's scorecard (2026-06-22 flip). For
     # each app, restricted to its OVERLAY commits (paste can't scramble): how many we could actually
-    # OBSERVE (exact read-back - ax / vscode-ext / claude-transcript), how many of those were a SCRAMBLE
+    # OBSERVE (exact read-back - ax / vscode-ext / agent-transcript), how many of those were a SCRAMBLE
     # (dum's own insertion char-shuffle, kind=='scramble'; 'bleed' is accumulation, not the bug), the
     # rate on the observable subset, and how many were BLIND (no read-back - e.g. Electron apps where AX
     # can't see). `blind` is the honesty column: a high-blind app's 0 scrambles means UNMEASURED, not
@@ -342,7 +342,7 @@ def summarize(events):
     fixed_n = behavior["edited_ax_confirmed"] + behavior["edited_keystroke"]
 
     # OVERLAY CORRUPTION - rate-eligible commits whose post-commit diff was a scramble/bleed, NOT a
-    # user edit. Split by capture_method: claude-transcript/vscode-ext = the corruption was in the
+    # user edit. Split by capture_method: agent-transcript/vscode-ext = the corruption was in the
     # text actually SUBMITTED (a real Part C bug); ax/keystroke = likely an AX read taken mid-edit
     # (a capture artifact). The count the user-correction rate USED to wrongly absorb.
     corruption_chars = sum(r.get("edit_distance", 0) for _c, r in corruption)
@@ -443,14 +443,14 @@ def print_report(s):
         print("      flag those by hand (double-tap ⌥). AX-seen scrambles may include read-mid-edit artifacts -> rate is an upper bound.")
     bs = s.get("by_surface", {})
     if bs:
-        print("\n  by SURFACE (where dictation lands; 'vscode' refined -> editor/vscode-terminal/claude-code):")
+        print("\n  by SURFACE (where dictation lands; 'vscode' refined -> editor/vscode-terminal/agent-cli):")
         print(f"    {'surface':<16} {'n':>5} {'exact':>6} {'exact%':>7}  {'corr':>5} {'crpt':>5}  corr-rate (clean)")
         for name, v in bs.items():
             print(f"    {name:<16} {v['n']:>5} {v['exact']:>6} {v['exact_pct']:>6}%  {v['corrected']:>5} "
                   f"{v.get('corrupted', 0):>5}  {v['corr_rate_pct']}%  (rate-elig {v['rate_eligible']})")
         print("    cols: corr = genuine user corrections · crpt = overlay scramble/bleed (NOT user edits).")
-        if "claude-code" in bs:
-            print("    note: claude-code rows come from the Claude transcript join (exact, local-only) -"
+        if "agent-cli" in bs:
+            print("    note: agent-cli rows come from the agent-transcript join (exact, local-only) -"
                   " not terminal reading.")
         if "vscode-terminal" in bs:
             print("    note: vscode-terminal = VS Code integrated terminal, NOT exact-captured yet"
@@ -521,17 +521,17 @@ def print_report(s):
         sm = s.get("scramble_by_method", {})
         kinds = s.get("corruption_kind", {})
         surf = s.get("corruption_by_surface", {})
-        # SCRAMBLE via a submitted-text capture (claude-transcript/vscode-ext) = the corruption was in
+        # SCRAMBLE via a submitted-text capture (agent-transcript/vscode-ext) = the corruption was in
         # the text the user actually submitted => a real Part C bug. Via ax/keystroke = likely an AX
         # read taken mid-edit (a capture artifact). BLEED is accumulation (a neighbour commit merged or
         # the user kept writing), not a fix and not the insertion bug.
-        real = sum(v for k, v in sm.items() if k in ("claude-transcript", "vscode-ext"))
+        real = sum(v for k, v in sm.items() if k in ("agent-transcript", "vscode-ext"))
         artifact = sum(v for k, v in sm.items() if k in ("ax", "keystroke"))
         print(f"\n  ⚠ OVERLAY CORRUPTION - {s.get('corruption_pair_count', 0)} pair(s), "
               f"{s.get('corruption_chars', 0)} chars (NOT user corrections - excluded from the rate & vocab above):")
         print(f"    scramble (insertion bug, Part C) : {kinds.get('scramble', 0)}   "
               f"bleed (accumulation / merged) : {kinds.get('bleed', 0)}")
-        print(f"      └─ scramble in SUBMITTED text (claude-transcript/vscode-ext) : {real}  <- the live Part C bug")
+        print(f"      └─ scramble in SUBMITTED text (agent-transcript/vscode-ext) : {real}  <- the live Part C bug")
         print(f"      └─ scramble likely a capture artifact (AX read mid-edit)     : {artifact}")
         if surf:
             print("    by surface: " + ", ".join(f"{k}={v}" for k, v in sorted(surf.items(), key=lambda kv: -kv[1])))

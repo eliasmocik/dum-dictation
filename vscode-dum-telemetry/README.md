@@ -63,9 +63,6 @@ capture table should show exact captures for Code instead of `blind`.
 - Multiple windows each tail the bridge; only the one containing the text claims it. Rare
   double-claims are possible.
 - Span tracking uses per-change offset math; pathological multi-cursor edits may mis-track.
-- Editor documents only. Reads `activeTextEditor`, so it can't see the integrated terminal,
-  TUIs in it, or the Claude Code prompt - not TextDocuments; dictation there is `missed` and
-  falls back to the keystroke proxy. Exact capture for the Claude Code prompt comes from
-  `scripts/join_claude_transcripts.py`, which joins commits to Claude Code's own transcript
-  (`capture_method=claude-transcript`, local-only) - a transcript join, not terminal-buffer
-  reading; no VS Code API exposes terminal contents.
+- Editor documents only. Reads `activeTextEditor`, so it can't see the integrated terminal
+  or TUIs running in it - those aren't TextDocuments; dictation there is `missed` and falls
+  back to the keystroke proxy. No VS Code API exposes terminal contents.

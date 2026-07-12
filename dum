@@ -41,8 +41,7 @@ mkdir -p "$(dirname "$DUM_EVENTS")"
 : "${DUM_DOGFOOD_FULL:=1}"; export DUM_DOGFOOD_FULL
 # Announce each VS Code commit to the dum-telemetry extension over ~/.dum/vscode-bridge.jsonl, so
 # dictation into a real editor DOCUMENT gets the exact post-commit edit (capture_method=vscode-ext)
-# instead of only the keystroke proxy. Harmless if the extension isn't installed. (The Claude Code
-# prompt is covered separately by scripts/join_claude_transcripts.py - that needs no bridge.)
+# instead of only the keystroke proxy. Harmless if the extension isn't installed.
 # Reversible per-run: DUM_VSCODE_BRIDGE=0 ./dum
 : "${DUM_VSCODE_BRIDGE:=1}"; export DUM_VSCODE_BRIDGE
 # Strip filler words (uh/um/hmm/…) from the preview + committed text. Verbatim: DUM_STRIP_FILLERS=0 ./dum

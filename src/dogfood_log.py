@@ -42,7 +42,7 @@ from pathlib import Path
 SCHEMA_VERSION = 5          # bumped per shape change: 2=stages_fired embedded; 3=real surface +
                             # window_title, derivables dropped; 4=audio_ref (Layer-1 audio retention);
                             # 5=surface buckets (terminals->"shell", VS Code family->coarse "vscode"
-                            #   refined post-hoc to editor/vscode-terminal/claude-code by the analyzer)
+                            #   refined post-hoc to editor/vscode-terminal/agent-cli by the analyzer)
 REDACT_MAX = 200            # max chars of any captured text span stored
 OBSERVE_WINDOW_S = float(os.environ.get("DUM_DOGFOOD_WINDOW", "20"))
 MODEL_NAME = "parakeet-tdt-0.6b-v3-int8"
@@ -102,15 +102,15 @@ def stages_fired(events):
 # Unknown apps map to "unknown" - NEVER silently to a real bucket (the old hardcoded lie).
 #
 # NOTE on "vscode": the VS Code family is an Electron app where macOS Accessibility is blind AND a
-# real editor doc, an integrated terminal, and a TUI (Claude Code) all share one app name. We CANNOT
+# real editor doc, an integrated terminal, and a TUI (a coding-agent CLI) all share one app name. We CANNOT
 # tell those apart at commit time, so live we emit the coarse parent "vscode"; the analyzer refines
-# each "vscode" commit to editor | vscode-terminal | claude-code using post-hoc evidence (a
-# vscode-ext refix => editor; a Claude transcript join => claude-code; else vscode-terminal).
+# each "vscode" commit to editor | vscode-terminal | agent-cli using post-hoc evidence (a
+# vscode-ext refix => editor; a agent-transcript join => agent-cli; else vscode-terminal).
 _SURFACE = {
     # standalone terminal apps (NOT the VS Code integrated terminal - that's inside "vscode")
     "terminal": "shell", "iterm2": "shell", "iterm": "shell", "ghostty": "shell",
     "alacritty": "shell", "warp": "shell", "kitty": "shell", "wezterm": "shell", "tabby": "shell",
-    # VS Code family - coarse parent; analyzer splits into editor / vscode-terminal / claude-code
+    # VS Code family - coarse parent; analyzer splits into editor / vscode-terminal / agent-cli
     "code": "vscode", "code - insiders": "vscode", "cursor": "vscode", "vscodium": "vscode",
     # other code editors / IDEs (AX-readable, single-surface) -> real editor docs
     "sublime text": "editor", "zed": "editor", "xcode": "editor", "pycharm": "editor", "nova": "editor",
@@ -130,7 +130,7 @@ _SURFACE = {
 
 def classify_surface(app):
     """Map a frontmost-app name to its insertion-surface bucket for telemetry slicing.
-    The VS Code family -> coarse "vscode" (analyzer refines to editor/vscode-terminal/claude-code).
+    The VS Code family -> coarse "vscode" (analyzer refines to editor/vscode-terminal/agent-cli).
     Unknown -> 'unknown' (so coverage gaps are visible, not masked as a real surface)."""
     return _SURFACE.get((app or "").strip().lower(), "unknown")
 
@@ -262,7 +262,7 @@ def _nontrivial_changed_tokens(a, b):
 
 def classify_correction(committed_span, corrected_span):
     """Classify a committed->corrected diff so the telemetry can be TRUSTED. The capture layer (AX
-    read-back, Claude-transcript join, vscode-ext) faithfully records what landed in the field - but
+    read-back, agent-transcript join, vscode-ext) faithfully records what landed in the field - but
     that field can hold three very different things, which earlier code lumped together as one
     'correction', inflating the user-correction rate and polluting vocab candidates:
 
