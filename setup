@@ -164,6 +164,9 @@ PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform
   exit 1
 }
 
+# Route git hooks through the tracked .githooks/ dir (keeps commit messages tool-agnostic).
+git config core.hooksPath .githooks 2>/dev/null || true
+
 echo ""
 echo "Done. Now run:  ./dum"
 echo "(double-tap the LEFT Command key to start/stop dictation)"

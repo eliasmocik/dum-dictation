@@ -1,0 +1,8 @@
+#!/bin/sh
+# Keep commit messages tool-agnostic: strip AI-assistant trailers (co-author /
+# "Generated with ...") before they enter history, no matter which editor or
+# assistant produced them. Enabled via `git config core.hooksPath .githooks`
+# (done by ./setup). Human co-authors are unaffected.
+msg_file="$1"
+tmp="$(mktemp)" || exit 0
+grep -viE '^[[:space:]]*co-authored-by:[[:space:]]*(claude|anthropic|gpt|chatgpt|openai|copilot|cursor|codeium)|generated with .*(claude code|copilot)' "$msg_file" > "$tmp" && mv "$tmp" "$msg_file"
