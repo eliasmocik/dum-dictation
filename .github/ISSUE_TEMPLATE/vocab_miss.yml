@@ -1,0 +1,36 @@
+name: Vocab miss (a tech term it mishears)
+description: A technical word that gets mis-transcribed. Read the General-vs-Personal rule first.
+labels: [vocab]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: is this **General** (the recognizer's fault, any user speaking standard
+        English hits it) or **Personal** (your accent/wording)? Only General terms belong in the
+        shipped packs. The litmus test lives in
+        [docs/CONTRIBUTING.md](https://github.com/eliasmocik/dum-dictation/blob/main/docs/CONTRIBUTING.md).
+  - type: input
+    id: heard
+    attributes:
+      label: What it typed
+      placeholder: "get hub"
+    validations:
+      required: true
+  - type: input
+    id: meant
+    attributes:
+      label: What you meant
+      placeholder: "GitHub"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: General or Personal?
+      description: Would a general user speaking standard English produce the same mishear?
+      options:
+        - General (recognizer's fault - belongs in the shipped vocab)
+        - Personal (my accent/wording - probably shouldn't ship)
+        - Not sure
+    validations:
+      required: true

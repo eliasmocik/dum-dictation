@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for something dum should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What do you want, and what problem does it solve for you?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: How do you work around it now?

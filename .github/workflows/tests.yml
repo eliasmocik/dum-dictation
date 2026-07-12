@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    # macOS (Apple Silicon) is the flagship platform, so that's where the gate runs.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        # Unit-test subset only - no models, no LLM (llama-cpp/mlx), no corpus audio. These are
+        # the deps the pure-logic tests import; pins mirror requirements.txt (the source of truth).
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install \
+            numpy==2.4.6 \
+            soundfile==0.14.0 \
+            sounddevice==0.5.5 \
+            sherpa-onnx==1.13.2 \
+            jellyfish==1.2.1 \
+            rapidfuzz==3.14.5 \
+            pynput==1.8.2
+
+      - name: Run unit gate
+        # --unit skips the bench (needs local models + gitignored voice corpus); the unit suite
+        # covers the deterministic pipeline, overlay diff, config, platform dispatch and guards.
+        run: scripts/test --unit

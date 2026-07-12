@@ -1,0 +1,36 @@
+name: Bug report
+description: Something's broken or acting weird.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ./dum
+        2. double-tap left cmd, said "..."
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS (Apple Silicon)
+        - Windows 10/11
+        - Linux (X11)
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Version / setup
+      description: "Output of `git rev-parse --short HEAD` and `python --version`, plus anything unusual about your setup."

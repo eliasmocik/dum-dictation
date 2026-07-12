@@ -4,6 +4,8 @@
 #   scripts/test            # unit tests + bench (fast) vs baseline; fails on regression
 #   scripts/test --realtime # bench at mic cadence too (adds true settle latency)
 #   scripts/test --update   # accept current bench numbers as the new baseline
+#   scripts/test --unit     # unit tests only, skip the bench (no models/corpus needed - this is
+#                           # what CI runs, so a fresh clone with no voice data goes green)
 #
 # Unit tests (pure logic): pipeline text cleanups + overlay diff/reconcile.
 # Bench (real pipeline): replays the golden corpus through live.py and scores WER /
@@ -53,6 +55,12 @@ echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="
 $PY tests/test_lock_trim.py >/dev/null 2>&1 && echo "lock-trim bench OK" || echo "lock-trim bench skipped (corpus audio absent)"
+
+if [[ " $* " == *" --unit "* ]]; then
+  echo ""
+  if [[ $fail -eq 0 ]]; then echo "UNIT GREEN (bench skipped)"; else echo "FAILURES - see above"; fi
+  exit $fail
+fi
 
 echo "== bench: real pipeline vs baseline =="
 BENCH_ARGS=()
