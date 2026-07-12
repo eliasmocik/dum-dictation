@@ -1,21 +1,21 @@
 # dum dictation
 
-Opensource local alternative to Wispr Flow.
+[![tests](https://github.com/eliasmocik/dum-dictation/actions/workflows/tests.yml/badge.svg)](https://github.com/eliasmocik/dum-dictation/actions/workflows/tests.yml)
 
-![dum dictation demo](docs/demo.gif)
+Local, real-time dictation that gets your technical vocabulary right.
 
-Ok real talk: it's Apple Dictation, except it doesn't butcher your tech words. It gets `git`,
-`kubectl`, `nginx`, `PostgreSQL`, `TanStack Query` and friends right where normal dictation hears
-"get hub" or "engine x". Runs on your machine, types live into whatever app you're in.
+https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
-> Tried it? Tell me how it went in [Discussions](https://github.com/eliasmocik/dum-dictation/discussions)
-> or an [issue](https://github.com/eliasmocik/dum-dictation/issues/new).
+Most dictation tools mishear technical terms: `git`, `kubectl`, `nginx`, `PostgreSQL` and
+`TanStack Query` come out as "get hub" or "engine x". dum recognizes them, and adds capitalization
+and punctuation as you speak. Everything runs on your machine, and it types straight into whatever
+application you're in. A local, open alternative to Wispr Flow and Superwhisper.
 
 ## What you need
 
 - **macOS** (Apple Silicon, M-series) - primary, best-tested
-- **Windows 10/11** - tested and working ([setup](#on-windows))
-- **Linux** (X11) - experimental ([setup](#on-linux))
+- **Windows 10/11** - works, still beta (built and tested by a contributor) ([setup](#on-windows))
+- **Linux** (X11) - experimental, looking for a contributor ([setup](#on-linux))
 - Python 3.12
 
 ## Install (macOS)
