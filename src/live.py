@@ -176,7 +176,11 @@ RECONCILE_DRAIN_S = float(os.environ.get("DUM_RECONCILE_DRAIN", 3.0))
 # Force any app to commit-only clipboard paste with DUM_OVERLAY_APPS_OFF=app1,app2 (the kill-switch).
 # Names match macOS process names (frontmost_app); routing is by APP, so a whole browser is on or off,
 # not per web-page.
-DEFAULT_OVERLAY_BLOCK = set()    # apps forced to paste by default - none proven-bad-by-name yet (seam)
+# CapCut (and canvas/video editors like it) have no stable text field - the live overlay's
+# backspace-then-retype reconcile churns against a surface that mutates underneath it, which reads
+# as a freeze (measured: a whole demo-recording session of overlay commits into CapCut, 2026-07-12).
+# Routed to commit-only paste so it degrades safely instead of thrashing. Add more proven-bad names here.
+DEFAULT_OVERLAY_BLOCK = {"capcut"}    # apps forced to paste by default (proven to scramble the overlay)
 
 
 def overlay_block_apps():
