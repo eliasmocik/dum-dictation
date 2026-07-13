@@ -126,10 +126,11 @@ falls back to `pynput` typing (slower, and layout-dependent). Start it once with
 The setup script detects your distro (Debian/Ubuntu, Fedora, Arch, openSUSE,
 NixOS) and session type automatically, installing everything needed.
 
-> **Note on Ubuntu 22.04 / Debian stable:** these don't ship `python3.12` in their
-> default repos, so `./setup` fails early. Either run `scripts/install-linux-deps.sh`
-> first (it adds the `deadsnakes` PPA on Ubuntu), or install Python 3.12 manually
-> before `./setup`.
+> **Note on Python version:** `./setup` needs **Python 3.12 or 3.13**. Most distros
+> package one of these - e.g. Debian trixie/sid ships 3.13 and works as-is. Older Debian
+> stable (bookworm) and Ubuntu 22.04 only have older/newer Pythons, so 3.12 must be added:
+> `scripts/install-linux-deps.sh` adds the `deadsnakes` PPA on Ubuntu, or install Python
+> 3.12 manually (e.g. pyenv) before `./setup`.
 
 ### Manual install (if you prefer)
 

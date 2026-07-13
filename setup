@@ -8,7 +8,8 @@
 # and installs system packages (xdotool/xclip/ydotool/wl-clipboard, etc.).
 # After it finishes, run ./dum.
 #
-# Python 3.12 required.
+# Python 3.12+ required (3.12 or 3.13; some distros - e.g. Debian trixie - only
+# ship 3.13 and have no python3.12 package, so 3.13 is accepted).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -26,36 +27,49 @@ if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" != "arm64" ]; then
   exit 1
 fi
 
+# Linux: install system deps (incl. python3-venv) up front, so the venv created
+# just below can actually be built. Best-effort - a failed package must not abort.
+if [ "$(uname)" != "Darwin" ]; then
+  if [ -z "${DUM_SKIP_SYS_DEPS:-}" ]; then
+    if [ -x scripts/install-linux-deps.sh ]; then
+      scripts/install-linux-deps.sh || echo "[!] system deps step skipped - you can install them manually (see README)."
+    fi
+  fi
+fi
+
 echo "==> 1/5  Python venv + pinned dependencies"
-# Hard requirement: CPython 3.12.x. Several pins (numpy, sherpa-onnx, mlx-lm) ship wheels
-# only for 3.12, so any other Python dies mid-install with a cryptic compile error.
-py_is_312() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)' 2>/dev/null; }
+# Hard requirement: CPython 3.12 or 3.13. Some distros (e.g. Debian trixie) only ship
+# 3.13 and have no python3.12 package, so 3.13 is accepted; 3.14+ is excluded until its
+# wheels are proven. The pins below all ship 3.12/3.13 wheels, so a 3.13 venv installs.
+py_ok() { "$1" -c 'import sys; v=sys.version_info[:2]; raise SystemExit(0 if (3,12) <= v < (3,14) else 1)' 2>/dev/null; }
 if [ ! -x "$PY" ]; then
   PYBIN="$(command -v python3.12 || command -v python3 || true)"
   if [ -z "$PYBIN" ]; then
-    echo "    [!] no python3 on PATH - Python 3.12 is required."
+    echo "    [!] no python3 on PATH - Python 3.12+ is required."
     echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv"
+    echo "                (or, where 3.12 isn't packaged: python3 python3-venv)"
     echo "        Then re-run ./setup."
     exit 1
   fi
-  if ! py_is_312 "$PYBIN"; then
-    echo "    [!] Python 3.12 required, but $PYBIN is $("$PYBIN" -V 2>&1)."
+  if ! py_ok "$PYBIN"; then
+    echo "    [!] Python 3.12+ required, but $PYBIN is $("$PYBIN" -V 2>&1)."
     echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv"
+    echo "                (or, where 3.12 isn't packaged: python3 python3-venv)"
     echo "        Then re-run ./setup."
     exit 1
   fi
   echo "    creating .venv with $PYBIN"
   "$PYBIN" -m venv .venv
-elif ! py_is_312 "$PY"; then
-  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12 - rebuild it:"
+elif ! py_ok "$PY"; then
+  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12+ - rebuild it:"
   echo "        rm -rf .venv && ./setup"
   exit 1
 fi
 "$PY" -m pip install --upgrade pip >/dev/null || {
   echo "    [!] this .venv has no working pip (a partial venv - common on Debian/Ubuntu without"
-  echo "        python3.12-venv). Install it (sudo apt install python3.12-venv), then rebuild:"
+  echo "        python3-venv). Install it (sudo apt install python3-venv, or python3.12-venv), then rebuild:"
   echo "        rm -rf .venv && ./setup"
   exit 1
 }
@@ -163,13 +177,11 @@ if [ "$(uname)" = "Darwin" ]; then
 PERMS
 else
   echo "==> 4/5  Linux system dependencies"
-  if [ -z "${DUM_SKIP_SYS_DEPS:-}" ]; then
-    if [ -x scripts/install-linux-deps.sh ]; then
-      # Best-effort: a missing sudo or a failed package install must not abort setup.
-      scripts/install-linux-deps.sh || echo "[!] system deps step skipped - you can install them manually (see README)."
-    fi
-  else
+  if [ -n "${DUM_SKIP_SYS_DEPS:-}" ]; then
     echo "    skipped (DUM_SKIP_SYS_DEPS=1)"
+  else
+    echo "    (installed up front, before the venv was created - re-run"
+    echo "     scripts/install-linux-deps.sh to change them)"
   fi
   echo ""
   # Detect session type for the message

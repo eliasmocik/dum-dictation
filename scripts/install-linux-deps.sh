@@ -81,13 +81,24 @@ pkg_map() {
       SOUND_PKGS=(libcanberra-gtk3-module)
       PORTAUDIO=(portaudio19-dev)
       BUILD_PKGS=(cmake gcc g++)
-      PYTHON_PKGS=(python3.12 python3.12-venv)
-      TRAY_PKGS=(libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1)
       PYTHON_ALT="python3"  # fallback if 3.12 not in repos
-      PPA_NEEDED=0          # flag: need deadsnakes PPA?
-      # Check if python3.12 is available
-      if ! apt-cache show python3.12 &>/dev/null; then
+      # Prefer python3.12 when it is packaged. Ubuntu 22.04 etc. only have it via the
+      # deadsnakes PPA (PPA_NEEDED=1). Modern Debian (trixie/sid) ships 3.13 and has no
+      # python3.12 package at all, so fall back to the default python3 + its venv there
+      # (./setup accepts 3.12 or 3.13).
+      osid=""
+      if [[ -f /etc/os-release ]]; then
+        osid=$(. /etc/os-release; echo "$ID")
+      fi
+      if apt-cache show python3.12 &>/dev/null; then
+        PYTHON_PKGS=(python3.12 python3.12-venv)
+        PPA_NEEDED=0
+      elif [[ "$osid" == "ubuntu" ]]; then
+        PYTHON_PKGS=(python3.12 python3.12-venv)
         PPA_NEEDED=1
+      else
+        PYTHON_PKGS=(python3 python3-venv)
+        PPA_NEEDED=0
       fi
       ;;
     fedora)
