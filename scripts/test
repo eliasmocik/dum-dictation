@@ -51,6 +51,8 @@ echo "== unit: tray controller =="
 $PY tests/test_tray.py || fail=1
 echo "== unit: platform dispatch (mac/windows/fallback) =="
 $PY tests/test_platform_dispatch.py || fail=1
+echo "== unit: linux platform (x11/wayland backend) =="
+$PY tests/test_linux_platform.py || fail=1
 echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="

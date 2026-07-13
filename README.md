@@ -90,20 +90,83 @@ cd dum-dictation
 
 ## On Linux
 
-> **Experimental!** Looking for a Linux contributor. Reach out on
-> [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
+Linux is supported on X11 and Wayland. The `./setup` script auto-detects your
+distro and session type, and installs the required system packages.
+
+### Quick install
 
 ```sh
-sudo apt install xdotool xclip      # or wl-clipboard on Wayland
 git clone https://github.com/eliasmocik/dum-dictation.git
 cd dum-dictation
-./setup                              # skips the Apple-only LLM
+./setup                              # installs system deps + venv + models
 ./dum                                # double-tap RIGHT Ctrl to start/stop
-./dum --tray
-./dum --install-autostart            # systemd --user service
+
+# Optional:
+./dum --tray                         # system tray icon (green = listening)
+./dum --install-autostart            # systemd --user service (start at login)
+./dum --config                       # re-run mic/hotkey setup wizard
 ```
 
-Wayland: run under XWayland, or install `ydotool` + `wl-clipboard`.
+### What gets installed
+
+| Session | Typing | Clipboard | Sound |
+|---------|--------|-----------|-------|
+| **X11** | `xdotool` | `xclip` | `canberra-gtk-play` bell (terminal bell fallback) |
+| **Wayland** | `ydotool`* | `wl-clipboard` | same |
+
+\* Wayland typing uses **`ydotool`**, which needs its **`ydotoold` daemon** running
+(socket at `/tmp/.ydotool_socket`). If the daemon isn't running, dum automatically
+falls back to `pynput` typing (slower, and layout-dependent). Start it once with
+`ydotoold &`, or enable a service for it. On X11, `xdotool` works without any daemon.
+
+The setup script detects your distro (Debian/Ubuntu, Fedora, Arch, openSUSE,
+NixOS) and session type automatically, installing everything needed.
+
+> **Note on Ubuntu 22.04 / Debian stable:** these don't ship `python3.12` in their
+> default repos, so `./setup` fails early. Either run `scripts/install-linux-deps.sh`
+> first (it adds the `deadsnakes` PPA on Ubuntu), or install Python 3.12 manually
+> before `./setup`.
+
+### Manual install (if you prefer)
+
+**Debian / Ubuntu / Mint:**
+```sh
+sudo apt install xdotool xclip wl-clipboard ydotool libcanberra-gtk3-module \
+  portaudio19-dev cmake gcc g++ python3.12 python3.12-venv libappindicator3-1
+```
+
+**Fedora / RHEL:**
+```sh
+sudo dnf install xdotool xclip wl-clipboard ydotool libcanberra-gtk3 \
+  portaudio-devel cmake gcc gcc-c++ python3.12 libappindicator-gtk3
+```
+
+**Arch / Manjaro:**
+```sh
+sudo pacman -S xdotool xclip wl-clipboard ydotool libcanberra portaudio \
+  cmake gcc libappindicator python
+```
+
+**openSUSE:**
+```sh
+sudo zypper install xdotool xclip wl-clipboard ydotool libcanberra-gtk3-module \
+  portaudio-devel cmake gcc gcc-c++ python312 libayatana-appindicator1
+```
+
+### Tray icon
+
+The system tray needs a StatusNotifierItem host (built into KDE and most DEs, and
+available on GNOME via the **AppIndicator** extension) or a standalone provider like
+`snixd` or `trayer`. Install `libappindicator-gtk3` or `libayatana-appindicator` —
+the setup script does this automatically for your distro.
+
+On a session with no StatusNotifierItem host, `./dum --tray` prints a clear message
+and continues running with just the global hotkey (no icon). The dictation itself is
+unaffected.
+
+> **Focus guard:** on pure Wayland there is no reliable way to name the focused app,
+> so the focus-away hard stop (alt-tab safety) is **disabled** there. On X11 it works
+> via `xdotool`. Run under XWayland if you want the focus guard.
 
 ## Privacy
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Linux (systemd --user) auto-start backend (split out of autostart.py).
-Owner: unassigned - parked. Public install/uninstall/status dispatch lives in autostart.py."""
+
+Public install/uninstall/status dispatch lives in autostart.py. The service unit
+starts after the graphical session so DISPLAY/WAYLAND_DISPLAY is available.
+Relaunches on crash (Restart=on-failure)."""
 import subprocess
 from pathlib import Path
 
@@ -56,8 +59,8 @@ def _linux_install(args=None):
     print(f"[autostart] wrote {path}")
     if ok:
         print(f"[autostart] enabled {SERVICE_NAME} - dum starts at login and relaunches on crash.")
-        print("            (needs an X11 session for xdotool/xclip; on Wayland install ydotool + "
-              "wl-clipboard. If the tray doesn't appear at login, check `systemctl --user status dum`.)")
+        print("            X11: needs xdotool, xclip.  Wayland: needs ydotool, wl-clipboard.")
+        print("            If the tray doesn't appear at login, check `systemctl --user status dum`.")
     else:
         print(f"[autostart] systemctl reported: {r.stderr.strip() or r.stdout.strip()}")
     return ok
