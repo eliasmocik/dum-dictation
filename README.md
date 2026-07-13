@@ -114,7 +114,7 @@ so misheard words get fixed over time. Details: [`docs/DOGFOOD.md`](docs/DOGFOOD
 
 - Feedback or bugs: [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [open an issue](https://github.com/eliasmocik/dum-dictation/issues/new)
 - Vocab fix: [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md)
-- How it works: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DEV-NOTES.md`](docs/DEV-NOTES.md)
+- How it works: [`docs/how-it-works.md`](docs/how-it-works.md) (the writeup), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DEV-NOTES.md`](docs/DEV-NOTES.md)
 
 ## License
 
