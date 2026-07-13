@@ -13,6 +13,7 @@ Supported tools (auto-detected, graceful degradation):
   * frontmost  - xdotool getactivewindow (X11 only); None on Wayland.
  """
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -32,7 +33,7 @@ def _session_type():
         ).stdout
         cur = subprocess.run(
             ["awk", "-v", "u=" + os.environ.get("USER", ""),
-             '$0 ~ u {print $1; exit}'],
+             '$3==u {print $1; exit}'],
             input=sid, capture_output=True, text=True, timeout=1.0
         ).stdout.strip()
         if cur:
@@ -53,9 +54,20 @@ def _session_type():
 
 
 def _ydotoold_running():
-    """ydotool needs the ydotoold daemon + its socket. Return True if reachable."""
+    """ydotool needs the ydotoold daemon + its socket. Return True only if the
+    socket actually accepts a connection, so a stale socket left behind by a dead
+    daemon is correctly reported as not running."""
     sock = os.environ.get("YDOTOOL_SOCKET", "/tmp/.ydotool_socket")
-    return os.path.exists(sock)
+    if not os.path.exists(sock):
+        return False
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        s.connect(sock)
+        s.close()
+        return True
+    except OSError:
+        return False
 
 
 class LinuxPlatform(Platform):
@@ -96,18 +108,24 @@ class LinuxPlatform(Platform):
     def type_text(self, text):
         if not text:
             return
-        # Prefer ydotool on Wayland only when its daemon is actually running;
+        # Prefer ydotool on Wayland only when its daemon is actually responding;
         # otherwise fall back to pynput typing so dictation still works.
         if self._session == "wayland" and self._has_ydotool:
             if self._ydotool_ok:
                 try:
-                    subprocess.run(["ydotool", "type", text], timeout=5.0)
-                    return
+                    r = subprocess.run(
+                        ["ydotool", "type", text], timeout=5.0,
+                        capture_output=True)
+                    if r.returncode == 0:
+                        return
+                    # Daemon gone (e.g. stale socket from an exited daemon) - stop
+                    # retrying ydotool and fall back to pynput for this text.
+                    self._ydotool_ok = False
                 except Exception:
-                    pass
+                    self._ydotool_ok = False
             if not self._warned_ydotool:
                 self._warned_ydotool = True
-                print("[linux] ydotoold not running - falling back to pynput typing. "
+                print("[linux] ydotoold not responding - falling back to pynput typing. "
                       "Start it with: ydotoold &  (or enable the ydotoold service)",
                       file=sys.stderr, flush=True)
             if self._kb is None:

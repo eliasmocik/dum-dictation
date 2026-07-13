@@ -90,6 +90,10 @@ cd dum-dictation
 
 ## On Linux
 
+Linux support is new - if something doesn't work on your distro or session, please
+open an issue so we can fix it. On pure Wayland the per-app focus guard is not yet
+available (Linux has no reliable equivalent of macOS/Windows accessibility APIs).
+
 Linux is supported on X11 and Wayland. The `./setup` script auto-detects your
 distro and session type, and installs the required system packages.
 

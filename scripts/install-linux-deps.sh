@@ -21,7 +21,7 @@ detect_distro() {
   if [[ -f /etc/os-release ]]; then
     . /etc/os-release
     id="$ID"
-    like="$ID_LIKE"
+    like="${ID_LIKE:-}"
   elif [[ -f /etc/arch-release ]]; then
     id="arch"; like=""
   else
@@ -59,7 +59,7 @@ detect_session() {
   if [[ -z "$st" ]]; then
     # Fall back to logind, matching the current user's session.
     local sid
-    sid=$(loginctl 2>/dev/null | awk -v u="$USER" '$0 ~ u {print $1; exit}') || true
+      sid=$(loginctl 2>/dev/null | awk -v u="$USER" '$3==u {print $1; exit}') || true
     if [[ -n "$sid" ]]; then
       st=$(loginctl show-session "$sid" -p Type 2>/dev/null | cut -d= -f2 || true)
     fi
@@ -82,7 +82,7 @@ pkg_map() {
       PORTAUDIO=(portaudio19-dev)
       BUILD_PKGS=(cmake gcc g++)
       PYTHON_PKGS=(python3.12 python3.12-venv)
-      TRAY_PKGS=(libappindicator3-1 gir1.2-appindicator3-0.1)
+      TRAY_PKGS=(libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1)
       PYTHON_ALT="python3"  # fallback if 3.12 not in repos
       PPA_NEEDED=0          # flag: need deadsnakes PPA?
       # Check if python3.12 is available
@@ -115,7 +115,7 @@ pkg_map() {
       PORTAUDIO=(portaudio)
       BUILD_PKGS=(cmake gcc)
       PYTHON_PKGS=(python)  # Arch ships latest Python
-      TRAY_PKGS=(libappindicator)
+      TRAY_PKGS=(libayatana-appindicator)
       PPA_NEEDED=0
       ;;
     suse)
@@ -163,6 +163,9 @@ is_installed() {
 install_cmd() {
   local distro="$1" dry_run="$2"
   shift 2
+  local failed=()
+  # Install each package individually so one bad name (e.g. renamed on a given
+  # distro) doesn't abort the whole batch; failed packages are warned and skipped.
   case "$distro" in
     debian)
       if [[ "$PPA_NEEDED" -eq 1 ]]; then
@@ -174,32 +177,40 @@ install_cmd() {
           sudo apt-get update -qq || true
         fi
       fi
-      if [[ "$dry_run" -eq 1 ]]; then
-        echo "sudo apt-get install -y $*"
-      else
-        sudo apt-get install -y "$@"
-      fi
+      for pkg in "$@"; do
+        if [[ "$dry_run" -eq 1 ]]; then
+          echo "  sudo apt-get install -y $pkg"
+        else
+          sudo apt-get install -y "$pkg" || { warn "  install failed: $pkg"; failed+=("$pkg"); }
+        fi
+      done
       ;;
     fedora)
-      if [[ "$dry_run" -eq 1 ]]; then
-        echo "sudo dnf install -y $*"
-      else
-        sudo dnf install -y "$@"
-      fi
+      for pkg in "$@"; do
+        if [[ "$dry_run" -eq 1 ]]; then
+          echo "  sudo dnf install -y $pkg"
+        else
+          sudo dnf install -y "$pkg" || { warn "  install failed: $pkg"; failed+=("$pkg"); }
+        fi
+      done
       ;;
     arch)
-      if [[ "$dry_run" -eq 1 ]]; then
-        echo "sudo pacman -S --noconfirm $*"
-      else
-        sudo pacman -S --noconfirm "$@"
-      fi
+      for pkg in "$@"; do
+        if [[ "$dry_run" -eq 1 ]]; then
+          echo "  sudo pacman -S --noconfirm $pkg"
+        else
+          sudo pacman -S --noconfirm "$pkg" || { warn "  install failed: $pkg"; failed+=("$pkg"); }
+        fi
+      done
       ;;
     suse)
-      if [[ "$dry_run" -eq 1 ]]; then
-        echo "sudo zypper install -y $*"
-      else
-        sudo zypper install -y "$@"
-      fi
+      for pkg in "$@"; do
+        if [[ "$dry_run" -eq 1 ]]; then
+          echo "  sudo zypper install -y $pkg"
+        else
+          sudo zypper install -y "$pkg" || { warn "  install failed: $pkg"; failed+=("$pkg"); }
+        fi
+      done
       ;;
     nixos)
       if [[ "$dry_run" -eq 1 ]]; then
@@ -221,6 +232,10 @@ install_cmd() {
       fi
       ;;
   esac
+  if [[ ${#failed[@]} -gt 0 ]]; then
+    warn "Some packages failed to install: ${failed[*]}"
+    warn "dum may still run - install the above manually if needed."
+  fi
 }
 
 # ---- main -------------------------------------------------------------------

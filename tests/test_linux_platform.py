@@ -7,6 +7,7 @@ boxes). Covers session detection, tool selection, the ydotoold fallback, clipboa
 routing, and the notify sound chain.
 """
 import os
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -79,6 +80,17 @@ class TestSessionType(unittest.TestCase):
         self.assertEqual(platform_linux._session_type(), "x11")
 
 
+class TestLoginctlAwkExpr(unittest.TestCase):
+    def test_loginctl_awk_anchored_to_user_column(self):
+        # The awk expression must match only the USER column (col 3), not a
+        # substring of another user's name. Runs real awk to validate the expr.
+        inp = "1 1000 alice seat0\n2 1001 alicebob seat0\n3 1000 alice seat0\n"
+        out = subprocess.run(
+            ["awk", "-v", "u=alice", '$3==u {print $1; exit}'],
+            input=inp, capture_output=True, text=True)
+        self.assertEqual(out.stdout.strip(), "1")
+
+
 class TestYdotooldRunning(unittest.TestCase):
     def test_default_socket_absent(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -86,24 +98,39 @@ class TestYdotooldRunning(unittest.TestCase):
                 self.assertFalse(platform_linux._ydotoold_running())
 
     def test_default_socket_present(self):
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with mock.patch("platform_linux.os.path.exists", return_value=True):
-                self.assertTrue(platform_linux._ydotoold_running())
+        sock = mock.MagicMock()
+        with mock.patch.dict(os.environ, {}, clear=True), \
+             mock.patch("platform_linux.os.path.exists", return_value=True), \
+             mock.patch("platform_linux.socket.socket", return_value=sock):
+            self.assertTrue(platform_linux._ydotoold_running())
+
+    def test_stale_socket_is_not_running(self):
+        # A socket file left behind by a dead daemon must not read as "running".
+        sock = mock.MagicMock()
+        sock.connect.side_effect = OSError("connection refused")
+        with mock.patch.dict(os.environ, {}, clear=True), \
+             mock.patch("platform_linux.os.path.exists", return_value=True), \
+             mock.patch("platform_linux.socket.socket", return_value=sock):
+            self.assertFalse(platform_linux._ydotoold_running())
 
     def test_custom_socket_env(self):
-        with mock.patch.dict(os.environ, {"YDOTOOL_SOCKET": "/custom/sock"}):
-            with mock.patch("platform_linux.os.path.exists",
-                            lambda p: p == "/custom/sock") as exists:
-                self.assertTrue(platform_linux._ydotoold_running())
+        sock = mock.MagicMock()
+        with mock.patch.dict(os.environ, {"YDOTOOL_SOCKET": "/custom/sock"}), \
+             mock.patch("platform_linux.os.path.exists",
+                        lambda p: p == "/custom/sock"), \
+             mock.patch("platform_linux.socket.socket", return_value=sock):
+            self.assertTrue(platform_linux._ydotoold_running())
 
 
 def _make_platform(which_map, session="x11", ydotoold_socket=False):
     """Build a LinuxPlatform with mocked tool availability + ydotoold socket."""
+    sock = mock.MagicMock()
     with mock.patch.dict(os.environ, {"XDG_SESSION_TYPE": session}, clear=True), \
          mock.patch("shutil.which",
                     side_effect=lambda name: which_map.get(name)), \
          mock.patch("platform_linux.os.path.exists",
-                    lambda p: ydotoold_socket and p.endswith("ydotool_socket")):
+                    lambda p: ydotoold_socket and p.endswith("ydotool_socket")), \
+         mock.patch("platform_linux.socket.socket", return_value=sock):
         return platform_linux.LinuxPlatform()
 
 
@@ -165,9 +192,29 @@ class TestTypeText(unittest.TestCase):
     def test_wayland_with_ydotoold_uses_ydotool(self):
         p = _make_platform({"ydotool": "/usr/bin/ydotool"},
                             session="wayland", ydotoold_socket=True)
-        with mock.patch("platform_linux.subprocess.run") as run:
+        result = mock.MagicMock()
+        result.returncode = 0
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run:
             p.type_text("hello")
-            run.assert_called_once_with(["ydotool", "type", "hello"], timeout=5.0)
+            run.assert_called_once_with(
+                ["ydotool", "type", "hello"], timeout=5.0, capture_output=True)
+
+    def test_wayland_ydotool_failure_falls_back_to_pynput(self):
+        # ydotool present + daemon "ok" at construction, but the type call exits
+        # non-zero (e.g. stale socket / dead daemon). Must NOT be a silent no-op;
+        # it must fall back to pynput and stop retrying ydotool.
+        p = _make_platform({"ydotool": "/usr/bin/ydotool"},
+                            session="wayland", ydotoold_socket=True)
+        result = mock.MagicMock()
+        result.returncode = 1
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run, \
+             self._fake_pynput():
+            p.type_text("hello")
+            run.assert_called_once_with(
+                ["ydotool", "type", "hello"], timeout=5.0, capture_output=True)
+            self.assertFalse(p._ydotool_ok)
+            self.assertTrue(p._kb is not None)
+            p._kb.type.assert_called_once_with("hello")
 
     def test_wayland_without_ydotoold_falls_back_to_pynput(self):
         # ydotool present but daemon socket absent -> should NOT call ydotool,
