@@ -329,7 +329,8 @@ class TestSendPaste(unittest.TestCase):
         with mock.patch("platform_linux.subprocess.run") as run:
             p._send_paste()
             run.assert_called_once_with(
-                ["xdotool", "key", "--clearmodifiers", "ctrl+v"])
+                ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                timeout=5.0, capture_output=True)
 
     def test_wayland_uses_ydotool_chord_not_xdotool(self):
         # xdotool is installed (deps install it on all sessions) but on Wayland it must
@@ -343,8 +344,9 @@ class TestSendPaste(unittest.TestCase):
                 ["ydotool", "key", "29:1", "47:1", "47:0", "29:0"],
                 timeout=5.0, capture_output=True)
 
-    def test_wayland_paste_falls_back_to_pynput_without_ydotoold(self):
-        # No ydotoold: Ctrl+V must fall back to pynput (never xdotool on Wayland).
+    def test_pure_wayland_paste_falls_back_to_pynput_without_ydotoold(self):
+        # Pure Wayland (no $DISPLAY): no ydotoold and no XWayland, so Ctrl+V must fall
+        # back to pynput and NEVER shell out to xdotool.
         import types
         fake = types.ModuleType("pynput")
         fk = types.ModuleType("pynput.keyboard")
@@ -354,9 +356,23 @@ class TestSendPaste(unittest.TestCase):
         p = _make_platform({"xdotool": "/usr/bin/xdotool"},
                            session="wayland", ydotoold_socket=False)
         with mock.patch("platform_linux.subprocess.run") as run, \
+             mock.patch.dict(os.environ, {}, clear=True), \
              mock.patch.dict(sys.modules, {"pynput": fake, "pynput.keyboard": fk}):
             p._send_paste()
             run.assert_not_called()
+
+    def test_xwayland_paste_uses_xdotool_ctrl_v(self):
+        # XWayland (Wayland session but $DISPLAY set): with no ydotoold, Ctrl+V should
+        # go through xdotool (reliable for X11/XWayland apps) before the pynput last resort.
+        result = mock.MagicMock(); result.returncode = 0
+        p = _make_platform({"xdotool": "/usr/bin/xdotool"},
+                           session="wayland", ydotoold_socket=False)
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run, \
+             mock.patch.dict(os.environ, {"DISPLAY": ":0"}, clear=True):
+            p._send_paste()
+            run.assert_called_once_with(
+                ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                timeout=5.0, capture_output=True)
 
 
 class TestFrontmost(unittest.TestCase):

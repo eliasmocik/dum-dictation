@@ -186,12 +186,37 @@ class LinuxPlatform(Platform):
         if self._session == "wayland" and not self._ydotool_ok:
             self._warn_ydotool_once()
 
+    def _ydotool_ready(self):
+        """Whether a ydotool call should be attempted, re-probing the daemon socket.
+
+        `self._ydotool_ok` is cleared to False by `_run_ydotool` whenever a call
+        fails (daemon died / stale socket), but the daemon may come up (or recover)
+        later - e.g. `systemctl enable --now ydotool.service` after launch, or a
+        transient first-call error. Re-resolving the live socket here lets typing be
+        promoted back to ydotool instead of being permanently stuck on pynput."""
+        if not self._has_ydotool:
+            return False
+        if self._ydotool_ok:
+            return True
+        sock = _resolve_ydotool_socket()
+        if sock:
+            os.environ["YDOTOOL_SOCKET"] = sock
+            self._ydotool_ok = True
+            return True
+        return False
+
+    def _xdotool_usable(self):
+        """xdotool works under XWayland too (XDG_SESSION_TYPE=wayland but DISPLAY set),
+        not just pure X11. It needs an X display, so gate it on $DISPLAY rather than on
+        the session type, so it can serve as a Wayland fallback for X11/XWayland apps."""
+        return self._has_xdotool and bool(os.environ.get("DISPLAY"))
+
     def _run_ydotool(self, args):
         """Run a ydotool subprocess; return True only on a clean (exit 0) run.
 
         On any failure - non-zero exit or an exception, e.g. the daemon died or its
-        socket went stale mid-session - mark ydotool unavailable so every later call
-        (type/backspace/cursor/paste) falls back to pynput and we stop retrying."""
+        socket went stale mid-session - mark ydotool unavailable so later calls fall
+        back (pynput/wtype/xdotool). It can be re-promoted later via _ydotool_ready."""
         try:
             if subprocess.run(args, timeout=5.0, capture_output=True).returncode == 0:
                 return True
@@ -250,13 +275,24 @@ class LinuxPlatform(Platform):
             return
         if self._session == "wayland":
             # Wayland: ydotool (if its daemon is responsive), else wtype (daemon-less,
-            # Debian-friendly), else pynput. xdotool is X11-only and a no-op on Wayland.
-            if self._ydotool_ok and self._run_ydotool(["ydotool", "type", text]):
+            # Debian-friendly), else xdotool under XWayland, else pynput.
+            if self._ydotool_ready() and self._run_ydotool(["ydotool", "type", text]):
                 return
             if self._has_wtype:
                 try:
                     subprocess.run(["wtype", text], timeout=5.0, capture_output=True)
                     return
+                except Exception:
+                    pass
+            # XWayland fallback: xdotool (and pynput) reach X11/XWayland apps even in a
+            # Wayland session as long as $DISPLAY is set.
+            if self._xdotool_usable():
+                try:
+                    r = subprocess.run(
+                        ["xdotool", "type", "--clearmodifiers", "--", text],
+                        timeout=5.0, capture_output=True)
+                    if r.returncode == 0:
+                        return
                 except Exception:
                     pass
             self._warn_ydotool_once()
@@ -290,8 +326,17 @@ class LinuxPlatform(Platform):
         to pynput if the daemon is down/died; X11/other: pynput."""
         if n <= 0:
             return
-        if self._ydotool_ok and self._run_ydotool(_ydotool_key(_YK_BACKSPACE, n)):
+        if self._ydotool_ready() and self._run_ydotool(_ydotool_key(_YK_BACKSPACE, n)):
             return
+        if self._xdotool_usable():
+            try:
+                r = subprocess.run(
+                    ["xdotool", "key", "--clearmodifiers"] + ["BackSpace"] * n,
+                    timeout=5.0, capture_output=True)
+                if r.returncode == 0:
+                    return
+            except Exception:
+                pass
         self._pynput_tap("backspace", n)
 
     def move_cursor(self, delta):
@@ -300,36 +345,65 @@ class LinuxPlatform(Platform):
         if delta == 0:
             return
         code = _YK_LEFT if delta < 0 else _YK_RIGHT
-        if self._ydotool_ok and self._run_ydotool(_ydotool_key(code, abs(delta))):
+        if self._ydotool_ready() and self._run_ydotool(_ydotool_key(code, abs(delta))):
             return
+        if self._xdotool_usable():
+            key = "Right" if delta > 0 else "Left"
+            try:
+                r = subprocess.run(
+                    ["xdotool", "key", "--clearmodifiers"] + [key] * abs(delta),
+                    timeout=5.0, capture_output=True)
+                if r.returncode == 0:
+                    return
+            except Exception:
+                pass
         self._pynput_tap("right" if delta > 0 else "left", abs(delta))
 
     def _clip_get(self):
-        if self._clip == "wayland":
-            r = subprocess.run(["wl-paste", "-n"], capture_output=True, text=True)
-        elif self._clip == "xclip":
-            r = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
-                               capture_output=True, text=True)
-        else:
+        # timeout: a wedged clipboard daemon must not hang the dictation thread.
+        try:
+            if self._clip == "wayland":
+                r = subprocess.run(["wl-paste", "-n"], capture_output=True,
+                                   text=True, timeout=2.0)
+            elif self._clip == "xclip":
+                r = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
+                                   capture_output=True, text=True, timeout=2.0)
+            else:
+                return None
+        except Exception:
             return None
         return r.stdout if r.returncode == 0 else None
 
     def _clip_set(self, text):
-        if self._clip == "wayland":
-            subprocess.run(["wl-copy"], input=text, text=True)
-        elif self._clip == "xclip":
-            subprocess.run(["xclip", "-selection", "clipboard"], input=text, text=True)
+        try:
+            if self._clip == "wayland":
+                subprocess.run(["wl-copy"], input=text, text=True, timeout=2.0)
+            elif self._clip == "xclip":
+                subprocess.run(["xclip", "-selection", "clipboard"], input=text,
+                               text=True, timeout=2.0)
+        except Exception:
+            pass
 
     def _send_paste(self):
         if self._session == "x11" and self._has_xdotool:
-            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"])
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                           timeout=5.0, capture_output=True)
             return
         # Wayland: send Ctrl+V via ydotool (Ctrl down, V down/up, Ctrl up). pynput's
         # Ctrl+V needs an X connection Wayland hides, so it's only the last resort.
-        if self._session == "wayland" and self._ydotool_ok and self._run_ydotool(
+        if self._session == "wayland" and self._ydotool_ready() and self._run_ydotool(
                 ["ydotool", "key", f"{_YK_LEFTCTRL}:1", f"{_YK_V}:1",
                  f"{_YK_V}:0", f"{_YK_LEFTCTRL}:0"]):
             return
+        # XWayland: xdotool Ctrl+V reaches X11/XWayland apps and is more reliable than
+        # pynput; try it before the pynput last resort.
+        if self._xdotool_usable():
+            try:
+                if subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                                  timeout=5.0, capture_output=True).returncode == 0:
+                    return
+            except Exception:
+                pass
         try:
             from pynput.keyboard import Controller, Key
             kb = Controller()
@@ -392,16 +466,19 @@ class LinuxPlatform(Platform):
 
     def supports_overlay(self):
         """The live overlay does character-level Backspace/arrow edits; on Wayland that
-        needs ydotool (raw uinput keycodes). wtype can type text but not keycodes and
-        pynput can't see keys under Wayland, so a wtype-only Wayland session can't
-        drive the overlay - callers should fall back to commit-only typing there."""
+        needs ydotool's raw uinput keycodes, which reach *any* app. xdotool is
+        deliberately NOT accepted here: its keystrokes only land in X11/XWayland apps, so
+        driving the overlay with it would backspace the wrong place in a native Wayland
+        app. wtype can type text but not keycodes and pynput can't see keys under Wayland,
+        so without ydotool callers must fall back to commit-only typing."""
         if self._session == "wayland":
-            return self._ydotool_ok
+            return self._ydotool_ready()
         return True
 
     def _can_paste(self):
-        """Ctrl+V paste routes through xdotool (X11) or ydotool (Wayland). On Wayland
-        without ydotool there's no working paste, so callers should type_text instead."""
+        """Ctrl+V paste routes through xdotool (X11/XWayland) or ydotool (Wayland). On a
+        pure-Wayland session with neither, there's no working paste, so callers should
+        type_text instead."""
         if self._session == "wayland":
-            return self._ydotool_ok
+            return self._ydotool_ready() or self._xdotool_usable()
         return True

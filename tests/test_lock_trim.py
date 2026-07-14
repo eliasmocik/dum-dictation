@@ -8,16 +8,29 @@ Verifies (a) the live window stays bounded (constant proc), (b) the streamed tex
 converges to the same final as the growing window, and (c) per-step proc drops.
 Run: .venv/bin/python test_lock_trim.py [seg.wav]
 """
-import sys, time
+import os, sys, time
 import numpy as np, soundfile as sf
 from live import (build_parakeet, find_model_dir, transcribe, transcribe_words,
                   clean_punct, SR, LOCK_MARGIN_S, STEP_S)
 
+# Exit 77 == "skipped" (corpus/model absent), distinct from any other nonzero exit,
+# which means a REAL failure. scripts/test relies on this split so a genuine
+# regression here is no longer masked as "bench skipped".
+SKIP = 77
+
 wav = sys.argv[1] if len(sys.argv) > 1 else "sessions/20260615-165654/seg_002.wav"
+if not os.path.exists(wav):
+    print(f"lock-trim: corpus wav absent ({wav}) - skipping", file=sys.stderr)
+    sys.exit(SKIP)
 audio, sr = sf.read(wav)
 audio = audio.astype("float32")
 assert sr == SR, f"expected {SR}, got {sr}"
-rec = build_parakeet(find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*"))
+try:
+    model_dir = find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*")
+except SystemExit:
+    print("lock-trim: parakeet model absent - skipping", file=sys.stderr)
+    sys.exit(SKIP)
+rec = build_parakeet(model_dir)
 dur = len(audio) / SR
 step = int(STEP_S * SR)
 print(f"wav {wav}  dur {dur:.1f}s  margin {LOCK_MARGIN_S}s  step {STEP_S}s\n")

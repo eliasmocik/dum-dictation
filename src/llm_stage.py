@@ -223,7 +223,11 @@ class LLMWorker:
         self._ready = threading.Event()
         self._err = None
         threading.Thread(target=self._run, daemon=True).start()
-        self._ready.wait()
+        # Bounded wait: if the loader thread dies without signalling ready (e.g. a
+        # native MLX crash that escapes `except Exception`), don't hang startup forever.
+        if not self._ready.wait(timeout=180.0):
+            raise TimeoutError(
+                f"LLM model {self._model_id!r} did not load within 180s")
         if self._err:
             raise self._err
 

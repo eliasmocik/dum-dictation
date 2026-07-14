@@ -101,7 +101,10 @@ class LlamaCppBackend(LLMBackend):
         path = os.environ.get("DUM_LLM_GGUF_PATH")
         if not path:
             from huggingface_hub import hf_hub_download
-            path = hf_hub_download(repo_id=DEFAULT_GGUF_REPO, filename=DEFAULT_GGUF_FILE)
+            # etag_timeout bounds the metadata HEAD request so a stalled network can't
+            # hang model init indefinitely (the file download itself resumes/retries).
+            path = hf_hub_download(repo_id=DEFAULT_GGUF_REPO, filename=DEFAULT_GGUF_FILE,
+                                   etag_timeout=15)
         self.model_path = path
         self.llm = Llama(model_path=path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers,
                          chat_format=self.CHAT_FORMAT, verbose=False)

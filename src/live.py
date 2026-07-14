@@ -808,120 +808,124 @@ class LiveDictation:
                 in_sentence = False
             elif since_preview >= STEP_S and secs >= MIN_SEG_S:
                 # clean micro-pause dots on previews too, so overlay never types them
-                p0 = time.monotonic()
-                full = np.concatenate(cur)
-                if LOCK_TRIM:
-                    # Decode from LOCK_CONTEXT_S before the lock point (left-context, kept so
-                    # tail words don't garble) but only display/lock words PAST the lock point.
-                    # Lock any such word old enough that more audio won't revise it and advance
-                    # the window past it. commit() re-runs the FULL audio, so the final text is
-                    # unaffected - this only bounds the live draft to ~context+margin seconds.
-                    ctx_start = max(0, locked_samples - int(LOCK_CONTEXT_S * SR))
-                    window = full[ctx_start:]
-                    tw, ts = transcribe_words(self.rec, window)
-                    lock_t = (locked_samples - ctx_start) / SR
-                    tail = [(w, s) for w, s in zip(tw, ts) if s >= lock_t - 0.06]
-                    cutoff = (len(window) / SR) - LOCK_MARGIN_S
-                    n = 0
-                    while n + 1 < len(tail) and tail[n + 1][1] <= cutoff:  # keep >=1 in tail
-                        n += 1
-                    if n:
-                        locked_words.extend(w for w, _ in tail[:n])
-                        locked_samples = ctx_start + int(tail[n][1] * SR)
-                    txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:]]))
-                else:
-                    txt = clean_punct(transcribe(self.rec, full))
-                # Milestone B step 2: fix known IT mishears live, on the preview itself,
-                # so they're right as words appear (not just reconciled at commit). Runs
-                # before split/prefix so multi-word aliases (engine x->nginx) apply, and
-                # before stable_prefix so the corrected form is what two previews agree on.
-                if self.preview_corrector is not None and txt.strip():
-                    txt = self.preview_corrector.correct(txt)
-                preview_ms = (time.monotonic() - p0) * 1000.0
-                self.tr.ev("preview", audio_s=round(secs, 2), proc_ms=round(preview_ms),
-                           locked=len(locked_words),
-                           tail_s=round((len(full) - locked_samples) / SR, 2),
-                           q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
-                # _typing_focus_ok = the forward-path focus guard: the moment the watcher's
-                # cached poll says another app is frontmost, HOLD this tick's live typing so
-                # no keystroke lands outside the sentence's app. A blip resumes next tick
-                # (the reconcile catches the draft up); a settled move hard-stops via the
-                # watcher ~a debounce later. Held ticks fall through to the [~] log line.
-                if self.overlay is not None and ov_active and self._typing_focus_ok(ov_focus):
-                    # strip terminal .?! from live words - a not-yet-final word's
-                    # period is unreliable (Parakeet ends every preview with one) and
-                    # would get stranded mid-sentence once you keep talking. The real
-                    # end mark is added at commit.
-                    words = [w for w in (_END_PUNCT.sub("", t) for t in txt.split()) if w]
-                    if STRIP_FILLERS:
-                        words = drop_fillers(words, at_start=not self.overlay.typed)
-                    if DECAP_CAPS:
-                        # Decap the live preview to match the committed casing (no wrong capital shown
-                        # live, live==commit). after_sentence is the STABLE per-segment protection of
-                        # word 0 (genuine start iff the prev segment ended a sentence); it must not vary
-                        # tick-to-tick or a legit first-word capital would flicker. _END_PUNCT already
-                        # stripped per-token sentence marks, so interior safe words lower; word 0 is the
-                        # only protected position. A genuine in-window marker-start ("Deploy it. So…")
-                        # can read lower live and snap back at commit - rare; surfaced in the feel-check.
-                        words = decap_interior(" ".join(words),
-                                               after_sentence=self._prev_ended_sentence).split()
-                    # IGNORE EMPTY previews: the offline model intermittently emits nothing
-                    # on a growing window (verified: 'So the' -> '' -> 'So the timeline' -> '').
-                    # Updating to [] would reset the two-preview agreement (delaying the first
-                    # word ~1s) AND try to erase the on-screen text (a huge deferred rewrite =
-                    # the chunky 'pause then dump'). So skip empties and keep the last good prefix.
-                    if words:
-                        # show the stable (two-preview-agreed) prefix; if nothing's shown yet
-                        # and we've waited eager_after seconds, fall back to the best guess so
-                        # the first word never stalls. Confirmed words => no wrong-word flash.
-                        strict = stable_prefix(ov_prev, words)
-                        at_start = not self.overlay.typed
-                        eager_now = at_start and (secs >= self.eager_after)
-                        # Phase 1 one-by-one reveal: when DISPLAY_MARGIN is set, the stable
-                        # prefix is decided by audio AGE (lock-trim word timestamps) rather than
-                        # two-preview agreement - a word reveals as soon as its right boundary is
-                        # DISPLAY_MARGIN_S old, skipping the extra preview the agreement gate
-                        # waited for. Corrections run on the revealed prefix so IT terms still
-                        # come out right. Onset filler/breath/eager gates still apply via
-                        # streaming_prefix. age=None => old agreement path (DISPLAY_MARGIN off).
-                        age = None
-                        if LOCK_TRIM and DISPLAY_MARGIN_S > 0:
-                            d = max(n, age_stable_count([s for _, s in tail],
-                                                        len(window) / SR, DISPLAY_MARGIN_S))
-                            age_txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:d]]))
-                            if self.preview_corrector is not None and age_txt.strip():
-                                age_txt = self.preview_corrector.correct(age_txt)
-                            age = [w for w in (_END_PUNCT.sub("", t) for t in age_txt.split()) if w]
-                            if STRIP_FILLERS:
-                                age = drop_fillers(age, at_start=not self.overlay.typed)
-                            if DECAP_CAPS:
-                                age = decap_interior(" ".join(age),
-                                                     after_sentence=self._prev_ended_sentence).split()
-                        show = streaming_prefix(ov_prev, words, eager_first=eager_now,
-                                                at_start=at_start, stable=age)
-                        if self._alias_prefixes:
-                            # hold an in-progress multi-word alias ("V S code") off-screen until it
-                            # resolves to "VS Code" - reveals whole, never typed-then-retyped
-                            show = hold_alias_prefix(show, self._alias_prefixes)
-                        target = " ".join(show)
-                        before = self.overlay.typed
-                        if show and target != before:    # skip no-op previews (prefix unchanged)
-                            nb, _ = reconcile_words(before, target)
-                            # apply appends + SMALL live corrections; defer big tail rewrites to
-                            # commit so the line doesn't thrash live
-                            if not before or nb <= STREAM_FIX_MAX:
-                                if self.overlay.reconcile(target):
-                                    if not before:
-                                        ov_eager = show[0]   # earliest word-0 shown (flicker metric)
-                                    corrected = nb > 0 and bool(before)
-                                    self.tr.ev("early_fix" if corrected else "lock",
-                                               words=show, nb=nb, eager=not strict,
-                                               audio_s=round(secs, 2))
-                            else:
-                                self.tr.ev("deferred", nb=nb, audio_s=round(secs, 2))
-                        ov_prev = words
-                elif txt.strip():
-                    log(f"\r[~]    {txt}")
+                try:
+                    p0 = time.monotonic()
+                    full = np.concatenate(cur)
+                    if LOCK_TRIM:
+                        # Decode from LOCK_CONTEXT_S before the lock point (left-context, kept so
+                        # tail words don't garble) but only display/lock words PAST the lock point.
+                        # Lock any such word old enough that more audio won't revise it and advance
+                        # the window past it. commit() re-runs the FULL audio, so the final text is
+                        # unaffected - this only bounds the live draft to ~context+margin seconds.
+                        ctx_start = max(0, locked_samples - int(LOCK_CONTEXT_S * SR))
+                        window = full[ctx_start:]
+                        tw, ts = transcribe_words(self.rec, window)
+                        lock_t = (locked_samples - ctx_start) / SR
+                        tail = [(w, s) for w, s in zip(tw, ts) if s >= lock_t - 0.06]
+                        cutoff = (len(window) / SR) - LOCK_MARGIN_S
+                        n = 0
+                        while n + 1 < len(tail) and tail[n + 1][1] <= cutoff:  # keep >=1 in tail
+                            n += 1
+                        if n:
+                            locked_words.extend(w for w, _ in tail[:n])
+                            locked_samples = ctx_start + int(tail[n][1] * SR)
+                        txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:]]))
+                    else:
+                        txt = clean_punct(transcribe(self.rec, full))
+                    # Milestone B step 2: fix known IT mishears live, on the preview itself,
+                    # so they're right as words appear (not just reconciled at commit). Runs
+                    # before split/prefix so multi-word aliases (engine x->nginx) apply, and
+                    # before stable_prefix so the corrected form is what two previews agree on.
+                    if self.preview_corrector is not None and txt.strip():
+                        txt = self.preview_corrector.correct(txt)
+                    preview_ms = (time.monotonic() - p0) * 1000.0
+                    self.tr.ev("preview", audio_s=round(secs, 2), proc_ms=round(preview_ms),
+                               locked=len(locked_words),
+                               tail_s=round((len(full) - locked_samples) / SR, 2),
+                               q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
+                    # _typing_focus_ok = the forward-path focus guard: the moment the watcher's
+                    # cached poll says another app is frontmost, HOLD this tick's live typing so
+                    # no keystroke lands outside the sentence's app. A blip resumes next tick
+                    # (the reconcile catches the draft up); a settled move hard-stops via the
+                    # watcher ~a debounce later. Held ticks fall through to the [~] log line.
+                    if self.overlay is not None and ov_active and self._typing_focus_ok(ov_focus):
+                        # strip terminal .?! from live words - a not-yet-final word's
+                        # period is unreliable (Parakeet ends every preview with one) and
+                        # would get stranded mid-sentence once you keep talking. The real
+                        # end mark is added at commit.
+                        words = [w for w in (_END_PUNCT.sub("", t) for t in txt.split()) if w]
+                        if STRIP_FILLERS:
+                            words = drop_fillers(words, at_start=not self.overlay.typed)
+                        if DECAP_CAPS:
+                            # Decap the live preview to match the committed casing (no wrong capital shown
+                            # live, live==commit). after_sentence is the STABLE per-segment protection of
+                            # word 0 (genuine start iff the prev segment ended a sentence); it must not vary
+                            # tick-to-tick or a legit first-word capital would flicker. _END_PUNCT already
+                            # stripped per-token sentence marks, so interior safe words lower; word 0 is the
+                            # only protected position. A genuine in-window marker-start ("Deploy it. So…")
+                            # can read lower live and snap back at commit - rare; surfaced in the feel-check.
+                            words = decap_interior(" ".join(words),
+                                                   after_sentence=self._prev_ended_sentence).split()
+                        # IGNORE EMPTY previews: the offline model intermittently emits nothing
+                        # on a growing window (verified: 'So the' -> '' -> 'So the timeline' -> '').
+                        # Updating to [] would reset the two-preview agreement (delaying the first
+                        # word ~1s) AND try to erase the on-screen text (a huge deferred rewrite =
+                        # the chunky 'pause then dump'). So skip empties and keep the last good prefix.
+                        if words:
+                            # show the stable (two-preview-agreed) prefix; if nothing's shown yet
+                            # and we've waited eager_after seconds, fall back to the best guess so
+                            # the first word never stalls. Confirmed words => no wrong-word flash.
+                            strict = stable_prefix(ov_prev, words)
+                            at_start = not self.overlay.typed
+                            eager_now = at_start and (secs >= self.eager_after)
+                            # Phase 1 one-by-one reveal: when DISPLAY_MARGIN is set, the stable
+                            # prefix is decided by audio AGE (lock-trim word timestamps) rather than
+                            # two-preview agreement - a word reveals as soon as its right boundary is
+                            # DISPLAY_MARGIN_S old, skipping the extra preview the agreement gate
+                            # waited for. Corrections run on the revealed prefix so IT terms still
+                            # come out right. Onset filler/breath/eager gates still apply via
+                            # streaming_prefix. age=None => old agreement path (DISPLAY_MARGIN off).
+                            age = None
+                            if LOCK_TRIM and DISPLAY_MARGIN_S > 0:
+                                d = max(n, age_stable_count([s for _, s in tail],
+                                                            len(window) / SR, DISPLAY_MARGIN_S))
+                                age_txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:d]]))
+                                if self.preview_corrector is not None and age_txt.strip():
+                                    age_txt = self.preview_corrector.correct(age_txt)
+                                age = [w for w in (_END_PUNCT.sub("", t) for t in age_txt.split()) if w]
+                                if STRIP_FILLERS:
+                                    age = drop_fillers(age, at_start=not self.overlay.typed)
+                                if DECAP_CAPS:
+                                    age = decap_interior(" ".join(age),
+                                                         after_sentence=self._prev_ended_sentence).split()
+                            show = streaming_prefix(ov_prev, words, eager_first=eager_now,
+                                                    at_start=at_start, stable=age)
+                            if self._alias_prefixes:
+                                # hold an in-progress multi-word alias ("V S code") off-screen until it
+                                # resolves to "VS Code" - reveals whole, never typed-then-retyped
+                                show = hold_alias_prefix(show, self._alias_prefixes)
+                            target = " ".join(show)
+                            before = self.overlay.typed
+                            if show and target != before:    # skip no-op previews (prefix unchanged)
+                                nb, _ = reconcile_words(before, target)
+                                # apply appends + SMALL live corrections; defer big tail rewrites to
+                                # commit so the line doesn't thrash live
+                                if not before or nb <= STREAM_FIX_MAX:
+                                    if self.overlay.reconcile(target):
+                                        if not before:
+                                            ov_eager = show[0]   # earliest word-0 shown (flicker metric)
+                                        corrected = nb > 0 and bool(before)
+                                        self.tr.ev("early_fix" if corrected else "lock",
+                                                   words=show, nb=nb, eager=not strict,
+                                                   audio_s=round(secs, 2))
+                                else:
+                                    self.tr.ev("deferred", nb=nb, audio_s=round(secs, 2))
+                            ov_prev = words
+                    elif txt.strip():
+                        log(f"\r[~]    {txt}")
+                except Exception as e:                 # never let a bad preview kill dictation
+                    log(f"[ERR]  preview failed: {e}")
+                    reset_overlay()
                 since_preview = 0.0
 
         # flush a sentence in progress on stop. Drain any audio still queued first - when
@@ -934,7 +938,11 @@ class LiveDictation:
                 except queue.Empty:
                     break
             if seg_seconds() >= MIN_SEG_S:
-                commit()
+                try:
+                    commit()
+                except Exception as e:     # a failing final commit must not kill teardown
+                    log(f"[ERR]  final commit failed: {e}")
+                    reset_overlay()
 
 
 def load_all_aliases():
