@@ -53,21 +53,81 @@ def _session_type():
     return None
 
 
-def _ydotoold_running():
-    """ydotool needs the ydotoold daemon + its socket. Return True only if the
-    socket actually accepts a connection, so a stale socket left behind by a dead
-    daemon is correctly reported as not running."""
-    sock = os.environ.get("YDOTOOL_SOCKET", "/tmp/.ydotool_socket")
-    if not os.path.exists(sock):
+def _ydotool_socket_candidates():
+    """Ordered socket paths to try, most-specific first.
+
+    ydotoold's socket location varies by version/distro: the systemd unit commonly
+    serves /tmp/.ydotool_socket, while the `ydotool` client defaults to
+    $XDG_RUNTIME_DIR/.ydotool_socket. An explicit YDOTOOL_SOCKET always wins."""
+    cands = []
+    env = os.environ.get("YDOTOOL_SOCKET")
+    if env:
+        cands.append(env)
+    cands.append("/tmp/.ydotool_socket")
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        cands.append(os.path.join(xdg, ".ydotool_socket"))
+    # De-dup while preserving order.
+    seen = set()
+    return [c for c in cands if not (c in seen or seen.add(c))]
+
+
+def _socket_live(path):
+    """True if `path` is a ydotoold DGRAM socket that accepts a connection.
+
+    ydotoold serves a SOCK_DGRAM (not SOCK_STREAM) Unix socket, so the probe must
+    match that type - a STREAM connect fails with EPROTOTYPE even when the daemon
+    is up, which would wrongly disable ydotool typing under Wayland."""
+    if not os.path.exists(path):
         return False
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         s.settimeout(0.5)
-        s.connect(sock)
+        s.connect(path)
         s.close()
         return True
     except OSError:
         return False
+
+
+def _resolve_ydotool_socket():
+    """Return the first candidate socket a live daemon is listening on, or None.
+
+    Picking the path that actually works (rather than a hardcoded default) means the
+    client and daemon meet regardless of which location this ydotool build uses."""
+    for path in _ydotool_socket_candidates():
+        if _socket_live(path):
+            return path
+    return None
+
+
+def _ydotoold_running():
+    """ydotool needs the ydotoold daemon + a socket the user can reach. Return True
+    only if some candidate socket actually accepts a connection (probed live each
+    call), so a stale socket from a dead daemon is correctly reported as not running
+    and a daemon that starts after import is still picked up."""
+    return _resolve_ydotool_socket() is not None
+
+
+# Linux keycodes (evdev/uinput) used by ydotool for synthetic key presses.
+_YK_BACKSPACE = "14"
+_YK_LEFT = "105"
+_YK_RIGHT = "106"
+
+
+def _ydotool_key(code, n):
+    """Send `n` press/release cycles of uinput keycode `code` via ydotool.
+
+    ydotool's `key` syntax is <keycode>:<pressed>, where :1 is key-DOWN and :0 is
+    key-UP. Any other value (e.g. :2) is "non-interpretable" and only inserts a
+    delay - so emitting `<code>:2` presses the key and NEVER releases it, which is
+    why Backspace/arrow keys silently did nothing. Release MUST be :0."""
+    if n <= 0:
+        return []
+    args = []
+    for _ in range(n):
+        args += [f"{code}:1", f"{code}:0"]
+    return ["ydotool", "key"] + args
 
 
 class LinuxPlatform(Platform):
@@ -85,7 +145,15 @@ class LinuxPlatform(Platform):
         self._session = _session_type()
         self._has_xdotool = bool(shutil.which("xdotool"))
         self._has_ydotool = bool(shutil.which("ydotool"))
-        self._ydotool_ok = self._has_ydotool and _ydotoold_running()
+        # Resolve the live ydotoold socket once and export it, so every `ydotool` child
+        # process inherits YDOTOOL_SOCKET and reaches the daemon. The client defaults to
+        # $XDG_RUNTIME_DIR/.ydotool_socket while the systemd daemon commonly serves
+        # /tmp/.ydotool_socket, so without this they never meet and typing silently no-ops.
+        # setdefault-style: an explicit user YDOTOOL_SOCKET is preferred by the resolver.
+        sock = _resolve_ydotool_socket()
+        if sock:
+            os.environ["YDOTOOL_SOCKET"] = sock
+        self._ydotool_ok = self._has_ydotool and sock is not None
 
         # Clipboard: prefer Wayland tooling on Wayland, X11 on X11.
         if shutil.which("wl-copy") and shutil.which("wl-paste"):
@@ -114,8 +182,8 @@ class LinuxPlatform(Platform):
             if self._ydotool_ok:
                 try:
                     r = subprocess.run(
-                        ["ydotool", "type", text], timeout=5.0,
-                        capture_output=True)
+                        ["ydotool", "type", text],
+                        timeout=5.0, capture_output=True)
                     if r.returncode == 0:
                         return
                     # Daemon gone (e.g. stale socket from an exited daemon) - stop
@@ -125,13 +193,20 @@ class LinuxPlatform(Platform):
                     self._ydotool_ok = False
             if self._has_ydotool and not self._warned_ydotool:
                 self._warned_ydotool = True
-                print("[linux] ydotoold not responding - falling back to pynput typing. "
-                      "Start it with: ydotoold &  (or enable the ydotoold service)",
-                      file=sys.stderr, flush=True)
-            if self._kb is None:
-                from pynput.keyboard import Controller
-                self._kb = Controller()
-            self._kb.type(text)
+                print("[linux] ydotoold not responding - falling back to pynput typing, which "
+                      "needs X and fails under Wayland. Start it with: "
+                      "sudo systemctl enable --now ydotool.service", file=sys.stderr, flush=True)
+            # Last resort under Wayland: pynput needs an X connection Wayland hides, so
+            # this only works under XWayland-with-auth. Guard it so a failure degrades to
+            # a no-op (the commit still lands via clipboard paste) instead of crashing the
+            # dictation thread.
+            try:
+                if self._kb is None:
+                    from pynput.keyboard import Controller
+                    self._kb = Controller()
+                self._kb.type(text)
+            except Exception:
+                pass
             return
         # X11 / unknown session: xdotool when present (fall back to pynput on
         # failure), else pynput directly.
@@ -145,6 +220,45 @@ class LinuxPlatform(Platform):
             from pynput.keyboard import Controller
             self._kb = Controller()
         self._kb.type(text)
+
+    def backspace(self, n):
+        """Send `n` Backspace keystrokes. Wayland: via ydotool (uinput); else pynput."""
+        if n <= 0:
+            return
+        if self._ydotool_ok:
+            subprocess.run(_ydotool_key(_YK_BACKSPACE, n), timeout=5.0)
+            return
+        try:
+            if self._kb is None:
+                from pynput.keyboard import Controller, Key
+                self._kb = Controller()
+                self._Key = Key
+            for _ in range(n):
+                self._kb.press(self._Key.backspace)
+                self._kb.release(self._Key.backspace)
+        except Exception:
+            pass
+
+    def move_cursor(self, delta):
+        """Move the insertion point by `delta` chars (>0 right, <0 left). Wayland:
+        via ydotool arrow keycodes; else pynput arrow keys."""
+        if delta == 0:
+            return
+        if self._ydotool_ok:
+            code = _YK_LEFT if delta < 0 else _YK_RIGHT
+            subprocess.run(_ydotool_key(code, abs(delta)), timeout=5.0)
+            return
+        try:
+            if self._kb is None:
+                from pynput.keyboard import Controller, Key
+                self._kb = Controller()
+                self._Key = Key
+            key = self._Key.right if delta > 0 else self._Key.left
+            for _ in range(abs(delta)):
+                self._kb.press(key)
+                self._kb.release(key)
+        except Exception:
+            pass
 
     def _clip_get(self):
         if self._clip == "wayland":

@@ -44,10 +44,15 @@ One class per platform behind `get_platform()`:
 
 - `MacPlatform`: Quartz CGEvent keystrokes, AppKit `NSPasteboard`, Accessibility reads.
 - `WindowsPlatform`: ctypes `SendInput` Unicode typing, `win32clipboard` save/restore, `winsound`, `GetForegroundWindow`.
-- `LinuxPlatform`: `xdotool type`, `xclip`/`wl-clipboard`, a bell, `xdotool` app-detect. Degrades to pynput when the X11 tools are absent.
+- `LinuxPlatform`: session-aware (X11 vs Wayland, detected once at construction).
+  - **X11**: `xdotool type` (typing + Ctrl+V paste), `xclip`, `xdotool` app-detect.
+  - **Wayland**: `ydotool` (typing, Backspace, arrows via uinput keycodes; the daemon socket is auto-resolved across `/tmp` and `$XDG_RUNTIME_DIR` and exported as `YDOTOOL_SOCKET`), `wl-clipboard` paste. `xdotool` is never used on Wayland (it's an X11-only no-op that silently drops text). No app-detection (so the focus guard is off).
+  - Both fall back to `pynput` when the native tool is missing or its call fails.
 - `FallbackPlatform`: pynput typing, last resort.
 
-Native backends post raw Unicode for typing (not pynput), so dead-key layouts (e.g. Slovak) don't mangle output. Hotkey listener and overlay backspaces are pynput everywhere.
+Native backends post raw Unicode for typing (not pynput), so dead-key layouts (e.g. Slovak) don't mangle output. Overlay backspaces are pynput on macOS/Windows and X11, but `ydotool` on Wayland (via `backspace`/`move_cursor` on the platform seam). `ydotool key` uses `<code>:1`/`<code>:0` for down/up - a non-`:0` release leaves the key stuck.
+
+The **global hotkey** listener is pynput's X11 backend on macOS/Windows/Linux-X11, but on Linux-Wayland (where compositors hide global keys from X clients) it reads `/dev/input` directly via **evdev** (`live._build_evdev_hotkey`), which needs the user in the `input` group. Reading is passive (never `grab`), so keystrokes still reach other apps.
 
 ## Telemetry / dogfood seam (opt-in)
 

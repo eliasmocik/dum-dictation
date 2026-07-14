@@ -255,6 +255,48 @@ class TestTypeText(unittest.TestCase):
             p._kb.type.assert_called_once_with("hi")
 
 
+class TestYdotoolKeySyntax(unittest.TestCase):
+    """ydotool `key` uses <code>:1 (down) / <code>:0 (up). A release value other than
+    :0 (e.g. :2) is non-interpretable and leaves the key stuck down - which silently
+    broke Backspace and the arrow keys. Guard the press/release pairing."""
+
+    def test_key_pairs_press_then_release_zero(self):
+        self.assertEqual(platform_linux._ydotool_key("14", 1), ["ydotool", "key", "14:1", "14:0"])
+
+    def test_key_repeats_n_times(self):
+        self.assertEqual(
+            platform_linux._ydotool_key("14", 3),
+            ["ydotool", "key", "14:1", "14:0", "14:1", "14:0", "14:1", "14:0"])
+
+    def test_key_zero_count_is_empty(self):
+        self.assertEqual(platform_linux._ydotool_key("14", 0), [])
+        self.assertEqual(platform_linux._ydotool_key("14", -2), [])
+
+    def test_backspace_uses_ydotool_when_daemon_ok(self):
+        p = _make_platform({"ydotool": "/usr/bin/ydotool"},
+                           session="wayland", ydotoold_socket=True)
+        with mock.patch("platform_linux.subprocess.run") as run:
+            p.backspace(2)
+            run.assert_called_once_with(
+                ["ydotool", "key", "14:1", "14:0", "14:1", "14:0"], timeout=5.0)
+
+    def test_move_cursor_left_uses_left_keycode(self):
+        p = _make_platform({"ydotool": "/usr/bin/ydotool"},
+                           session="wayland", ydotoold_socket=True)
+        with mock.patch("platform_linux.subprocess.run") as run:
+            p.move_cursor(-1)
+            run.assert_called_once_with(
+                ["ydotool", "key", "105:1", "105:0"], timeout=5.0)
+
+    def test_move_cursor_right_uses_right_keycode(self):
+        p = _make_platform({"ydotool": "/usr/bin/ydotool"},
+                           session="wayland", ydotoold_socket=True)
+        with mock.patch("platform_linux.subprocess.run") as run:
+            p.move_cursor(2)
+            run.assert_called_once_with(
+                ["ydotool", "key", "106:1", "106:0", "106:1", "106:0"], timeout=5.0)
+
+
 class TestSendPaste(unittest.TestCase):
     """_send_paste routes Ctrl+V to xdotool on X11 and pynput on Wayland."""
 

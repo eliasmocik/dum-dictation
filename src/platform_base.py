@@ -62,6 +62,33 @@ class Platform:
             self._kb = Controller()
         self._kb.type(text)
 
+    def backspace(self, n):
+        """Send `n` Backspace keystrokes (for the live overlay reconcile). Default =
+        via pynput. Native platforms override with a layout-independent path."""
+        if n <= 0:
+            return
+        if getattr(self, "_kb", None) is None:
+            from pynput.keyboard import Controller, Key
+            self._kb = Controller()
+            self._Key = Key
+        for _ in range(n):
+            self._kb.press(self._Key.backspace)
+            self._kb.release(self._Key.backspace)
+
+    def move_cursor(self, delta):
+        """Move the insertion point by `delta` chars (>0 right, <0 left). Default = via
+        pynput arrow keys. Native platforms override as needed."""
+        if delta == 0:
+            return
+        if getattr(self, "_kb", None) is None:
+            from pynput.keyboard import Controller, Key
+            self._kb = Controller()
+            self._Key = Key
+        key = self._Key.right if delta > 0 else self._Key.left
+        for _ in range(abs(delta)):
+            self._kb.press(key)
+            self._kb.release(key)
+
     def notify(self, event):
         pass
 

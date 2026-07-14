@@ -189,6 +189,12 @@ else
   echo "    session: $SESSION_TYPE"
   echo "    Make sure your user can use the microphone (PulseAudio/PipeWire) - usually already fine."
   echo "    Default hotkey: double-tap RIGHT Ctrl (change it with ./dum --config)."
+  if [ "$SESSION_TYPE" = "wayland" ]; then
+    echo ""
+    echo "    You're on WAYLAND. The hotkey uses evdev (raw /dev/input) so it works here, but that"
+    echo "    needs you in the 'input' group:  sudo usermod -aG input $USER   then LOG OUT and back in."
+    echo "    (scripts/install-linux-deps.sh adds you automatically. Without it the hotkey is dead.)"
+  fi
 fi
 
 echo ""

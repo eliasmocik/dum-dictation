@@ -100,6 +100,11 @@ pkg_map() {
         PYTHON_PKGS=(python3 python3-venv)
         PPA_NEEDED=0
       fi
+      PY_DEV_PKG="${PYTHON_PKGS[0]}-dev"   # Python headers - evdev (pynput dep) compiles against them
+      # Tray icon (AppIndicator). The old libappindicator3-1 / gir1.2-appindicator3-0.1 were
+      # removed on Ubuntu 24.04 / recent Debian; the ayatana fork replaces them. Installs are
+      # per-package and non-fatal, so older releases that lack these just warn-and-skip.
+      TRAY_PKGS=(libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1)
       ;;
     fedora)
       # Pre-query: is python3.12 available?
@@ -116,6 +121,7 @@ pkg_map() {
       PORTAUDIO=(portaudio-devel)
       BUILD_PKGS=(cmake gcc gcc-c++)
       PYTHON_PKGS=("$PY_PKG")
+      PY_DEV_PKG="${PY_PKG}-devel"   # Python headers - evdev (pynput dep) compiles against them
       TRAY_PKGS=(libappindicator-gtk3)
       PPA_NEEDED=0
       ;;
@@ -136,6 +142,7 @@ pkg_map() {
       PORTAUDIO=(portaudio-devel)
       BUILD_PKGS=(cmake gcc gcc-c++)
       PYTHON_PKGS=(python312)
+      PY_DEV_PKG=python312-devel   # Python headers - evdev (pynput dep) compiles against them
       TRAY_PKGS=(libayatana-appindicator1)
       PPA_NEEDED=0
       ;;
@@ -156,6 +163,10 @@ pkg_map() {
     PKGS+=("${WAYLAND_PKGS[@]}")
   fi
   PKGS+=("${SOUND_PKGS[@]}" "${PORTAUDIO[@]}" "${BUILD_PKGS[@]}" "${PYTHON_PKGS[@]}" "${TRAY_PKGS[@]}")
+  # Python dev headers - evdev (a pynput dependency) compiles a C extension against them.
+  if [[ -n "${PY_DEV_PKG:-}" ]]; then
+    PKGS+=("${PY_DEV_PKG}")
+  fi
 }
 
 # ---- package manager commands -----------------------------------------------
@@ -249,6 +260,67 @@ install_cmd() {
   fi
 }
 
+# ---- post-install configuration (idempotent, always run) --------------------
+# These steps must run every time - even when all packages are already installed -
+# because they configure system state (systemd drop-in, group membership) that a
+# plain "packages present" check says nothing about. Keeping them out of the
+# early-return path is what makes re-running this script actually converge.
+
+configure_ydotool() {
+  # Wayland typing needs the ydotoold daemon AND a socket the unprivileged user can
+  # reach. ydotoold runs as root and creates its socket 0600, so we enable the unit
+  # and drop in an ExecStartPost chmod. Without this, typing silently falls back to
+  # pynput, which needs X and fails under Wayland.
+  local session="$1" dry_run="$2"
+  [[ "$session" == "wayland" ]] || return 0
+  command -v ydotool >/dev/null 2>&1 || return 0
+
+  # Capture first, THEN grep: piping systemctl straight into `grep -q` makes grep close
+  # the pipe on the first match, systemctl take SIGPIPE (exit 141), and `set -o pipefail`
+  # report the whole pipeline as failed - which would wrongly claim the unit is missing.
+  local unit_files
+  unit_files=$(systemctl list-unit-files --type=service --no-legend --no-pager 2>/dev/null || true)
+  if ! grep -q '^ydotool\.service' <<<"$unit_files"; then
+    warn "Wayland typing uses ydotool - no ydotool.service unit found; start the daemon"
+    warn "  manually once with: sudo ydotoold &   (or create a user service)"
+  elif [[ "$dry_run" -eq 1 ]]; then
+    info "would enable ydotool.service + drop in a socket chmod (Wayland typing)"
+  else
+    sudo systemctl enable ydotool.service 2>/dev/null || true
+    sudo mkdir -p /etc/systemd/system/ydotool.service.d
+    printf '[Service]\nExecStartPost=/bin/sh -c "chmod 0666 %s 2>/dev/null || true"\n' \
+      "/tmp/.ydotool_socket" \
+      | sudo tee /etc/systemd/system/ydotool.service.d/override.conf >/dev/null
+    sudo systemctl daemon-reload
+    sudo systemctl restart ydotool.service 2>/dev/null || sudo systemctl start ydotool.service 2>/dev/null || true
+    info "ydotoold enabled + socket opened for your user - Wayland typing will work (survives reboot)."
+  fi
+
+  if ! command -v wl-copy >/dev/null 2>&1; then
+    warn "wl-clipboard not installed - paste won't work under Wayland (it's in the Wayland package set)."
+  fi
+}
+
+configure_input_group() {
+  # The evdev hotkey reads /dev/input directly (so it works under Wayland); that needs
+  # the 'input' group. Add the user and remind them to log out/in for it to take effect.
+  local dry_run="$1"
+  command -v getent >/dev/null 2>&1 || return 0
+  getent group input >/dev/null 2>&1 || return 0
+  if groups "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx input; then
+    info "'$USER' is already in the 'input' group (evdev hotkey can read keyboards)."
+    return 0
+  fi
+  if [[ "$dry_run" -eq 1 ]]; then
+    info "would add '$USER' to the 'input' group (needed for the evdev hotkey)."
+    return 0
+  fi
+  info "Adding '$USER' to the 'input' group (needed for the evdev hotkey to read keyboards)."
+  sudo gpasswd -a "$USER" input \
+    || warn "couldn't add to the input group - run manually: sudo usermod -aG input $USER"
+  info "  LOG OUT and back in for the input-group membership to apply."
+}
+
 # ---- main -------------------------------------------------------------------
 main() {
   local dry_run=0
@@ -296,33 +368,36 @@ main() {
 
   if [[ ${#missing[@]} -eq 0 ]]; then
     echo "    all required packages already installed"
-    return
+  else
+    echo "    packages to install: ${missing[*]}"
+    echo ""
+    if [[ "$dry_run" -eq 1 ]]; then
+      echo "==> would install (--dry-run):"
+      install_cmd "$distro" 1 "${missing[@]}"
+    else
+      # Verify sudo access
+      if ! sudo -v &>/dev/null; then
+        die "sudo required to install system packages. Run with DUM_SKIP_SYS_DEPS=1 to skip, then manually install: ${missing[*]}"
+      fi
+      echo "==> installing system dependencies..."
+      # Keep sudo active during long installs
+      while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done 2>/dev/null &
+      install_cmd "$distro" 0 "${missing[@]}"
+      echo ""
+      echo "    done: system dependencies installed"
+    fi
   fi
 
-  echo "    packages to install: ${missing[*]}"
+  # Post-install configuration - ALWAYS runs (idempotent), even when every package was
+  # already present, so re-running the script actually converges the system to a working
+  # state instead of no-opping. These need sudo only when they change something.
   echo ""
-  if [[ "$dry_run" -eq 1 ]]; then
-    echo "==> would install (--dry-run):"
-    install_cmd "$distro" 1 "${missing[@]}"
-  else
-    # Verify sudo access
-    if ! sudo -v &>/dev/null; then
-      die "sudo required to install system packages. Run with DUM_SKIP_SYS_DEPS=1 to skip, then manually install: ${missing[*]}"
-    fi
-    echo "==> installing system dependencies..."
-    # Keep sudo active during long installs
-    while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done 2>/dev/null &
-    install_cmd "$distro" 0 "${missing[@]}"
-    echo ""
-    echo "    done: system dependencies installed"
-    # Wayland typing needs the ydotoold daemon; flag it if it isn't enabled.
-    if [[ "$session" == "wayland" ]] && command -v ydotool >/dev/null 2>&1; then
-      if ! systemctl --user is-enabled ydotoold >/dev/null 2>&1; then
-        info "Wayland typing uses ydotool - start its daemon once with: ydotoold &"
-        info "  (or enable a service). Without it, dum falls back to pynput typing."
-      fi
-    fi
+  echo "==> configuring Wayland typing + hotkey access..."
+  if [[ "$dry_run" -ne 1 ]] && [[ ${#missing[@]} -eq 0 ]]; then
+    sudo -v &>/dev/null || warn "some config steps need sudo; skipping those you can't authorize."
   fi
+  configure_ydotool "$session" "$dry_run"
+  configure_input_group "$dry_run"
 }
 
 main "$@"

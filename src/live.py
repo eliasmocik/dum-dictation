@@ -1008,30 +1008,127 @@ def build_pipeline(terms):
     return CorrectionPipeline(stages)
 
 
-def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
-    """Global hotkey listener on macOS (needs Input Monitoring). The DICTATION start/stop
-    trigger is configurable (key + mode, read from ~/.dum/config.json); the ⌥ "flag a problem"
-    gesture stays hardcoded (double-tap LEFT ⌥) - out of scope for v1.
+def _build_evdev_hotkey(press, release):
+    """Linux: build a raw-input (evdev) hotkey listener that reads /dev/input directly.
 
-    `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "cmd_l" (default,
-    reproduces today's behavior exactly), "cmd_r", or "fn".
+    This works under Wayland (where pynput's X11 listener can't see global keys) and under
+    X11 alike. Returns a startable/stoppable object, or None if evdev is unavailable or no
+    readable keyboard device exists (typically because the user isn't in the `input` group -
+    `sudo usermod -aG input $USER` then log out/in). Reading is passive (we never grab the
+    device) so the keystrokes still reach the rest of the desktop.
+    """
+    try:
+        import evdev
+        from evdev import ecodes
+    except Exception:
+        return None
+
+    # evdev key code -> pynput-style token (covers every configurable trigger + the flag key)
+    code_to_token = {
+        ecodes.KEY_RIGHTCTRL: "ctrl_r",
+        ecodes.KEY_LEFTCTRL: "ctrl_l",
+        ecodes.KEY_RIGHTALT: "alt_r",
+        ecodes.KEY_LEFTALT: "alt_l",
+        ecodes.KEY_RIGHTMETA: "cmd_r",
+        ecodes.KEY_LEFTMETA: "cmd_l",
+    }
+    cat = {
+        ecodes.KEY_BACKSPACE: "backspace",
+        ecodes.KEY_DELETE: "delete",
+        ecodes.KEY_LEFT: "nav", ecodes.KEY_RIGHT: "nav", ecodes.KEY_UP: "nav",
+        ecodes.KEY_DOWN: "nav", ecodes.KEY_HOME: "nav", ecodes.KEY_END: "nav",
+        ecodes.KEY_PAGEUP: "nav", ecodes.KEY_PAGEDOWN: "nav",
+    }
+    wanted = set(code_to_token)  # only open devices that can emit a trigger/flag key
+
+    devices = []
+    for path in evdev.list_devices():
+        try:
+            dev = evdev.InputDevice(path)
+        except Exception:
+            continue
+        try:
+            keys = dev.capabilities().get(ecodes.EV_KEY, [])
+        except Exception:
+            dev.close()
+            continue
+        if any(c in wanted for c in keys):
+            devices.append(dev)
+        else:
+            dev.close()
+    if not devices:
+        return None
+
+    stop_ev = threading.Event()
+
+    def _loop(dev):
+        try:
+            for event in dev.read_loop():
+                if stop_ev.is_set():
+                    break
+                if event.type != ecodes.EV_KEY:
+                    continue
+                token = code_to_token.get(event.code)
+                if event.value == 1:                     # press (2 == auto-repeat, ignored)
+                    press(token, "other" if token is not None else cat.get(event.code, "other"))
+                elif event.value == 0 and token is not None:
+                    release(token)                       # release
+        except Exception:
+            pass
+        finally:
+            try:
+                dev.close()
+            except Exception:
+                pass
+
+    class _EvdevHotkey:
+        def start(self):
+            for dev in devices:
+                threading.Thread(target=_loop, args=(dev,), daemon=True).start()
+            return self
+
+        def is_alive(self):
+            return not stop_ev.is_set()
+
+        def stop(self):
+            stop_ev.set()
+            for dev in devices:
+                try:
+                    dev.close()
+                except Exception:
+                    pass
+
+    return _EvdevHotkey()
+
+
+def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
+    """Global hotkey listener. The DICTATION start/stop trigger is configurable (key + mode,
+    read from ~/.dum/config.json); the Alt "flag a problem" gesture (double-tap LEFT Alt) stays
+    hardcoded - out of scope for v1.
+
+    `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "ctrl_r" on Linux
+    (default double-tap RIGHT Ctrl), "cmd_l" on macOS (default double-tap LEFT Command), etc.
     `mode`:
       * "toggle" - a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
         key between - so single presses and modifier+key shortcuts are untouched) flips
         start <-> stop. This is the original behavior.
       * "push"   - push-to-dictate: holding the trigger key starts recording, releasing it
         stops + commits. Wired through the same app.start()/app.stop() entry points.
-    Global (needs Input Monitoring)."""
-    from pynput import keyboard
+
+    Linux: pynput's global listener rides X11, which Wayland compositors hide from X clients, so
+    under Wayland the double-tap is dead. We therefore PREFER an evdev-based listener on Linux
+    (reads raw /dev/input - works under Wayland); we only fall back to pynput on X11 or when evdev
+    can't be used. evdev needs the `input` group: `sudo usermod -aG input $USER` then log out/in.
+    """
     import config as _config
 
     desc = _config.key_descriptor(trigger_key)
-    trig = getattr(keyboard.Key, desc["pynput"])   # the pynput Key for the chosen trigger
+    trig_token = desc["pynput"]                       # e.g. "ctrl_r" / "cmd_l"
+    flag_token = "alt_l" if trig_token != "alt_l" else None
 
     cmd = {"last": 0.0, "armed": False}       # armed = a first tap is waiting for its partner
-    opt = {"last": 0.0, "armed": False}       # the (hardcoded) ⌥ flag-a-problem double-tap
+    opt = {"last": 0.0, "armed": False}       # the (hardcoded) Alt flag-a-problem double-tap
     push_down = {"held": False}               # push mode: ignore key-auto-repeat between press/release
-    _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
 
     def _double(state, now):
         if state["armed"] and (now - state["last"]) <= DOUBLE_TAP_GAP:
@@ -1040,6 +1137,61 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
         state["last"] = now
         state["armed"] = True
         return False
+
+    # --- source-agnostic core: handlers take a normalized key TOKEN (pynput-style name) ---
+    def _press(token, category="other"):
+        now = time.monotonic()
+        # feed the dogfood activity monitor from this SINGLE listener (no second listener competing
+        # for the same keystream - on macOS two pynput listeners abort the process via TIS/TSM).
+        app.dogfood.record_key(category)
+        if token == trig_token:
+            if flag_token is not None:
+                opt["armed"] = False              # a trigger tap breaks a pending Alt double-tap
+            if mode == "push":
+                if not push_down["held"]:         # one physical press = one start (ignore auto-repeat)
+                    push_down["held"] = True
+                    app.start()
+            elif _double(cmd, now):               # toggle: start/stop on double-tap
+                app.toggle()
+        elif flag_token is not None and token == flag_token:
+            cmd["armed"] = False
+            if _double(opt, now):
+                app.flag_last_problem()
+        else:
+            cmd["armed"] = False                  # any other key breaks both pending double-taps
+            if flag_token is not None:
+                opt["armed"] = False
+
+    def _release(token):
+        if mode == "push" and token == trig_token and push_down["held"]:
+            push_down["held"] = False
+            app.stop()                            # release => stop + commit
+
+    # --- Linux: prefer evdev (works under Wayland); fall back to pynput (X11) ---
+    if sys.platform.startswith("linux"):
+        ev = _build_evdev_hotkey(_press, _release)
+        if ev is not None:
+            log(f"dictate: {desc['label']} - start/stop (toggle, evdev/raw input)")
+            log("double-tap LEFT Alt - report a bad transcription")
+            log("Ctrl+C to quit.")
+            ev.start()
+            if not block:
+                return ev
+            try:
+                while ev.is_alive():
+                    time.sleep(0.2)
+            except KeyboardInterrupt:
+                pass
+            ev.stop()
+            app.stop()
+            return ev
+
+    # --- pynput path (macOS, Windows, and Linux X11 fallback) ---
+    from pynput import keyboard
+    _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
+
+    def _pynput_token(key):
+        return getattr(key, "name", None)
 
     def _key_category(key):
         # CONTENT-FREE: coarse category for the keystroke proxy, never the character.
@@ -1052,40 +1204,19 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
         return "other"
 
     def on_press(key):
-        now = time.monotonic()
-        # feed the dogfood activity monitor from this SINGLE listener (no second pynput listener -
-        # two would call macOS TIS/TSM from different threads and the OS aborts the process).
-        app.dogfood.record_key(_key_category(key))
-        if key == trig:
-            opt["armed"] = False              # a trigger tap breaks a pending ⌥ double-tap
-            if mode == "push":
-                if not push_down["held"]:     # one physical press = one start (ignore auto-repeat)
-                    push_down["held"] = True
-                    app.start()
-            else:                             # toggle: start/stop on double-tap
-                if _double(cmd, now):
-                    app.toggle()
-        elif key == keyboard.Key.alt_l and trig != keyboard.Key.alt_l:
-            cmd["armed"] = False
-            if _double(opt, now):
-                app.flag_last_problem()
-        else:
-            cmd["armed"] = False              # any other key breaks both pending double-taps
-            opt["armed"] = False
+        _press(_pynput_token(key), _key_category(key))
 
     def on_release(key):
-        if mode == "push" and key == trig and push_down["held"]:
-            push_down["held"] = False
-            app.stop()                        # release => stop + commit
+        _release(_pynput_token(key))
 
     if mode == "push":
         log(f"dictate: HOLD {desc['label']} to talk, release to stop + commit (push)")
-        log("double-tap left ⌥ - report a bad transcription")
+        log("double-tap LEFT Alt - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     else:
         log(f"dictate: {desc['label']} - start/stop (toggle)")
-        log("double-tap left ⌥ - report a bad transcription")
+        log("double-tap LEFT Alt - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press)
     listener.start()
