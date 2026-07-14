@@ -1047,6 +1047,14 @@ def _build_evdev_hotkey(press, release):
             dev = evdev.InputDevice(path)
         except Exception:
             continue
+        # Skip ydotool's uinput virtual device: it replays the SYNTHETIC keystrokes dum
+        # itself injects while typing dictation (letters, Backspace/arrow corrections, the
+        # Ctrl of a Ctrl+V paste). Reading those back resets the pending double-tap - so
+        # the stop gesture stops registering the moment typing begins. We only want the
+        # user's real hardware here.
+        if "ydotool" in (dev.name or "").lower():
+            dev.close()
+            continue
         try:
             keys = dev.capabilities().get(ecodes.EV_KEY, [])
         except Exception:
