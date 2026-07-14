@@ -147,6 +147,12 @@ class LinuxPlatform(Platform):
         self._session = _session_type()
         self._has_xdotool = bool(shutil.which("xdotool"))
         self._has_ydotool = bool(shutil.which("ydotool"))
+        # wtype: a daemon-less Wayland typing tool. Debian (and some other distros)
+        # don't package ydotool at all, so wtype is the only working Wayland typing
+        # backend there. It can type UTF-8 text but cannot send raw keycodes
+        # (Backspace / arrows / Ctrl+V), so it covers sentence typing but not the
+        # live overlay's character edits or paste - those still need ydotool.
+        self._has_wtype = bool(shutil.which("wtype"))
         # Resolve the live ydotoold socket once and export it, so every `ydotool` child
         # process inherits YDOTOOL_SOCKET and reaches the daemon. The client defaults to
         # $XDG_RUNTIME_DIR/.ydotool_socket while the systemd daemon commonly serves
@@ -175,6 +181,10 @@ class LinuxPlatform(Platform):
         self._kb = None
         self._Key = None
         self._warned_ydotool = False
+        # Surface a Wayland-typing problem up front (before the first dictation), so a
+        # missing/dead ydotoold isn't a silent "dictation works but types nothing".
+        if self._session == "wayland" and not self._ydotool_ok:
+            self._warn_ydotool_once()
 
     def _run_ydotool(self, args):
         """Run a ydotool subprocess; return True only on a clean (exit 0) run.
@@ -209,20 +219,46 @@ class LinuxPlatform(Platform):
             pass
 
     def _warn_ydotool_once(self):
-        if self._has_ydotool and not self._warned_ydotool:
-            self._warned_ydotool = True
-            print("[linux] ydotoold not responding - falling back to pynput typing, which "
-                  "needs X and fails under Wayland. Start it with: "
-                  "sudo systemctl enable --now ydotool.service", file=sys.stderr, flush=True)
+        if self._warned_ydotool:
+            return
+        self._warned_ydotool = True
+        if self._session == "wayland":
+            # Under Wayland there is no X, so the pynput fallback below cannot send
+            # keys - it fails silently and the user is left with text that dictation
+            # heard but never typed. Say so loudly and point at the fix.
+            if not self._has_ydotool:
+                if self._has_wtype:
+                    print("[linux] ydotool is NOT installed (Debian doesn't package it) - "
+                          "falling back to 'wtype' for Wayland typing. Whole sentences will "
+                          "be typed, but the live overlay's character edits and clipboard "
+                          "paste still need ydotool; build it from source for full support.",
+                          file=sys.stderr, flush=True)
+                else:
+                    print("[linux] ydotool is NOT installed - Wayland typing has nothing to "
+                          "fall back to, so nothing will be typed.\n"
+                          "        Debian doesn't package ydotool; install 'wtype' instead:\n"
+                          "        sudo apt install wtype\n"
+                          "        (or build ydotool from source for full overlay + paste support)",
+                          file=sys.stderr, flush=True)
+            else:
+                print("[linux] ydotoold not responding - falling back to pynput typing, which "
+                      "needs X and fails under Wayland. Start it with: "
+                      "sudo systemctl enable --now ydotool.service", file=sys.stderr, flush=True)
 
     def type_text(self, text):
         if not text:
             return
         if self._session == "wayland":
-            # Wayland: ydotool (if its daemon is responsive) or pynput. xdotool is
-            # X11-only and a no-op on Wayland, so it is never used here.
+            # Wayland: ydotool (if its daemon is responsive), else wtype (daemon-less,
+            # Debian-friendly), else pynput. xdotool is X11-only and a no-op on Wayland.
             if self._ydotool_ok and self._run_ydotool(["ydotool", "type", text]):
                 return
+            if self._has_wtype:
+                try:
+                    subprocess.run(["wtype", text], timeout=5.0, capture_output=True)
+                    return
+                except Exception:
+                    pass
             self._warn_ydotool_once()
             # Last resort under Wayland: pynput needs an X connection Wayland hides, so
             # this only works under XWayland-with-auth. Guard it so a failure degrades to
@@ -304,14 +340,14 @@ class LinuxPlatform(Platform):
             pass
 
     def paste(self, text):
-        if self._clip:
+        if self._clip and self._can_paste():
             self._clip_set(text)
             self._send_paste()
         else:
             self.type_text(text)
 
     def paste_atomic(self, text):
-        if not self._clip:
+        if not self._clip or not self._can_paste():
             self.type_text(text)
             return True
         try:
@@ -353,3 +389,19 @@ class LinuxPlatform(Platform):
 
     def supports_app_detection(self):
         return self._session == "x11" and self._has_xdotool
+
+    def supports_overlay(self):
+        """The live overlay does character-level Backspace/arrow edits; on Wayland that
+        needs ydotool (raw uinput keycodes). wtype can type text but not keycodes and
+        pynput can't see keys under Wayland, so a wtype-only Wayland session can't
+        drive the overlay - callers should fall back to commit-only typing there."""
+        if self._session == "wayland":
+            return self._ydotool_ok
+        return True
+
+    def _can_paste(self):
+        """Ctrl+V paste routes through xdotool (X11) or ydotool (Wayland). On Wayland
+        without ydotool there's no working paste, so callers should type_text instead."""
+        if self._session == "wayland":
+            return self._ydotool_ok
+        return True

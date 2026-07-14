@@ -311,7 +311,17 @@ class LiveDictation:
         self.overlay_block = overlay_block_apps()
         # app-gating only where the OS can name the focused app; elsewhere keep overlay on
         self.app_gating = self.platform.supports_app_detection()
-        # overlay = word-by-word live typing; dry (just log ops) when paste is off
+        # overlay = word-by-word live typing; dry (just log ops) when paste is off.
+        # The overlay does character-level Backspace/arrow edits, which on Wayland need
+        # ydotool (raw uinput keycodes). Debian doesn't package ydotool and wtype can't
+        # send keycodes, so on such a session the overlay would type but never correct -
+        # drop to commit-only typing instead (still works via wtype/xdotool).
+        if overlay and not self.platform.supports_overlay():
+            log("[!] live overlay disabled: this Wayland session has no ydotool "
+                "(Debian doesn't package it), and the overlay needs Backspace/arrow "
+                "injection. Falling back to commit-only typing. Install ydotool (or "
+                "use an X11 session) for the live overlay.")
+            overlay = False
         self.overlay = (OverlayTyper(dry=not do_paste, platform=self.platform)
                         if overlay else None)
         self.q = queue.Queue()
@@ -1042,9 +1052,16 @@ def _build_evdev_hotkey(press, release):
     wanted = set(code_to_token)  # only open devices that can emit a trigger/flag key
 
     devices = []
+    perm_denied = False
     for path in evdev.list_devices():
         try:
             dev = evdev.InputDevice(path)
+        except PermissionError:
+            # /dev/input/* is unreadable - the user isn't in the 'input' group (or
+            # hasn't logged out/in since being added). Remember it so we can tell the
+            # user exactly what to do instead of silently producing a dead hotkey.
+            perm_denied = True
+            continue
         except Exception:
             continue
         # Skip ydotool's uinput virtual device: it replays the SYNTHETIC keystrokes dum
@@ -1057,6 +1074,10 @@ def _build_evdev_hotkey(press, release):
             continue
         try:
             keys = dev.capabilities().get(ecodes.EV_KEY, [])
+        except PermissionError:
+            perm_denied = True
+            dev.close()
+            continue
         except Exception:
             dev.close()
             continue
@@ -1065,6 +1086,16 @@ def _build_evdev_hotkey(press, release):
         else:
             dev.close()
     if not devices:
+        if perm_denied:
+            # The keyboard devices exist but we couldn't read them. This is the Debian /
+            # Wayland gotcha: evdev needs the 'input' group, and group membership is only
+            # applied at login - so a fresh `usermod -aG input` does nothing until you log
+            # out and back in (a new terminal is not enough).
+            log("[!] evdev hotkey: cannot read your keyboards (/dev/input/* is "
+                "unreadable). The double-tap hotkey will NOT fire.")
+            log("    Fix: add yourself to the 'input' group, then LOG OUT and back in:")
+            log("        sudo usermod -aG input $USER")
+            log("    (a new terminal/SSH is NOT enough - the group is applied at login.)")
         return None
 
     stop_ev = threading.Event()
@@ -1195,6 +1226,15 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
             return ev
 
     # --- pynput path (macOS, Windows, and Linux X11 fallback) ---
+    if sys.platform.startswith("linux"):
+        # If evdev (preferred on Linux) was unavailable we've already printed the
+        # permission cause above. pynput's global listener rides X11, which Wayland
+        # compositors hide from X clients - so under Wayland this fallback is dead.
+        st = os.environ.get("XDG_SESSION_TYPE", "").lower()
+        if st == "wayland" or os.environ.get("WAYLAND_DISPLAY"):
+            log("[!] Falling back to pynput, but pynput can't see global keys under "
+                "Wayland - the double-tap hotkey will NOT fire. Fix the evdev issue "
+                "above (input group + log out/in) so the raw-input listener is used.")
     from pynput import keyboard
     _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
 

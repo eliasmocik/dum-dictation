@@ -26,6 +26,11 @@ recordings/
 tests/corpus/
 tests/.bench-out/
 
+# ...but DO track the small committed STT smoke-test asset (public sample clip,
+# no personal voice) so CI can verify speech-to-text on every push.
+!tests/assets/
+!tests/assets/*.wav
+
 # Bench/analysis outputs
 results/
 

@@ -77,7 +77,10 @@ pkg_map() {
   case "$distro" in
     debian)
       BASE_PKGS=(xdotool xclip)
-      WAYLAND_PKGS=(wl-clipboard ydotool)
+      # ydotool is the primary Wayland typing backend but Debian doesn't package it
+      # (Ubuntu/Fedora/Arch do). wtype IS in Debian main and is daemon-less, so it
+      # covers sentence typing; pull both so a missing ydotool isn't fatal on Debian.
+      WAYLAND_PKGS=(wl-clipboard ydotool wtype)
       SOUND_PKGS=(libcanberra-gtk3-module)
       PORTAUDIO=(portaudio19-dev)
       BUILD_PKGS=(cmake gcc g++)

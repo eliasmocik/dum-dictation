@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # Parakeet speech model - downloaded (and cached) so the STT smoke test can decode
+  # real audio in CI. KEEP IN SYNC with ./setup (same URL/dir).
+  PARAKEET_DIR: models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+  PARAKEET_TARBALL: sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2
+  PARAKEET_URL: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2
+
 jobs:
   unit-mac:
     # macOS (Apple Silicon) is the flagship platform, so that's where the gate runs.
@@ -38,25 +45,71 @@ jobs:
         # covers the deterministic pipeline, overlay diff, config, platform dispatch and guards.
         run: scripts/test --unit
 
-  unit-linux:
-    # Linux CI gate - runs the same pure-logic unit tests on Ubuntu.
-    runs-on: ubuntu-24.04
+  linux:
+    # One pipeline per major Linux family: Debian, Ubuntu, Fedora and Arch. Each runs
+    # inside that distro's own container so the system-dependency assumptions (package
+    # names, Python version, PortAudio) are exercised on the real OS. Every job runs the
+    # full unit gate PLUS the STT smoke test, which downloads the Parakeet model and
+    # decodes a committed WAV - so a broken recognizer is caught on all four distros.
+    name: linux (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian
+            container: debian:trixie
+          - name: ubuntu
+            container: ubuntu:24.04
+          - name: fedora
+            container: fedora:41
+          - name: arch
+            container: archlinux:latest
+
     steps:
+      # Install git + toolchain FIRST: actions/checkout needs git present in the
+      # container, and the rest of the build needs curl/tar/bzip2 + a C toolchain
+      # (PortAudio headers etc.). Package names differ per family.
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          set -eux
+          case "${{ matrix.name }}" in
+            debian|ubuntu)
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y --no-install-recommends \
+                git curl ca-certificates tar bzip2 \
+                python3 python3-venv python3-dev \
+                gcc g++ portaudio19-dev xdotool xclip
+              ;;
+            fedora)
+              dnf -y install \
+                git curl tar bzip2 findutils \
+                python3 python3-devel \
+                gcc gcc-c++ portaudio-devel xdotool xclip
+              ;;
+            arch)
+              pacman -Syu --noconfirm \
+                git curl tar bzip2 \
+                python gcc portaudio xdotool xclip
+              ;;
+          esac
+
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
+      # Git refuses to operate on a repo owned by another uid (checkout runs as root in
+      # the container); mark the workspace safe so scripts that shell out to git work.
+      - name: Mark workspace safe for git
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install system deps
+      - name: Create venv + install test dependencies
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y xdotool xclip portaudio19-dev
-
-      - name: Install test dependencies
-        run: |
-          python -m venv .venv
+          set -eux
+          python3 -m venv .venv
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install \
             numpy==2.4.6 \
@@ -67,5 +120,29 @@ jobs:
             rapidfuzz==3.14.5 \
             pynput==1.8.2
 
-      - name: Run unit gate
+      # Cache the extracted model across runs (keyed on the tarball name, so a model
+      # bump invalidates it). ~640 MB extracted; well under the cache limits.
+      - name: Cache Parakeet model
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PARAKEET_DIR }}
+          key: parakeet-${{ env.PARAKEET_TARBALL }}
+
+      - name: Download Parakeet model
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p models
+          curl -L --fail -o "models/${PARAKEET_TARBALL}" "${PARAKEET_URL}"
+          tar -xjf "models/${PARAKEET_TARBALL}" -C models
+          rm -f "models/${PARAKEET_TARBALL}"
+          test -f "${PARAKEET_DIR}/encoder.int8.onnx"
+          test -f "${PARAKEET_DIR}/tokens.txt"
+
+      - name: Run unit gate + STT smoke
+        # --unit skips the voice-corpus bench but runs the committed-WAV STT smoke test,
+        # which now finds the model above and decodes real audio (gates on WER).
+        shell: bash
         run: scripts/test --unit

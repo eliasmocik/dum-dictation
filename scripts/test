@@ -57,6 +57,11 @@ echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="
 $PY tests/test_lock_trim.py >/dev/null 2>&1 && echo "lock-trim bench OK" || echo "lock-trim bench skipped (corpus audio absent)"
+echo "== stt: smoke (real recognizer, committed WAV) =="
+# Self-skips (exit 0) when the Parakeet model isn't present, so a fresh clone with no
+# models still passes --unit; when the model IS present (locally or via the CI download
+# step) it actually decodes audio and gates on WER.
+$PY tests/test_stt_smoke.py || fail=1
 
 if [[ " $* " == *" --unit "* ]]; then
   echo ""

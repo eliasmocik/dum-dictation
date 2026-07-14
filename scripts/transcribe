@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""transcribe - run ANY audio file through the real dum pipeline, no mic needed.
+
+    scripts/transcribe path/to/clip.wav
+    scripts/transcribe clip.wav --llm          # also run the homophone LLM stage
+    scripts/transcribe clip.wav --raw          # also show the pre-correction transcript
+    scripts/transcribe clip.wav --plain        # pure recognizer decode (skip VAD+pipeline)
+
+Feeds the file through LiveDictation.replay() - the exact VAD -> preview -> lock-trim ->
+correction -> commit loop the microphone drives - and prints each committed sentence.
+This is the "hand me a WAV and I'll test STT with the pipeline" tool: hand it a clip and
+compare the output to what was said.
+
+Any sample rate / channel count is accepted (auto-resampled to 16 kHz mono into a temp
+file). Needs the Parakeet model (./setup downloads it). Local-only tool; not shipped as a
+daily-driver entry point.
+"""
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# Re-exec under the project venv so the pinned deps (numpy/sherpa-onnx/...) are importable
+# no matter how this script was launched (bare `scripts/transcribe`, system python, etc.).
+# A venv's python often symlinks to the system interpreter, so we detect "am I in the venv"
+# by sys.prefix (not by resolving the binary, which collapses the symlink).
+_VENV = ROOT / ".venv"
+_VENV_PY = _VENV / "bin" / "python"
+if _VENV_PY.exists() and Path(sys.prefix).resolve() != _VENV.resolve():
+    os.execv(str(_VENV_PY), [str(_VENV_PY), __file__, *sys.argv[1:]])
+
+import argparse
+import json
+import tempfile
+
+sys.path.insert(0, str(ROOT / "src"))
+
+import numpy as np
+import soundfile as sf
+
+from live import (build_parakeet, find_model_dir, build_pipeline, load_terms,
+                  LiveDictation, Tracer, EventBus, transcribe, clean_punct, SR)
+
+
+def to_16k_mono(path, pad_silence_s=0.0):
+    """Return a filesystem path to a 16 kHz mono float32 WAV of `path`, resampling
+    (linear) and downmixing as needed. When `pad_silence_s` > 0, prepend/append that
+    much digital silence - the live VAD calibrates its noise floor from the opening
+    frames, so a clip that STARTS on speech (no lead-in) would otherwise never trip an
+    onset. Writes a temp file when any conversion/padding is needed; else returns the
+    original path."""
+    audio, sr = sf.read(str(path), dtype="float32")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    if sr != SR:
+        n = int(round(len(audio) * SR / sr))
+        audio = np.interp(np.linspace(0, len(audio) - 1, n),
+                          np.arange(len(audio)), audio).astype("float32")
+        converted = True
+    else:
+        converted = False
+    if pad_silence_s > 0:
+        pad = np.zeros(int(pad_silence_s * SR), dtype="float32")
+        audio = np.concatenate([pad, audio, pad])
+        converted = True
+    if not converted and sf.info(str(path)).channels == 1:
+        return str(path), None
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    sf.write(tmp.name, audio, SR, subtype="PCM_16")
+    return tmp.name, tmp.name
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Run an audio file through the dum STT pipeline.")
+    ap.add_argument("wav", help="path to an audio file (any sample rate / channels)")
+    ap.add_argument("--llm", action="store_true", help="also run the homophone LLM stage")
+    ap.add_argument("--raw", action="store_true", help="also print the pre-correction transcript")
+    ap.add_argument("--plain", action="store_true",
+                    help="pure recognizer decode (skip VAD + correction pipeline)")
+    ap.add_argument("--realtime", action="store_true",
+                    help="pace at mic cadence (faithful VAD; slower). Default: fast feed")
+    args = ap.parse_args()
+
+    src = Path(args.wav)
+    if not src.exists():
+        print(f"[err] no such file: {src}", file=sys.stderr)
+        return 2
+
+    try:
+        model_dir = find_model_dir("sherpa-onnx-nemo-parakeet-tdt-*")
+    except SystemExit:
+        print("[err] Parakeet model not found - run ./setup to download it.", file=sys.stderr)
+        return 2
+
+    # Pipeline mode pads lead-in/out silence so the VAD can calibrate + segment; plain
+    # decode feeds the recognizer directly and needs no padding.
+    wav_path, tmp = to_16k_mono(src, pad_silence_s=0.0 if args.plain else 0.5)
+    try:
+        print(f"model: {Path(model_dir).name}")
+        print(f"input: {src}  ->  16 kHz mono\n")
+        rec = build_parakeet(model_dir)
+
+        if args.plain:
+            audio, _ = sf.read(wav_path, dtype="float32")
+            if audio.ndim > 1:
+                audio = audio[:, 0]
+            print("PLAIN (recognizer only):")
+            print("  " + clean_punct(transcribe(rec, audio)))
+            return 0
+
+        terms = load_terms([ROOT / "terms.txt"], None)
+        pipe = build_pipeline(terms)
+        outdir = ROOT / "tests" / ".bench-out"
+        outdir.mkdir(parents=True, exist_ok=True)
+        ev_path = outdir / "transcribe.events.jsonl"
+        tr_path = outdir / "transcribe.trace.jsonl"
+        ev_path.unlink(missing_ok=True)
+        tr_path.unlink(missing_ok=True)
+
+        bus = EventBus(str(ev_path))
+        tracer = Tracer(str(tr_path))
+        app = LiveDictation(rec, pipe, bus, do_paste=False, use_llm=args.llm,
+                            terms=terms, overlay=True, tracer=tracer)
+        app.replay(wav_path, realtime=args.realtime)
+        tracer.close()
+
+        raw, fixed = [], []
+        lines = ev_path.read_text().splitlines() if ev_path.exists() else []
+        for line in lines:
+            if not line.strip():
+                continue
+            e = json.loads(line)
+            if e.get("type") == "commit":
+                raw.append(e["raw"])
+                fixed.append(e["fixed"])
+
+        print("PIPELINE (committed sentences):")
+        if not fixed:
+            print("  (no sentences committed - the clip may be silent, too short, or all "
+                  "below the VAD threshold)")
+        for i, f in enumerate(fixed):
+            print(f"  {f}")
+            if args.raw and raw[i] != f:
+                print(f"      (raw: {raw[i]})")
+        print(f"\n  {len(fixed)} sentence(s).  full text:")
+        print("  " + " ".join(fixed))
+        return 0
+    finally:
+        if tmp:
+            try:
+                Path(tmp).unlink()
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())
