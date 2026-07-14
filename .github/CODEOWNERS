@@ -32,12 +32,16 @@
 # contributed them, but going forward they're shared infra Elias maintains, so changes get
 # his review. autostart is now split per-OS (like platform_io): the dispatcher + base + the
 # macOS backend are Elias's; the Windows backend is Rado's (below). The ./dum launcher is his.
+# The cross-platform installers (setup + install.sh) touch the macOS install/permissions flow,
+# so they're Elias's too: a Linux/Windows PR must not rewrite the mac setup path without review.
 /src/tray.py               @eliasmocik
 /src/single_instance.py    @eliasmocik
 /src/autostart.py          @eliasmocik
 /src/autostart_base.py     @eliasmocik
 /src/autostart_mac.py      @eliasmocik
 /dum                       @eliasmocik
+/setup                     @eliasmocik
+/install.sh                @eliasmocik
 
 # --- Windows-only: UNOWNED on purpose => Rado edits freely, no approval needed ---
 #   /src/platform_windows.py    (no owner)
