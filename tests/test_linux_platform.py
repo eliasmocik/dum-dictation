@@ -275,26 +275,50 @@ class TestYdotoolKeySyntax(unittest.TestCase):
     def test_backspace_uses_ydotool_when_daemon_ok(self):
         p = _make_platform({"ydotool": "/usr/bin/ydotool"},
                            session="wayland", ydotoold_socket=True)
-        with mock.patch("platform_linux.subprocess.run") as run:
+        result = mock.MagicMock(); result.returncode = 0
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run:
             p.backspace(2)
             run.assert_called_once_with(
-                ["ydotool", "key", "14:1", "14:0", "14:1", "14:0"], timeout=5.0)
+                ["ydotool", "key", "14:1", "14:0", "14:1", "14:0"],
+                timeout=5.0, capture_output=True)
 
     def test_move_cursor_left_uses_left_keycode(self):
         p = _make_platform({"ydotool": "/usr/bin/ydotool"},
                            session="wayland", ydotoold_socket=True)
-        with mock.patch("platform_linux.subprocess.run") as run:
+        result = mock.MagicMock(); result.returncode = 0
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run:
             p.move_cursor(-1)
             run.assert_called_once_with(
-                ["ydotool", "key", "105:1", "105:0"], timeout=5.0)
+                ["ydotool", "key", "105:1", "105:0"], timeout=5.0, capture_output=True)
 
     def test_move_cursor_right_uses_right_keycode(self):
         p = _make_platform({"ydotool": "/usr/bin/ydotool"},
                            session="wayland", ydotoold_socket=True)
-        with mock.patch("platform_linux.subprocess.run") as run:
+        result = mock.MagicMock(); result.returncode = 0
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run:
             p.move_cursor(2)
             run.assert_called_once_with(
-                ["ydotool", "key", "106:1", "106:0", "106:1", "106:0"], timeout=5.0)
+                ["ydotool", "key", "106:1", "106:0", "106:1", "106:0"],
+                timeout=5.0, capture_output=True)
+
+    def test_backspace_falls_back_to_pynput_when_ydotool_fails(self):
+        # Daemon died mid-session: ydotool exits non-zero -> must fall back to pynput,
+        # not silently no-op (the exact class of bug that broke Backspace before).
+        import types
+        fake = types.ModuleType("pynput")
+        fk = types.ModuleType("pynput.keyboard")
+        fk.Controller = lambda: mock.MagicMock()
+        fk.Key = mock.MagicMock()
+        fake.keyboard = fk
+        p = _make_platform({"ydotool": "/usr/bin/ydotool"},
+                           session="wayland", ydotoold_socket=True)
+        result = mock.MagicMock(); result.returncode = 1
+        with mock.patch("platform_linux.subprocess.run", return_value=result), \
+             mock.patch.dict(sys.modules, {"pynput": fake, "pynput.keyboard": fk}):
+            p.backspace(1)
+            self.assertFalse(p._ydotool_ok)
+            self.assertEqual(p._kb.press.call_count, 1)
+            self.assertEqual(p._kb.release.call_count, 1)
 
 
 class TestSendPaste(unittest.TestCase):
@@ -307,9 +331,20 @@ class TestSendPaste(unittest.TestCase):
             run.assert_called_once_with(
                 ["xdotool", "key", "--clearmodifiers", "ctrl+v"])
 
-    def test_wayland_skips_xdotool(self):
-        # xdotool is installed (deps install it on all sessions) but on Wayland it
-        # must NOT be used - paste goes through pynput instead.
+    def test_wayland_uses_ydotool_chord_not_xdotool(self):
+        # xdotool is installed (deps install it on all sessions) but on Wayland it must
+        # NOT be used; paste goes through a ydotool Ctrl+V chord (pynput Ctrl+V needs X).
+        p = _make_platform({"xdotool": "/usr/bin/xdotool", "ydotool": "/usr/bin/ydotool"},
+                           session="wayland", ydotoold_socket=True)
+        result = mock.MagicMock(); result.returncode = 0
+        with mock.patch("platform_linux.subprocess.run", return_value=result) as run:
+            p._send_paste()
+            run.assert_called_once_with(
+                ["ydotool", "key", "29:1", "47:1", "47:0", "29:0"],
+                timeout=5.0, capture_output=True)
+
+    def test_wayland_paste_falls_back_to_pynput_without_ydotoold(self):
+        # No ydotoold: Ctrl+V must fall back to pynput (never xdotool on Wayland).
         import types
         fake = types.ModuleType("pynput")
         fk = types.ModuleType("pynput.keyboard")
@@ -317,7 +352,7 @@ class TestSendPaste(unittest.TestCase):
         fk.Key = mock.MagicMock()
         fake.keyboard = fk
         p = _make_platform({"xdotool": "/usr/bin/xdotool"},
-                           session="wayland", ydotoold_socket=True)
+                           session="wayland", ydotoold_socket=False)
         with mock.patch("platform_linux.subprocess.run") as run, \
              mock.patch.dict(sys.modules, {"pynput": fake, "pynput.keyboard": fk}):
             p._send_paste()

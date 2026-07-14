@@ -113,6 +113,8 @@ def _ydotoold_running():
 _YK_BACKSPACE = "14"
 _YK_LEFT = "105"
 _YK_RIGHT = "106"
+_YK_LEFTCTRL = "29"
+_YK_V = "47"
 
 
 def _ydotool_key(code, n):
@@ -171,7 +173,47 @@ class LinuxPlatform(Platform):
             self._bell_cmd = None
 
         self._kb = None
+        self._Key = None
         self._warned_ydotool = False
+
+    def _run_ydotool(self, args):
+        """Run a ydotool subprocess; return True only on a clean (exit 0) run.
+
+        On any failure - non-zero exit or an exception, e.g. the daemon died or its
+        socket went stale mid-session - mark ydotool unavailable so every later call
+        (type/backspace/cursor/paste) falls back to pynput and we stop retrying."""
+        try:
+            if subprocess.run(args, timeout=5.0, capture_output=True).returncode == 0:
+                return True
+        except Exception:
+            pass
+        self._ydotool_ok = False
+        return False
+
+    def _pynput_tap(self, key_name, n):
+        """Fallback: tap the pynput special key named `key_name` (e.g. 'backspace',
+        'left', 'right') `n` times. Guarded so a missing/blocked pynput degrades to a
+        no-op instead of crashing the dictation thread (on Wayland pynput needs X)."""
+        if n <= 0:
+            return
+        try:
+            if self._kb is None:
+                from pynput.keyboard import Controller, Key
+                self._kb = Controller()
+                self._Key = Key
+            key = getattr(self._Key, key_name)
+            for _ in range(n):
+                self._kb.press(key)
+                self._kb.release(key)
+        except Exception:
+            pass
+
+    def _warn_ydotool_once(self):
+        if self._has_ydotool and not self._warned_ydotool:
+            self._warned_ydotool = True
+            print("[linux] ydotoold not responding - falling back to pynput typing, which "
+                  "needs X and fails under Wayland. Start it with: "
+                  "sudo systemctl enable --now ydotool.service", file=sys.stderr, flush=True)
 
     def type_text(self, text):
         if not text:
@@ -179,23 +221,9 @@ class LinuxPlatform(Platform):
         if self._session == "wayland":
             # Wayland: ydotool (if its daemon is responsive) or pynput. xdotool is
             # X11-only and a no-op on Wayland, so it is never used here.
-            if self._ydotool_ok:
-                try:
-                    r = subprocess.run(
-                        ["ydotool", "type", text],
-                        timeout=5.0, capture_output=True)
-                    if r.returncode == 0:
-                        return
-                    # Daemon gone (e.g. stale socket from an exited daemon) - stop
-                    # retrying ydotool and fall back to pynput for this text.
-                    self._ydotool_ok = False
-                except Exception:
-                    self._ydotool_ok = False
-            if self._has_ydotool and not self._warned_ydotool:
-                self._warned_ydotool = True
-                print("[linux] ydotoold not responding - falling back to pynput typing, which "
-                      "needs X and fails under Wayland. Start it with: "
-                      "sudo systemctl enable --now ydotool.service", file=sys.stderr, flush=True)
+            if self._ydotool_ok and self._run_ydotool(["ydotool", "type", text]):
+                return
+            self._warn_ydotool_once()
             # Last resort under Wayland: pynput needs an X connection Wayland hides, so
             # this only works under XWayland-with-auth. Guard it so a failure degrades to
             # a no-op (the commit still lands via clipboard paste) instead of crashing the
@@ -222,43 +250,23 @@ class LinuxPlatform(Platform):
         self._kb.type(text)
 
     def backspace(self, n):
-        """Send `n` Backspace keystrokes. Wayland: via ydotool (uinput); else pynput."""
+        """Send `n` Backspace keystrokes. Wayland: via ydotool (uinput), falling back
+        to pynput if the daemon is down/died; X11/other: pynput."""
         if n <= 0:
             return
-        if self._ydotool_ok:
-            subprocess.run(_ydotool_key(_YK_BACKSPACE, n), timeout=5.0)
+        if self._ydotool_ok and self._run_ydotool(_ydotool_key(_YK_BACKSPACE, n)):
             return
-        try:
-            if self._kb is None:
-                from pynput.keyboard import Controller, Key
-                self._kb = Controller()
-                self._Key = Key
-            for _ in range(n):
-                self._kb.press(self._Key.backspace)
-                self._kb.release(self._Key.backspace)
-        except Exception:
-            pass
+        self._pynput_tap("backspace", n)
 
     def move_cursor(self, delta):
-        """Move the insertion point by `delta` chars (>0 right, <0 left). Wayland:
-        via ydotool arrow keycodes; else pynput arrow keys."""
+        """Move the insertion point by `delta` chars (>0 right, <0 left). Wayland: via
+        ydotool arrow keycodes, falling back to pynput if the daemon died; else pynput."""
         if delta == 0:
             return
-        if self._ydotool_ok:
-            code = _YK_LEFT if delta < 0 else _YK_RIGHT
-            subprocess.run(_ydotool_key(code, abs(delta)), timeout=5.0)
+        code = _YK_LEFT if delta < 0 else _YK_RIGHT
+        if self._ydotool_ok and self._run_ydotool(_ydotool_key(code, abs(delta))):
             return
-        try:
-            if self._kb is None:
-                from pynput.keyboard import Controller, Key
-                self._kb = Controller()
-                self._Key = Key
-            key = self._Key.right if delta > 0 else self._Key.left
-            for _ in range(abs(delta)):
-                self._kb.press(key)
-                self._kb.release(key)
-        except Exception:
-            pass
+        self._pynput_tap("right" if delta > 0 else "left", abs(delta))
 
     def _clip_get(self):
         if self._clip == "wayland":
@@ -280,11 +288,20 @@ class LinuxPlatform(Platform):
         if self._session == "x11" and self._has_xdotool:
             subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"])
             return
-        from pynput.keyboard import Controller, Key
-        kb = Controller()
-        with kb.pressed(Key.ctrl):
-            kb.press("v")
-            kb.release("v")
+        # Wayland: send Ctrl+V via ydotool (Ctrl down, V down/up, Ctrl up). pynput's
+        # Ctrl+V needs an X connection Wayland hides, so it's only the last resort.
+        if self._session == "wayland" and self._ydotool_ok and self._run_ydotool(
+                ["ydotool", "key", f"{_YK_LEFTCTRL}:1", f"{_YK_V}:1",
+                 f"{_YK_V}:0", f"{_YK_LEFTCTRL}:0"]):
+            return
+        try:
+            from pynput.keyboard import Controller, Key
+            kb = Controller()
+            with kb.pressed(Key.ctrl):
+                kb.press("v")
+                kb.release("v")
+        except Exception:
+            pass
 
     def paste(self, text):
         if self._clip:
