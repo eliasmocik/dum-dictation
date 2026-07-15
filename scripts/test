@@ -51,10 +51,24 @@ echo "== unit: tray controller =="
 $PY tests/test_tray.py || fail=1
 echo "== unit: platform dispatch (mac/windows/fallback) =="
 $PY tests/test_platform_dispatch.py || fail=1
+echo "== unit: linux platform (x11/wayland backend) =="
+$PY tests/test_linux_platform.py || fail=1
+echo "== unit: evdev hotkey (device selection / feedback-loop filter) =="
+$PY tests/test_evdev_hotkey.py || fail=1
 echo "== unit: paste-atomic (clipboard save/restore) =="
 $PY tests/test_platform_paste.py || fail=1
 echo "== unit: lock-trim =="
-$PY tests/test_lock_trim.py >/dev/null 2>&1 && echo "lock-trim bench OK" || echo "lock-trim bench skipped (corpus audio absent)"
+# exit 77 = skipped (corpus/model absent); any OTHER nonzero = a real regression, so
+# don't mask it as "skipped".
+$PY tests/test_lock_trim.py >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 0 ]]; then echo "lock-trim bench OK"
+elif [[ $rc -eq 77 ]]; then echo "lock-trim bench skipped (corpus audio absent)"
+else echo "lock-trim bench FAILED (rc=$rc)"; fail=1; fi
+echo "== stt: smoke (real recognizer, committed WAV) =="
+# Self-skips (exit 0) when the Parakeet model isn't present, so a fresh clone with no
+# models still passes --unit; when the model IS present (locally or via the CI download
+# step) it actually decodes audio and gates on WER.
+$PY tests/test_stt_smoke.py || fail=1
 
 if [[ " $* " == *" --unit "* ]]; then
   echo ""

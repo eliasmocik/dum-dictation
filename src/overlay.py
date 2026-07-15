@@ -255,7 +255,11 @@ class OverlayTyper:
         self.ops = []                 # (kind, payload) log, for dry mode + tests
         self.kb = None
         self._Key = None
-        if not dry:
+        # Only build a pynput Controller when we have no platform to type through
+        # (mac/win use native paths; Linux uses xdotool/ydotool - both X-free under
+        # Wayland). Building it eagerly here crashes on Wayland, where pynput needs
+        # an X connection that isn't available.
+        if not dry and platform is None:
             from pynput.keyboard import Controller, Key
             self.kb = Controller()
             self._Key = Key
@@ -277,7 +281,13 @@ class OverlayTyper:
             self.ops.append(("backspace", n))
             if not self.quiet:
                 print(f"   [overlay] backspace x{n}", flush=True)
+        elif self.platform is not None and hasattr(self.platform, "backspace"):
+            self.platform.backspace(n)
         else:
+            if self.kb is None:
+                from pynput.keyboard import Controller, Key
+                self.kb = Controller()
+                self._Key = Key
             for _ in range(n):
                 self.kb.press(self._Key.backspace)
                 self.kb.release(self._Key.backspace)
@@ -289,7 +299,13 @@ class OverlayTyper:
             self.ops.append((key_name, n))
             if not self.quiet:
                 print(f"   [overlay] {key_name} x{n}", flush=True)
+        elif self.platform is not None and hasattr(self.platform, "move_cursor"):
+            self.platform.move_cursor(-n if key_name == "left" else n)
         else:
+            if self.kb is None:
+                from pynput.keyboard import Controller, Key
+                self.kb = Controller()
+                self._Key = Key
             key = getattr(self._Key, key_name)
             for _ in range(n):
                 self.kb.press(key)

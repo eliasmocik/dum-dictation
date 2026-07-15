@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # dum - launch the dum dictation daily-driver.
 #
-# Double-tap the LEFT Command key to start/stop dictation (globally), with the
+# Start/stop dictation (globally) with a double-tap of the configured hotkey:
+#   macOS     -> double-tap LEFT Command
+#   Windows   -> double-tap RIGHT Ctrl
+#   Linux     -> double-tap RIGHT Ctrl
 # word-by-word overlay + eager first-word lock + the homophone LLM layer on.
 # Ctrl+C in this terminal quits.
 #

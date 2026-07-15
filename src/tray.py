@@ -138,4 +138,17 @@ def run(app, on_quit=None):
         icon.visible = True
         threading.Thread(target=_watch, args=(icon, controller), daemon=True).start()
 
-    icon.run(setup=_setup)   # blocks on the main thread until _do_quit -> icon.stop()
+    import sys
+    if sys.platform == "linux":
+        try:
+            icon.run(setup=_setup)   # blocks on the main thread until _do_quit -> icon.stop()
+        except Exception as e:  # noqa: BLE001 - surface tray failures instead of crashing
+            # Most common on Linux/Wayland: no StatusNotifierItem host (GNOME without
+            # the AppIndicator extension, etc.). The hotkey + terminal still work, so
+            # don't die.
+            print(f"[tray] could not start system tray ({type(e).__name__}: {e}).",
+                  file=sys.stderr, flush=True)
+            print("[tray] dum still runs - use the global hotkey to start/stop, "
+                  "Ctrl+C to quit.", file=sys.stderr, flush=True)
+    else:
+        icon.run(setup=_setup)   # blocks on the main thread until _do_quit -> icon.stop()

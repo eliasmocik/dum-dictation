@@ -4,10 +4,12 @@
 #   ./setup
 #
 # Creates .venv, installs pinned deps, downloads the Parakeet speech model and
-# pre-pulls the on-device correction LLM, then prints the macOS permissions you
-# must grant. After it finishes, run ./dum.
+# pre-pulls the on-device correction LLM. On Linux it also detects your distro
+# and installs system packages (xdotool/xclip/ydotool/wl-clipboard, etc.).
+# After it finishes, run ./dum.
 #
-# macOS, Apple Silicon, Python 3.12.
+# Python 3.12+ required (3.12 or 3.13; some distros - e.g. Debian trixie - only
+# ship 3.13 and have no python3.12 package, so 3.13 is accepted).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -15,7 +17,7 @@ PY=.venv/bin/python
 PARAKEET_DIR="models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
 PARAKEET_TARBALL="sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
 PARAKEET_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${PARAKEET_TARBALL}"
-LLM_MODEL="mlx-community/Llama-3.2-1B-Instruct-4bit"
+
 
 # macOS support is Apple Silicon only: the correction LLM (mlx-lm) and several pins ship
 # no Intel-mac wheels, so an Intel/Rosetta run would fail deep into the install. Fail fast.
@@ -25,36 +27,49 @@ if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" != "arm64" ]; then
   exit 1
 fi
 
+# Linux: install system deps (incl. python3-venv) up front, so the venv created
+# just below can actually be built. Best-effort - a failed package must not abort.
+if [ "$(uname)" != "Darwin" ]; then
+  if [ -z "${DUM_SKIP_SYS_DEPS:-}" ]; then
+    if [ -x scripts/install-linux-deps.sh ]; then
+      scripts/install-linux-deps.sh || echo "[!] system deps step skipped - you can install them manually (see README)."
+    fi
+  fi
+fi
+
 echo "==> 1/5  Python venv + pinned dependencies"
-# Hard requirement: CPython 3.12.x. Several pins (numpy, sherpa-onnx, mlx-lm) ship wheels
-# only for 3.12, so any other Python dies mid-install with a cryptic compile error.
-py_is_312() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)' 2>/dev/null; }
+# Hard requirement: CPython 3.12 or 3.13. Some distros (e.g. Debian trixie) only ship
+# 3.13 and have no python3.12 package, so 3.13 is accepted; 3.14+ is excluded until its
+# wheels are proven. The pins below all ship 3.12/3.13 wheels, so a 3.13 venv installs.
+py_ok() { "$1" -c 'import sys; v=sys.version_info[:2]; raise SystemExit(0 if (3,12) <= v < (3,14) else 1)' 2>/dev/null; }
 if [ ! -x "$PY" ]; then
   PYBIN="$(command -v python3.12 || command -v python3 || true)"
   if [ -z "$PYBIN" ]; then
-    echo "    [!] no python3 on PATH - Python 3.12 is required."
+    echo "    [!] no python3 on PATH - Python 3.12+ is required."
     echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv"
+    echo "                (or, where 3.12 isn't packaged: python3 python3-venv)"
     echo "        Then re-run ./setup."
     exit 1
   fi
-  if ! py_is_312 "$PYBIN"; then
-    echo "    [!] Python 3.12 required, but $PYBIN is $("$PYBIN" -V 2>&1)."
+  if ! py_ok "$PYBIN"; then
+    echo "    [!] Python 3.12+ required, but $PYBIN is $("$PYBIN" -V 2>&1)."
     echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+    echo "        Linux:  sudo apt install python3.12 python3.12-venv"
+    echo "                (or, where 3.12 isn't packaged: python3 python3-venv)"
     echo "        Then re-run ./setup."
     exit 1
   fi
   echo "    creating .venv with $PYBIN"
   "$PYBIN" -m venv .venv
-elif ! py_is_312 "$PY"; then
-  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12 - rebuild it:"
+elif ! py_ok "$PY"; then
+  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12+ - rebuild it:"
   echo "        rm -rf .venv && ./setup"
   exit 1
 fi
 "$PY" -m pip install --upgrade pip >/dev/null || {
   echo "    [!] this .venv has no working pip (a partial venv - common on Debian/Ubuntu without"
-  echo "        python3.12-venv). Install it (sudo apt install python3.12-venv), then rebuild:"
+  echo "        python3-venv). Install it (sudo apt install python3-venv, or python3.12-venv), then rebuild:"
   echo "        rm -rf .venv && ./setup"
   exit 1
 }
@@ -111,17 +126,43 @@ if [ "$missing" -ne 0 ]; then echo "    [!] Parakeet model is incomplete - re-ru
 echo "    ok: 3 .onnx files + tokens.txt in $PARAKEET_DIR"
 
 echo ""
-echo "==> 3/5  Pre-pull the on-device correction LLM ($LLM_MODEL)"
+echo "==> 3/5  Pre-pull the on-device correction LLM"
+LLM_SKIP="${DUM_SKIP_LLM:-0}"
 if [ "$(uname)" = "Darwin" ]; then
-  echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
-  .venv/bin/hf download "$LLM_MODEL" >/dev/null || {
-    echo "    [!] LLM pre-pull failed - check your network, then re-run ./setup"
-    echo "        (or skip for now: it also downloads on first --llm dictation)"
-    exit 1
-  }
-  echo "    ok"
+  # macOS: pre-pull the MLX model (legacy; the LLaMACPP backend is now default but the
+  # MLX cache doesn't interfere). Gated behind --llm; harmless if not used.
+  MLX_MODEL="${DUM_LLM_MODEL:-mlx-community/Llama-3.2-1B-Instruct-4bit}"
+  if [ "$LLM_SKIP" != "1" ]; then
+    echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
+    .venv/bin/hf download "$MLX_MODEL" >/dev/null || {
+      echo "    [!] LLM pre-pull failed - check your network, then re-run ./setup"
+      echo "        (or skip: DUM_SKIP_LLM=1 ./setup; it also downloads on first --llm dictation)"
+      exit 1
+    }
+    echo "    ok (MLX model)"
+  else
+    echo "    skipped (DUM_SKIP_LLM=1)"
+  fi
 else
-  echo "    skipped - the MLX homophone LLM is Apple-Silicon only; this OS runs without it."
+  # Linux / Windows: pre-pull the portable GGUF model (the default llamacpp backend).
+  GGUF_REPO="${DUM_LLM_GGUF_REPO:-bartowski/Llama-3.2-1B-Instruct-GGUF}"
+  GGUF_FILE="${DUM_LLM_GGUF_FILE:-Llama-3.2-1B-Instruct-Q4_K_M.gguf}"
+  if [ "$LLM_SKIP" != "1" ]; then
+    echo "    (avoids a ~770 MB surprise download on first dictation)"
+    .venv/bin/python -c "
+import sys
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(repo_id='$GGUF_REPO', filename='$GGUF_FILE')
+    print('    ok')
+except Exception as e:
+    print(f'[!] LLM pre-pull failed: {e}', file=sys.stderr)
+    print('    (skip with DUM_SKIP_LLM=1 ./setup; it downloads on first --llm dictation)')
+    sys.exit(1)
+" || exit 1
+  else
+    echo "    skipped (DUM_SKIP_LLM=1)"
+  fi
 fi
 
 echo ""
@@ -135,13 +176,25 @@ if [ "$(uname)" = "Darwin" ]; then
     Then QUIT and reopen the terminal so the grants take effect.
 PERMS
 else
-  echo "==> 4/5  Linux setup (X11)"
-  cat <<'PERMS'
-    Install the typing/clipboard tools if you haven't:  xdotool  xclip   (or wl-clipboard on Wayland)
-      e.g.  sudo apt install xdotool xclip
-    Make sure your user can use the microphone (PulseAudio/PipeWire) - usually already fine.
-    Default hotkey: double-tap RIGHT Ctrl (change it with ./dum --config).
-PERMS
+  echo "==> 4/5  Linux system dependencies"
+  if [ -n "${DUM_SKIP_SYS_DEPS:-}" ]; then
+    echo "    skipped (DUM_SKIP_SYS_DEPS=1)"
+  else
+    echo "    (installed up front, before the venv was created - re-run"
+    echo "     scripts/install-linux-deps.sh to change them)"
+  fi
+  echo ""
+  # Detect session type for the message
+  SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+  echo "    session: $SESSION_TYPE"
+  echo "    Make sure your user can use the microphone (PulseAudio/PipeWire) - usually already fine."
+  echo "    Default hotkey: double-tap RIGHT Ctrl (change it with ./dum --config)."
+  if [ "$SESSION_TYPE" = "wayland" ]; then
+    echo ""
+    echo "    You're on WAYLAND. The hotkey uses evdev (raw /dev/input) so it works here, but that"
+    echo "    needs you in the 'input' group:  sudo usermod -aG input $USER   then LOG OUT and back in."
+    echo "    (scripts/install-linux-deps.sh adds you automatically. Without it the hotkey is dead.)"
+  fi
 fi
 
 echo ""
@@ -168,5 +221,10 @@ PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform
 git config core.hooksPath .githooks 2>/dev/null || true
 
 echo ""
-echo "Done. Now run:  ./dum"
-echo "(double-tap the LEFT Command key to start/stop dictation)"
+if [ "$(uname)" = "Darwin" ]; then
+  echo "Done. Now run:  ./dum"
+  echo "(double-tap the LEFT Command key to start/stop dictation)"
+else
+  echo "Done. Now run:  ./dum"
+  echo "(double-tap the RIGHT Ctrl key to start/stop dictation)"
+fi

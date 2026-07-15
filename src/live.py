@@ -311,7 +311,17 @@ class LiveDictation:
         self.overlay_block = overlay_block_apps()
         # app-gating only where the OS can name the focused app; elsewhere keep overlay on
         self.app_gating = self.platform.supports_app_detection()
-        # overlay = word-by-word live typing; dry (just log ops) when paste is off
+        # overlay = word-by-word live typing; dry (just log ops) when paste is off.
+        # The overlay does character-level Backspace/arrow edits, which on Wayland need
+        # ydotool (raw uinput keycodes). Debian doesn't package ydotool and wtype can't
+        # send keycodes, so on such a session the overlay would type but never correct -
+        # drop to commit-only typing instead (still works via wtype/xdotool).
+        if overlay and not self.platform.supports_overlay():
+            log("[!] live overlay disabled: this Wayland session has no ydotool "
+                "(Debian doesn't package it), and the overlay needs Backspace/arrow "
+                "injection. Falling back to commit-only typing. Install ydotool (or "
+                "use an X11 session) for the live overlay.")
+            overlay = False
         self.overlay = (OverlayTyper(dry=not do_paste, platform=self.platform)
                         if overlay else None)
         self.q = queue.Queue()
@@ -798,120 +808,124 @@ class LiveDictation:
                 in_sentence = False
             elif since_preview >= STEP_S and secs >= MIN_SEG_S:
                 # clean micro-pause dots on previews too, so overlay never types them
-                p0 = time.monotonic()
-                full = np.concatenate(cur)
-                if LOCK_TRIM:
-                    # Decode from LOCK_CONTEXT_S before the lock point (left-context, kept so
-                    # tail words don't garble) but only display/lock words PAST the lock point.
-                    # Lock any such word old enough that more audio won't revise it and advance
-                    # the window past it. commit() re-runs the FULL audio, so the final text is
-                    # unaffected - this only bounds the live draft to ~context+margin seconds.
-                    ctx_start = max(0, locked_samples - int(LOCK_CONTEXT_S * SR))
-                    window = full[ctx_start:]
-                    tw, ts = transcribe_words(self.rec, window)
-                    lock_t = (locked_samples - ctx_start) / SR
-                    tail = [(w, s) for w, s in zip(tw, ts) if s >= lock_t - 0.06]
-                    cutoff = (len(window) / SR) - LOCK_MARGIN_S
-                    n = 0
-                    while n + 1 < len(tail) and tail[n + 1][1] <= cutoff:  # keep >=1 in tail
-                        n += 1
-                    if n:
-                        locked_words.extend(w for w, _ in tail[:n])
-                        locked_samples = ctx_start + int(tail[n][1] * SR)
-                    txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:]]))
-                else:
-                    txt = clean_punct(transcribe(self.rec, full))
-                # Milestone B step 2: fix known IT mishears live, on the preview itself,
-                # so they're right as words appear (not just reconciled at commit). Runs
-                # before split/prefix so multi-word aliases (engine x->nginx) apply, and
-                # before stable_prefix so the corrected form is what two previews agree on.
-                if self.preview_corrector is not None and txt.strip():
-                    txt = self.preview_corrector.correct(txt)
-                preview_ms = (time.monotonic() - p0) * 1000.0
-                self.tr.ev("preview", audio_s=round(secs, 2), proc_ms=round(preview_ms),
-                           locked=len(locked_words),
-                           tail_s=round((len(full) - locked_samples) / SR, 2),
-                           q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
-                # _typing_focus_ok = the forward-path focus guard: the moment the watcher's
-                # cached poll says another app is frontmost, HOLD this tick's live typing so
-                # no keystroke lands outside the sentence's app. A blip resumes next tick
-                # (the reconcile catches the draft up); a settled move hard-stops via the
-                # watcher ~a debounce later. Held ticks fall through to the [~] log line.
-                if self.overlay is not None and ov_active and self._typing_focus_ok(ov_focus):
-                    # strip terminal .?! from live words - a not-yet-final word's
-                    # period is unreliable (Parakeet ends every preview with one) and
-                    # would get stranded mid-sentence once you keep talking. The real
-                    # end mark is added at commit.
-                    words = [w for w in (_END_PUNCT.sub("", t) for t in txt.split()) if w]
-                    if STRIP_FILLERS:
-                        words = drop_fillers(words, at_start=not self.overlay.typed)
-                    if DECAP_CAPS:
-                        # Decap the live preview to match the committed casing (no wrong capital shown
-                        # live, live==commit). after_sentence is the STABLE per-segment protection of
-                        # word 0 (genuine start iff the prev segment ended a sentence); it must not vary
-                        # tick-to-tick or a legit first-word capital would flicker. _END_PUNCT already
-                        # stripped per-token sentence marks, so interior safe words lower; word 0 is the
-                        # only protected position. A genuine in-window marker-start ("Deploy it. So…")
-                        # can read lower live and snap back at commit - rare; surfaced in the feel-check.
-                        words = decap_interior(" ".join(words),
-                                               after_sentence=self._prev_ended_sentence).split()
-                    # IGNORE EMPTY previews: the offline model intermittently emits nothing
-                    # on a growing window (verified: 'So the' -> '' -> 'So the timeline' -> '').
-                    # Updating to [] would reset the two-preview agreement (delaying the first
-                    # word ~1s) AND try to erase the on-screen text (a huge deferred rewrite =
-                    # the chunky 'pause then dump'). So skip empties and keep the last good prefix.
-                    if words:
-                        # show the stable (two-preview-agreed) prefix; if nothing's shown yet
-                        # and we've waited eager_after seconds, fall back to the best guess so
-                        # the first word never stalls. Confirmed words => no wrong-word flash.
-                        strict = stable_prefix(ov_prev, words)
-                        at_start = not self.overlay.typed
-                        eager_now = at_start and (secs >= self.eager_after)
-                        # Phase 1 one-by-one reveal: when DISPLAY_MARGIN is set, the stable
-                        # prefix is decided by audio AGE (lock-trim word timestamps) rather than
-                        # two-preview agreement - a word reveals as soon as its right boundary is
-                        # DISPLAY_MARGIN_S old, skipping the extra preview the agreement gate
-                        # waited for. Corrections run on the revealed prefix so IT terms still
-                        # come out right. Onset filler/breath/eager gates still apply via
-                        # streaming_prefix. age=None => old agreement path (DISPLAY_MARGIN off).
-                        age = None
-                        if LOCK_TRIM and DISPLAY_MARGIN_S > 0:
-                            d = max(n, age_stable_count([s for _, s in tail],
-                                                        len(window) / SR, DISPLAY_MARGIN_S))
-                            age_txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:d]]))
-                            if self.preview_corrector is not None and age_txt.strip():
-                                age_txt = self.preview_corrector.correct(age_txt)
-                            age = [w for w in (_END_PUNCT.sub("", t) for t in age_txt.split()) if w]
-                            if STRIP_FILLERS:
-                                age = drop_fillers(age, at_start=not self.overlay.typed)
-                            if DECAP_CAPS:
-                                age = decap_interior(" ".join(age),
-                                                     after_sentence=self._prev_ended_sentence).split()
-                        show = streaming_prefix(ov_prev, words, eager_first=eager_now,
-                                                at_start=at_start, stable=age)
-                        if self._alias_prefixes:
-                            # hold an in-progress multi-word alias ("V S code") off-screen until it
-                            # resolves to "VS Code" - reveals whole, never typed-then-retyped
-                            show = hold_alias_prefix(show, self._alias_prefixes)
-                        target = " ".join(show)
-                        before = self.overlay.typed
-                        if show and target != before:    # skip no-op previews (prefix unchanged)
-                            nb, _ = reconcile_words(before, target)
-                            # apply appends + SMALL live corrections; defer big tail rewrites to
-                            # commit so the line doesn't thrash live
-                            if not before or nb <= STREAM_FIX_MAX:
-                                if self.overlay.reconcile(target):
-                                    if not before:
-                                        ov_eager = show[0]   # earliest word-0 shown (flicker metric)
-                                    corrected = nb > 0 and bool(before)
-                                    self.tr.ev("early_fix" if corrected else "lock",
-                                               words=show, nb=nb, eager=not strict,
-                                               audio_s=round(secs, 2))
-                            else:
-                                self.tr.ev("deferred", nb=nb, audio_s=round(secs, 2))
-                        ov_prev = words
-                elif txt.strip():
-                    log(f"\r[~]    {txt}")
+                try:
+                    p0 = time.monotonic()
+                    full = np.concatenate(cur)
+                    if LOCK_TRIM:
+                        # Decode from LOCK_CONTEXT_S before the lock point (left-context, kept so
+                        # tail words don't garble) but only display/lock words PAST the lock point.
+                        # Lock any such word old enough that more audio won't revise it and advance
+                        # the window past it. commit() re-runs the FULL audio, so the final text is
+                        # unaffected - this only bounds the live draft to ~context+margin seconds.
+                        ctx_start = max(0, locked_samples - int(LOCK_CONTEXT_S * SR))
+                        window = full[ctx_start:]
+                        tw, ts = transcribe_words(self.rec, window)
+                        lock_t = (locked_samples - ctx_start) / SR
+                        tail = [(w, s) for w, s in zip(tw, ts) if s >= lock_t - 0.06]
+                        cutoff = (len(window) / SR) - LOCK_MARGIN_S
+                        n = 0
+                        while n + 1 < len(tail) and tail[n + 1][1] <= cutoff:  # keep >=1 in tail
+                            n += 1
+                        if n:
+                            locked_words.extend(w for w, _ in tail[:n])
+                            locked_samples = ctx_start + int(tail[n][1] * SR)
+                        txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:]]))
+                    else:
+                        txt = clean_punct(transcribe(self.rec, full))
+                    # Milestone B step 2: fix known IT mishears live, on the preview itself,
+                    # so they're right as words appear (not just reconciled at commit). Runs
+                    # before split/prefix so multi-word aliases (engine x->nginx) apply, and
+                    # before stable_prefix so the corrected form is what two previews agree on.
+                    if self.preview_corrector is not None and txt.strip():
+                        txt = self.preview_corrector.correct(txt)
+                    preview_ms = (time.monotonic() - p0) * 1000.0
+                    self.tr.ev("preview", audio_s=round(secs, 2), proc_ms=round(preview_ms),
+                               locked=len(locked_words),
+                               tail_s=round((len(full) - locked_samples) / SR, 2),
+                               q=self.q.qsize(), behind=preview_ms > STEP_S * 1000.0)
+                    # _typing_focus_ok = the forward-path focus guard: the moment the watcher's
+                    # cached poll says another app is frontmost, HOLD this tick's live typing so
+                    # no keystroke lands outside the sentence's app. A blip resumes next tick
+                    # (the reconcile catches the draft up); a settled move hard-stops via the
+                    # watcher ~a debounce later. Held ticks fall through to the [~] log line.
+                    if self.overlay is not None and ov_active and self._typing_focus_ok(ov_focus):
+                        # strip terminal .?! from live words - a not-yet-final word's
+                        # period is unreliable (Parakeet ends every preview with one) and
+                        # would get stranded mid-sentence once you keep talking. The real
+                        # end mark is added at commit.
+                        words = [w for w in (_END_PUNCT.sub("", t) for t in txt.split()) if w]
+                        if STRIP_FILLERS:
+                            words = drop_fillers(words, at_start=not self.overlay.typed)
+                        if DECAP_CAPS:
+                            # Decap the live preview to match the committed casing (no wrong capital shown
+                            # live, live==commit). after_sentence is the STABLE per-segment protection of
+                            # word 0 (genuine start iff the prev segment ended a sentence); it must not vary
+                            # tick-to-tick or a legit first-word capital would flicker. _END_PUNCT already
+                            # stripped per-token sentence marks, so interior safe words lower; word 0 is the
+                            # only protected position. A genuine in-window marker-start ("Deploy it. So…")
+                            # can read lower live and snap back at commit - rare; surfaced in the feel-check.
+                            words = decap_interior(" ".join(words),
+                                                   after_sentence=self._prev_ended_sentence).split()
+                        # IGNORE EMPTY previews: the offline model intermittently emits nothing
+                        # on a growing window (verified: 'So the' -> '' -> 'So the timeline' -> '').
+                        # Updating to [] would reset the two-preview agreement (delaying the first
+                        # word ~1s) AND try to erase the on-screen text (a huge deferred rewrite =
+                        # the chunky 'pause then dump'). So skip empties and keep the last good prefix.
+                        if words:
+                            # show the stable (two-preview-agreed) prefix; if nothing's shown yet
+                            # and we've waited eager_after seconds, fall back to the best guess so
+                            # the first word never stalls. Confirmed words => no wrong-word flash.
+                            strict = stable_prefix(ov_prev, words)
+                            at_start = not self.overlay.typed
+                            eager_now = at_start and (secs >= self.eager_after)
+                            # Phase 1 one-by-one reveal: when DISPLAY_MARGIN is set, the stable
+                            # prefix is decided by audio AGE (lock-trim word timestamps) rather than
+                            # two-preview agreement - a word reveals as soon as its right boundary is
+                            # DISPLAY_MARGIN_S old, skipping the extra preview the agreement gate
+                            # waited for. Corrections run on the revealed prefix so IT terms still
+                            # come out right. Onset filler/breath/eager gates still apply via
+                            # streaming_prefix. age=None => old agreement path (DISPLAY_MARGIN off).
+                            age = None
+                            if LOCK_TRIM and DISPLAY_MARGIN_S > 0:
+                                d = max(n, age_stable_count([s for _, s in tail],
+                                                            len(window) / SR, DISPLAY_MARGIN_S))
+                                age_txt = clean_punct(" ".join(locked_words + [w for w, _ in tail[n:d]]))
+                                if self.preview_corrector is not None and age_txt.strip():
+                                    age_txt = self.preview_corrector.correct(age_txt)
+                                age = [w for w in (_END_PUNCT.sub("", t) for t in age_txt.split()) if w]
+                                if STRIP_FILLERS:
+                                    age = drop_fillers(age, at_start=not self.overlay.typed)
+                                if DECAP_CAPS:
+                                    age = decap_interior(" ".join(age),
+                                                         after_sentence=self._prev_ended_sentence).split()
+                            show = streaming_prefix(ov_prev, words, eager_first=eager_now,
+                                                    at_start=at_start, stable=age)
+                            if self._alias_prefixes:
+                                # hold an in-progress multi-word alias ("V S code") off-screen until it
+                                # resolves to "VS Code" - reveals whole, never typed-then-retyped
+                                show = hold_alias_prefix(show, self._alias_prefixes)
+                            target = " ".join(show)
+                            before = self.overlay.typed
+                            if show and target != before:    # skip no-op previews (prefix unchanged)
+                                nb, _ = reconcile_words(before, target)
+                                # apply appends + SMALL live corrections; defer big tail rewrites to
+                                # commit so the line doesn't thrash live
+                                if not before or nb <= STREAM_FIX_MAX:
+                                    if self.overlay.reconcile(target):
+                                        if not before:
+                                            ov_eager = show[0]   # earliest word-0 shown (flicker metric)
+                                        corrected = nb > 0 and bool(before)
+                                        self.tr.ev("early_fix" if corrected else "lock",
+                                                   words=show, nb=nb, eager=not strict,
+                                                   audio_s=round(secs, 2))
+                                else:
+                                    self.tr.ev("deferred", nb=nb, audio_s=round(secs, 2))
+                            ov_prev = words
+                    elif txt.strip():
+                        log(f"\r[~]    {txt}")
+                except Exception as e:                 # never let a bad preview kill dictation
+                    log(f"[ERR]  preview failed: {e}")
+                    reset_overlay()
                 since_preview = 0.0
 
         # flush a sentence in progress on stop. Drain any audio still queued first - when
@@ -924,7 +938,11 @@ class LiveDictation:
                 except queue.Empty:
                     break
             if seg_seconds() >= MIN_SEG_S:
-                commit()
+                try:
+                    commit()
+                except Exception as e:     # a failing final commit must not kill teardown
+                    log(f"[ERR]  final commit failed: {e}")
+                    reset_overlay()
 
 
 def load_all_aliases():
@@ -1008,30 +1026,156 @@ def build_pipeline(terms):
     return CorrectionPipeline(stages)
 
 
-def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
-    """Global hotkey listener on macOS (needs Input Monitoring). The DICTATION start/stop
-    trigger is configurable (key + mode, read from ~/.dum/config.json); the ⌥ "flag a problem"
-    gesture stays hardcoded (double-tap LEFT ⌥) - out of scope for v1.
+def _build_evdev_hotkey(press, release):
+    """Linux: build a raw-input (evdev) hotkey listener that reads /dev/input directly.
 
-    `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "cmd_l" (default,
-    reproduces today's behavior exactly), "cmd_r", or "fn".
+    This works under Wayland (where pynput's X11 listener can't see global keys) and under
+    X11 alike. Returns a startable/stoppable object, or None if evdev is unavailable or no
+    readable keyboard device exists (typically because the user isn't in the `input` group -
+    `sudo usermod -aG input $USER` then log out/in). Reading is passive (we never grab the
+    device) so the keystrokes still reach the rest of the desktop.
+    """
+    try:
+        import evdev
+        from evdev import ecodes
+    except Exception:
+        return None
+
+    # evdev key code -> pynput-style token (covers every configurable trigger + the flag key)
+    code_to_token = {
+        ecodes.KEY_RIGHTCTRL: "ctrl_r",
+        ecodes.KEY_LEFTCTRL: "ctrl_l",
+        ecodes.KEY_RIGHTALT: "alt_r",
+        ecodes.KEY_LEFTALT: "alt_l",
+        ecodes.KEY_RIGHTMETA: "cmd_r",
+        ecodes.KEY_LEFTMETA: "cmd_l",
+    }
+    cat = {
+        ecodes.KEY_BACKSPACE: "backspace",
+        ecodes.KEY_DELETE: "delete",
+        ecodes.KEY_LEFT: "nav", ecodes.KEY_RIGHT: "nav", ecodes.KEY_UP: "nav",
+        ecodes.KEY_DOWN: "nav", ecodes.KEY_HOME: "nav", ecodes.KEY_END: "nav",
+        ecodes.KEY_PAGEUP: "nav", ecodes.KEY_PAGEDOWN: "nav",
+    }
+    wanted = set(code_to_token)  # only open devices that can emit a trigger/flag key
+
+    devices = []
+    perm_denied = False
+    for path in evdev.list_devices():
+        try:
+            dev = evdev.InputDevice(path)
+        except PermissionError:
+            # /dev/input/* is unreadable - the user isn't in the 'input' group (or
+            # hasn't logged out/in since being added). Remember it so we can tell the
+            # user exactly what to do instead of silently producing a dead hotkey.
+            perm_denied = True
+            continue
+        except Exception:
+            continue
+        # Skip ydotool's uinput virtual device: it replays the SYNTHETIC keystrokes dum
+        # itself injects while typing dictation (letters, Backspace/arrow corrections, the
+        # Ctrl of a Ctrl+V paste). Reading those back resets the pending double-tap - so
+        # the stop gesture stops registering the moment typing begins. We only want the
+        # user's real hardware here.
+        if "ydotool" in (dev.name or "").lower():
+            dev.close()
+            continue
+        try:
+            keys = dev.capabilities().get(ecodes.EV_KEY, [])
+        except PermissionError:
+            perm_denied = True
+            dev.close()
+            continue
+        except Exception:
+            dev.close()
+            continue
+        if any(c in wanted for c in keys):
+            devices.append(dev)
+        else:
+            dev.close()
+    if not devices:
+        if perm_denied:
+            # The keyboard devices exist but we couldn't read them. This is the Debian /
+            # Wayland gotcha: evdev needs the 'input' group, and group membership is only
+            # applied at login - so a fresh `usermod -aG input` does nothing until you log
+            # out and back in (a new terminal is not enough).
+            log("[!] evdev hotkey: cannot read your keyboards (/dev/input/* is "
+                "unreadable). The double-tap hotkey will NOT fire.")
+            log("    Fix: add yourself to the 'input' group, then LOG OUT and back in:")
+            log("        sudo usermod -aG input $USER")
+            log("    (a new terminal/SSH is NOT enough - the group is applied at login.)")
+        return None
+
+    stop_ev = threading.Event()
+
+    def _loop(dev):
+        try:
+            for event in dev.read_loop():
+                if stop_ev.is_set():
+                    break
+                if event.type != ecodes.EV_KEY:
+                    continue
+                token = code_to_token.get(event.code)
+                if event.value == 1:                     # press (2 == auto-repeat, ignored)
+                    press(token, "other" if token is not None else cat.get(event.code, "other"))
+                elif event.value == 0 and token is not None:
+                    release(token)                       # release
+        except Exception:
+            pass
+        finally:
+            try:
+                dev.close()
+            except Exception:
+                pass
+
+    class _EvdevHotkey:
+        def start(self):
+            for dev in devices:
+                threading.Thread(target=_loop, args=(dev,), daemon=True).start()
+            return self
+
+        def is_alive(self):
+            return not stop_ev.is_set()
+
+        def stop(self):
+            stop_ev.set()
+            for dev in devices:
+                try:
+                    dev.close()
+                except Exception:
+                    pass
+
+    return _EvdevHotkey()
+
+
+def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
+    """Global hotkey listener. The DICTATION start/stop trigger is configurable (key + mode,
+    read from ~/.dum/config.json); the Alt "flag a problem" gesture (double-tap LEFT Alt) stays
+    hardcoded - out of scope for v1.
+
+    `trigger_key` is a curated config token (see config.CURATED_KEYS), e.g. "ctrl_r" on Linux
+    (default double-tap RIGHT Ctrl), "cmd_l" on macOS (default double-tap LEFT Command), etc.
     `mode`:
       * "toggle" - a DOUBLE-TAP of the trigger key (two presses within DOUBLE_TAP_GAP, no other
         key between - so single presses and modifier+key shortcuts are untouched) flips
         start <-> stop. This is the original behavior.
       * "push"   - push-to-dictate: holding the trigger key starts recording, releasing it
         stops + commits. Wired through the same app.start()/app.stop() entry points.
-    Global (needs Input Monitoring)."""
-    from pynput import keyboard
+
+    Linux: pynput's global listener rides X11, which Wayland compositors hide from X clients, so
+    under Wayland the double-tap is dead. We therefore PREFER an evdev-based listener on Linux
+    (reads raw /dev/input - works under Wayland); we only fall back to pynput on X11 or when evdev
+    can't be used. evdev needs the `input` group: `sudo usermod -aG input $USER` then log out/in.
+    """
     import config as _config
 
     desc = _config.key_descriptor(trigger_key)
-    trig = getattr(keyboard.Key, desc["pynput"])   # the pynput Key for the chosen trigger
+    trig_token = desc["pynput"]                       # e.g. "ctrl_r" / "cmd_l"
+    flag_token = "alt_l" if trig_token != "alt_l" else None
 
     cmd = {"last": 0.0, "armed": False}       # armed = a first tap is waiting for its partner
-    opt = {"last": 0.0, "armed": False}       # the (hardcoded) ⌥ flag-a-problem double-tap
+    opt = {"last": 0.0, "armed": False}       # the (hardcoded) Alt flag-a-problem double-tap
     push_down = {"held": False}               # push mode: ignore key-auto-repeat between press/release
-    _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
 
     def _double(state, now):
         if state["armed"] and (now - state["last"]) <= DOUBLE_TAP_GAP:
@@ -1040,6 +1184,79 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
         state["last"] = now
         state["armed"] = True
         return False
+
+    # --- source-agnostic core: handlers take a normalized key TOKEN (pynput-style name) ---
+    def _press(token, category="other"):
+        now = time.monotonic()
+        # feed the dogfood activity monitor from this SINGLE listener (no second listener competing
+        # for the same keystream - on macOS two pynput listeners abort the process via TIS/TSM).
+        app.dogfood.record_key(category)
+        if token == trig_token:
+            if flag_token is not None:
+                opt["armed"] = False              # a trigger tap breaks a pending Alt double-tap
+            if mode == "push":
+                if not push_down["held"]:         # one physical press = one start (ignore auto-repeat)
+                    push_down["held"] = True
+                    app.start()
+            elif _double(cmd, now):               # toggle: start/stop on double-tap
+                app.toggle()
+        elif flag_token is not None and token == flag_token:
+            cmd["armed"] = False
+            if _double(opt, now):
+                app.flag_last_problem()
+        else:
+            cmd["armed"] = False                  # any other key breaks both pending double-taps
+            if flag_token is not None:
+                opt["armed"] = False
+
+    def _release(token):
+        if mode == "push" and token == trig_token and push_down["held"]:
+            push_down["held"] = False
+            app.stop()                            # release => stop + commit
+
+    # --- Linux: prefer evdev (works under Wayland); fall back to pynput (X11) ---
+    if sys.platform.startswith("linux"):
+        ev = _build_evdev_hotkey(_press, _release)
+        if ev is not None:
+            log(f"dictate: {desc['label']} - start/stop (toggle, evdev/raw input)")
+            log("double-tap LEFT Alt - report a bad transcription")
+            log("Ctrl+C to quit.")
+            ev.start()
+            if not block:
+                return ev
+            try:
+                while ev.is_alive():
+                    time.sleep(0.2)
+            except KeyboardInterrupt:
+                pass
+            ev.stop()
+            app.stop()
+            return ev
+
+    # --- pynput path (macOS, Windows, and Linux X11 fallback) ---
+    if sys.platform.startswith("linux"):
+        # If evdev (preferred on Linux) was unavailable we've already printed the
+        # permission cause above. pynput's global listener rides X11, which Wayland
+        # compositors hide from X clients - so under Wayland this fallback is dead.
+        st = os.environ.get("XDG_SESSION_TYPE", "").lower()
+        if st == "wayland" or os.environ.get("WAYLAND_DISPLAY"):
+            log("[!] Falling back to pynput, but pynput can't see global keys under "
+                "Wayland - the double-tap hotkey will NOT fire. Fix the evdev issue "
+                "above (input group + log out/in) so the raw-input listener is used.")
+    # pynput's keyboard backend imports an X11 connection at import time; on a pure
+    # Wayland session with no XWayland that raises. Degrade to "no hotkey" instead of
+    # letting the exception propagate and take the whole daemon/tray down.
+    try:
+        from pynput import keyboard
+    except Exception as e:
+        log(f"[!] pynput keyboard listener unavailable ({e}) - the double-tap hotkey "
+            "is disabled. On Wayland, use the evdev listener (add yourself to the "
+            "'input' group and log out/in).")
+        return None
+    _NAV = ("left", "right", "up", "down", "home", "end", "page_up", "page_down")
+
+    def _pynput_token(key):
+        return getattr(key, "name", None)
 
     def _key_category(key):
         # CONTENT-FREE: coarse category for the keystroke proxy, never the character.
@@ -1052,40 +1269,19 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
         return "other"
 
     def on_press(key):
-        now = time.monotonic()
-        # feed the dogfood activity monitor from this SINGLE listener (no second pynput listener -
-        # two would call macOS TIS/TSM from different threads and the OS aborts the process).
-        app.dogfood.record_key(_key_category(key))
-        if key == trig:
-            opt["armed"] = False              # a trigger tap breaks a pending ⌥ double-tap
-            if mode == "push":
-                if not push_down["held"]:     # one physical press = one start (ignore auto-repeat)
-                    push_down["held"] = True
-                    app.start()
-            else:                             # toggle: start/stop on double-tap
-                if _double(cmd, now):
-                    app.toggle()
-        elif key == keyboard.Key.alt_l and trig != keyboard.Key.alt_l:
-            cmd["armed"] = False
-            if _double(opt, now):
-                app.flag_last_problem()
-        else:
-            cmd["armed"] = False              # any other key breaks both pending double-taps
-            opt["armed"] = False
+        _press(_pynput_token(key), _key_category(key))
 
     def on_release(key):
-        if mode == "push" and key == trig and push_down["held"]:
-            push_down["held"] = False
-            app.stop()                        # release => stop + commit
+        _release(_pynput_token(key))
 
     if mode == "push":
         log(f"dictate: HOLD {desc['label']} to talk, release to stop + commit (push)")
-        log("double-tap left ⌥ - report a bad transcription")
+        log("double-tap LEFT Alt - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     else:
         log(f"dictate: {desc['label']} - start/stop (toggle)")
-        log("double-tap left ⌥ - report a bad transcription")
+        log("double-tap LEFT Alt - report a bad transcription")
         log("Ctrl+C to quit.")
         listener = keyboard.Listener(on_press=on_press)
     listener.start()
@@ -1118,7 +1314,8 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
 
     def _teardown():
         try:
-            listener.stop()
+            if listener is not None:
+                listener.stop()
         finally:
             app.stop()
             try:
