@@ -93,10 +93,8 @@ class PhoneticCorrector:
         for tok in dd:
             term = self._single(tok)
             if term:
-                lead = re.match(r"^[^\w]+", tok)
                 trail = re.search(r"[^\w]+$", tok)
-                out.append((lead.group(0) if lead else "") + term
-                           + (trail.group(0) if trail else ""))
+                out.append(term + (trail.group(0) if trail else ""))
             else:
                 out.append(tok)
         return re.sub(r"\s+", " ", " ".join(out)).strip()

@@ -274,16 +274,13 @@ class LinuxPlatform(Platform):
         if not text:
             return
         if self._session == "wayland":
-            # Wayland: ydotool (if its daemon is responsive), else wtype (daemon-less,
-            # Debian-friendly), else xdotool under XWayland, else pynput.
+            # Wayland: ydotool (if its daemon is responsive), else xdotool under XWayland,
+            # else wtype (daemon-less, Debian-friendly), else pynput.
+            # Order matters: xdotool is checked before wtype because wtype silently exits
+            # non-zero on GNOME/KDE Wayland (most Wayland desktops) without typing anything,
+            # and we must not return success on a failed wtype call.
             if self._ydotool_ready() and self._run_ydotool(["ydotool", "type", text]):
                 return
-            if self._has_wtype:
-                try:
-                    subprocess.run(["wtype", text], timeout=5.0, capture_output=True)
-                    return
-                except Exception:
-                    pass
             # XWayland fallback: xdotool (and pynput) reach X11/XWayland apps even in a
             # Wayland session as long as $DISPLAY is set.
             if self._xdotool_usable():
@@ -291,6 +288,20 @@ class LinuxPlatform(Platform):
                     r = subprocess.run(
                         ["xdotool", "type", "--clearmodifiers", "--", text],
                         timeout=5.0, capture_output=True)
+                    if r.returncode == 0:
+                        return
+                except Exception:
+                    pass
+            # wtype: daemon-less Wayland typing tool. Debian (and some other distros)
+            # don't package ydotool at all, so wtype is the only working Wayland typing
+            # backend there. It can type UTF-8 text but cannot send raw keycodes
+            # (Backspace / arrows / Ctrl+V), so it covers sentence typing but not the
+            # live overlay's character edits or paste - those still need ydotool.
+            # Check returncode: wtype exits non-zero on GNOME/KDE Wayland without typing,
+            # so we must not return success on failure.
+            if self._has_wtype:
+                try:
+                    r = subprocess.run(["wtype", text], timeout=5.0, capture_output=True)
                     if r.returncode == 0:
                         return
                 except Exception:
@@ -478,7 +489,9 @@ class LinuxPlatform(Platform):
     def _can_paste(self):
         """Ctrl+V paste routes through xdotool (X11/XWayland) or ydotool (Wayland). On a
         pure-Wayland session with neither, there's no working paste, so callers should
-        type_text instead."""
+        type_text instead. xdotool is NOT counted as paste-capable on Wayland: it only
+        reaches X11/XWayland apps (gated on $DISPLAY, which GNOME/KDE always set), so
+        Ctrl+V into a native Wayland app silently does nothing."""
         if self._session == "wayland":
-            return self._ydotool_ready() or self._xdotool_usable()
+            return self._ydotool_ready()
         return True

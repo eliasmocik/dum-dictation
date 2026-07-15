@@ -101,6 +101,13 @@ class Platform:
         behaviour). MacPlatform reports True; the cross-platform fallback can't."""
         return False
 
+    def supports_overlay(self):
+        """True if the live overlay's character-level edits (Backspace/arrows) work.
+        Default = True (macOS/Windows use native paths that always work). LinuxPlatform
+        overrides: on Wayland without ydotool the overlay can't send keycodes, so it
+        returns False and callers fall back to commit-only typing."""
+        return True
+
 
 class FallbackPlatform(Platform):
     """Runs anywhere: paste by synthetic typing (pynput), no sounds, no focus guard."""

@@ -110,10 +110,8 @@ def git_tracked_sources(root):
     root = Path(root)
     try:
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
-                             capture_output=True, text=True, check=True,
-                             timeout=30.0).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError,
-            subprocess.TimeoutExpired):
+                             capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return
     for rel in out.split("\0"):
         if not rel or Path(rel).suffix not in SOURCE_EXTS:
@@ -167,10 +165,8 @@ def aliases_to_pack(aliases):
 def _git(args, cwd):
     try:
         return subprocess.run(["git", "-C", str(cwd)] + args,
-                              capture_output=True, text=True, check=True,
-                              timeout=10.0).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError,
-            subprocess.TimeoutExpired):
+                              capture_output=True, text=True, check=True).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return None
 
 

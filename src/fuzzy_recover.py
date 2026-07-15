@@ -96,10 +96,8 @@ def recover(text, alias_pairs, max_fuzzy=1, index=None):
     while i < len(toks):
         if i in repl:
             n, want, inp, say = repl[i]
-            lead = re.match(r"^[^\w]+", toks[i])
             trail = re.search(r"[^\w]+$", toks[i + n - 1])
-            out.append((lead.group(0) if lead else "") + want
-                       + (trail.group(0) if trail else ""))
+            out.append(want + (trail.group(0) if trail else ""))
             events.append((inp, want, say))
             i += n
         else:
