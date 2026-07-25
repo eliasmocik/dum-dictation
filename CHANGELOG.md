@@ -5,6 +5,19 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- `./setup` no longer dead-ends when the machine has no supported Python: as a last resort (after an
+  existing `.venv`, an already-vendored copy, and any supported system Python) it downloads a pinned,
+  sha256-verified CPython (python-build-standalone 20260718, CPython 3.12.13) into a gitignored
+  `./.python/`. No sudo, nothing written outside the repo folder, no PATH/shell/registry changes.
+
+### Changed
+- Python support widened from "3.12 exactly" to **3.12, 3.13 or 3.14** on macOS/Linux, and **3.12 or
+  3.13** on Windows (the Windows-only `pywin32==308` pin publishes no cp314 wheel; every other pin
+  does). The full gate + bench ran on all three minors with identical WER and IT-term recall.
+- CI runs the unit gate as a matrix over 3.12/3.13/3.14 (`fail-fast: false`) so the widened range
+  can't silently regress.
+
 ## [0.1.1] - 2026-07-13
 
 Maintenance: make the project easier to trust and contribute to. No behaviour change.

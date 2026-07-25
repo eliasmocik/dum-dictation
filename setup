@@ -7,7 +7,9 @@
 # pre-pulls the on-device correction LLM, then prints the macOS permissions you
 # must grant. After it finishes, run ./dum.
 #
-# macOS, Apple Silicon, Python 3.12.
+# macOS (Apple Silicon) or Linux; Windows uses setup.ps1. Works with any CPython in
+# $PY_SUPPORTED below - and if the machine has none, setup fetches its own into ./.python
+# rather than dead-ending on a version mismatch.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -26,35 +28,168 @@ if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" != "arm64" ]; then
 fi
 
 echo "==> 1/5  Python venv + pinned dependencies"
-# Hard requirement: CPython 3.12.x. Several pins (numpy, sherpa-onnx, mlx-lm) ship wheels
-# only for 3.12, so any other Python dies mid-install with a cryptic compile error.
-py_is_312() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)' 2>/dev/null; }
+# Which CPython minors we support. Every pin in requirements.txt publishes wheels for all
+# of these (sherpa-onnx / numpy / rapidfuzz / jellyfish / pillow / pyobjc ship cp312+cp313+
+# cp314; llama-cpp-python's prebuilt wheel is py3-none, i.e. ABI-independent). This list is
+# the source of truth - KEEP IT IN SYNC with the matrix in .github/workflows/tests.yml,
+# which is what actually PROVES a minor is safe. Wheel availability alone is not proof.
+PY_SUPPORTED="3.12 3.13 3.14"
+# The interpreter we vendor when the machine has no supported Python, so ./setup can never
+# dead-end on "your python is the wrong version" (the #1 fresh-machine failure after the
+# llama-cpp source build). python-build-standalone is the same relocatable CPython that uv
+# ships; pinned by release tag + sha256 so the download is reproducible and verified.
+PBS_TAG=20260718
+PBS_PY=3.12.13
+VENDOR_ROOT=".python"
+VENDOR_PY="$VENDOR_ROOT/python/bin/python3"
+
+py_minor() { "$1" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true; }
+py_supported() {
+  local v
+  v="$(py_minor "$1")"
+  [ -n "$v" ] || return 1
+  case " $PY_SUPPORTED " in (*" $v "*) ;; (*) return 1 ;; esac
+  # Debian/Ubuntu split the venv module into a separate python3.X-venv package, so a Python
+  # can be the right VERSION and still be unable to build a usable venv. Reject those here
+  # rather than half-building a pip-less .venv - the caller then falls through to vendoring.
+  "$1" -c 'import ensurepip, venv' >/dev/null 2>&1 || return 1
+  return 0
+}
+sha256_of() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else openssl dgst -sha256 "$1" | awk '{print $NF}'; fi
+}
+
+# Download a known-good CPython into the repo. Touches nothing outside this folder, needs
+# no sudo, and never edits the user's shell profile or PATH.
+vendor_python() {
+  local triple variant sha url tarball got
+  case "$(uname -s):$(uname -m)" in
+    Darwin:arm64)  triple=aarch64-apple-darwin;  variant=install_only
+      sha=62aeee6161d57303a71a138b75fd5cc6fb8c89c4b1d9c7f0a052d89fa0b6652b ;;
+    Darwin:x86_64) triple=x86_64-apple-darwin;   variant=install_only
+      sha=10b47148de86f9d87ba6e96a3db606ced90a206a3454d7d6d8fa68536a05d81f ;;
+    Linux:x86_64)  triple=x86_64-unknown-linux-gnu;  variant=install_only_stripped
+      sha=5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79 ;;
+    Linux:aarch64|Linux:arm64) triple=aarch64-unknown-linux-gnu; variant=install_only_stripped
+      sha=f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9 ;;
+    *) echo "    [!] no prebuilt CPython for $(uname -s)/$(uname -m)."; return 1 ;;
+  esac
+  # The Linux builds link glibc; musl systems (Alpine) must supply their own Python.
+  if [ "$(uname -s)" = "Linux" ] && ls /lib/ld-musl-* >/dev/null 2>&1; then
+    echo "    [!] musl libc detected - the prebuilt CPython is glibc-only."
+    return 1
+  fi
+  tarball="cpython-${PBS_PY}+${PBS_TAG}-${triple}-${variant}.tar.gz"
+  url="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/${tarball}"
+  mkdir -p "$VENDOR_ROOT"
+  echo "    downloading CPython $PBS_PY for $triple (~25 MB) ..."
+  # --connect-timeout: curl's default is 300s, so a blackholed route (captive portal, corporate
+  # firewall) makes setup look hung for 5 minutes before the friendly message below.
+  # --speed-limit/--speed-time: bail if the transfer stalls under 1 KB/s for 60s. NOT --max-time,
+  # which would also kill a legitimately slow download on a thin connection.
+  curl -L --fail --connect-timeout 20 --retry 2 --speed-limit 1024 --speed-time 60 \
+       -o "$VENDOR_ROOT/$tarball" "$url" || {
+    echo "    [!] download failed - check your network. URL was:"
+    echo "        $url"
+    return 1
+  }
+  got="$(sha256_of "$VENDOR_ROOT/$tarball")"
+  if [ "$got" != "$sha" ]; then
+    echo "    [!] checksum mismatch on $tarball - refusing to use it."
+    echo "        expected $sha"
+    echo "        got      $got"
+    rm -f "$VENDOR_ROOT/$tarball"
+    return 1
+  fi
+  # Wipe any earlier vendored tree first: tar MERGES over an existing dir, so a leftover
+  # lib/python3.X/ from a different pin would linger next to the new one.
+  rm -rf "$VENDOR_ROOT/python"
+  tar -xzf "$VENDOR_ROOT/$tarball" -C "$VENDOR_ROOT" || {
+    echo "    [!] extract failed (corrupt download?) - clean up and re-run:"
+    echo "        rm -rf $VENDOR_ROOT && ./setup"
+    return 1
+  }
+  rm -f "$VENDOR_ROOT/$tarball"
+  [ -x "$VENDOR_PY" ] || { echo "    [!] vendored CPython missing $VENDOR_PY"; return 1; }
+  return 0
+}
+
+# A .venv whose interpreter no longer runs (repo moved/renamed, or the system Python it was
+# built from was upgraded away) is worse than no venv - every later step fails obscurely.
+if [ -e .venv ] && [ -z "$(py_minor "$PY")" ]; then
+  echo "    [!] .venv exists but its Python no longer runs (repo moved, or the Python it was"
+  echo "        built from was removed/upgraded). Rebuild it:"
+  echo "        rm -rf .venv && ./setup"
+  exit 1
+fi
+
 if [ ! -x "$PY" ]; then
-  PYBIN="$(command -v python3.12 || command -v python3 || true)"
+  # Prefer, in order: an already-vendored CPython, then any supported system Python (probed
+  # OLDEST-first - 3.12 is the best-tested pin, so it wins when several are installed), then
+  # vendor one.
+  PYBIN=""
+  if [ -x "$VENDOR_PY" ] && py_supported "$VENDOR_PY"; then
+    PYBIN="$VENDOR_PY"
+  else
+    for cand in python3.12 python3.13 python3.14 python3; do
+      found="$(command -v "$cand" || true)"
+      if [ -n "$found" ] && py_supported "$found"; then PYBIN="$found"; break; fi
+    done
+  fi
   if [ -z "$PYBIN" ]; then
-    echo "    [!] no python3 on PATH - Python 3.12 is required."
-    echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
-    echo "        Then re-run ./setup."
-    exit 1
+    echo "    no supported Python found on this machine (need one of: $PY_SUPPORTED)."
+    echo "    fetching a private copy into ./$VENDOR_ROOT - your system Python is left alone."
+    if vendor_python; then
+      PYBIN="$VENDOR_PY"
+    else
+      echo "    [!] couldn't vendor a Python, and none of $PY_SUPPORTED is installed."
+      echo "        Install one yourself, then re-run ./setup:"
+      echo "        macOS:  brew install python@3.12"
+      echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+      exit 1
+    fi
   fi
-  if ! py_is_312 "$PYBIN"; then
-    echo "    [!] Python 3.12 required, but $PYBIN is $("$PYBIN" -V 2>&1)."
-    echo "        macOS:  brew install python@3.12"
-    echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
-    echo "        Then re-run ./setup."
-    exit 1
+  echo "    creating .venv with $PYBIN ($("$PYBIN" -V 2>&1))"
+  # The ensurepip/venv probe in py_supported() catches the common Debian case, but a Python
+  # can still pass it and fail to actually BUILD a venv (distro-stripped ensurepip._bundled
+  # wheels, a broken bundled pip). Don't dead-end there - that's the whole promise of this
+  # block - fall back to vendoring, unless the vendored copy is what just failed.
+  if ! "$PYBIN" -m venv .venv; then
+    rm -rf .venv
+    if [ "$PYBIN" != "$VENDOR_PY" ]; then
+      echo "    [!] $PYBIN couldn't build a venv (see the error above) - falling back to a"
+      echo "        private copy of Python; your system one is left alone."
+      # Keep these two failures separate: "couldn't download" and "downloaded but can't build
+      # a venv" need completely different advice, and telling an offline user to delete and
+      # retry just loops them through the same failure.
+      if ! vendor_python; then
+        echo "    [!] couldn't fetch a private Python either (see the error above)."
+        echo "        Install a supported Python yourself, then re-run ./setup:"
+        echo "        macOS:  brew install python@3.12"
+        echo "        Linux:  sudo apt install python3.12 python3.12-venv  (or your distro's equivalent)"
+        exit 1
+      fi
+      if ! "$VENDOR_PY" -m venv .venv; then
+        echo "    [!] the vendored Python couldn't build a venv either. Clean up and retry:"
+        echo "        rm -rf .venv $VENDOR_ROOT && ./setup"
+        exit 1
+      fi
+    else
+      echo "    [!] the vendored Python couldn't build a venv (see the error above)."
+      echo "        Clean up and retry:  rm -rf .venv $VENDOR_ROOT && ./setup"
+      exit 1
+    fi
   fi
-  echo "    creating .venv with $PYBIN"
-  "$PYBIN" -m venv .venv
-elif ! py_is_312 "$PY"; then
-  echo "    [!] .venv exists but is $("$PY" -V 2>&1), not 3.12 - rebuild it:"
+elif ! py_supported "$PY"; then
+  echo "    [!] .venv is $("$PY" -V 2>&1), which isn't supported (need one of: $PY_SUPPORTED)."
   echo "        rm -rf .venv && ./setup"
   exit 1
 fi
 "$PY" -m pip install --upgrade pip >/dev/null || {
-  echo "    [!] this .venv has no working pip (a partial venv - common on Debian/Ubuntu without"
-  echo "        python3.12-venv). Install it (sudo apt install python3.12-venv), then rebuild:"
+  echo "    [!] this .venv has no working pip (a partial venv). Rebuild it - setup will fall"
+  echo "        back to vendoring its own Python if your system one can't build a venv:"
   echo "        rm -rf .venv && ./setup"
   exit 1
 }
@@ -90,7 +225,8 @@ if [ -f "$PARAKEET_DIR/encoder.int8.onnx" ] && [ -f "$PARAKEET_DIR/tokens.txt" ]
 else
   mkdir -p models
   echo "    downloading $PARAKEET_TARBALL (~480 MB) ..."
-  curl -L --fail -o "models/$PARAKEET_TARBALL" "$PARAKEET_URL" || {
+  curl -L --fail --connect-timeout 20 --retry 2 --speed-limit 1024 --speed-time 60 \
+       -o "models/$PARAKEET_TARBALL" "$PARAKEET_URL" || {
     echo "    [!] model download failed - check your network, then re-run ./setup"
     exit 1
   }
@@ -114,7 +250,11 @@ echo ""
 echo "==> 3/5  Pre-pull the on-device correction LLM ($LLM_MODEL)"
 if [ "$(uname)" = "Darwin" ]; then
   echo "    (avoids a multi-hundred-MB surprise download on first dictation)"
-  .venv/bin/hf download "$LLM_MODEL" >/dev/null || {
+  # Call the library, NOT .venv/bin/hf: console scripts bake an ABSOLUTE shebang at install
+  # time, so renaming or moving the checkout breaks them ("bad interpreter") while the venv
+  # itself still works. `$PY -m`-style invocation is immune, and that matters more now that
+  # a vendored interpreter lives inside the repo.
+  "$PY" -c "from huggingface_hub import snapshot_download; snapshot_download('$LLM_MODEL')" >/dev/null || {
     echo "    [!] LLM pre-pull failed - check your network, then re-run ./setup"
     echo "        (or skip for now: it also downloads on first --llm dictation)"
     exit 1

@@ -1,4 +1,5 @@
-# dum dictation - pinned runtime + test dependencies (Python 3.12).
+# dum dictation - pinned runtime + test dependencies (CPython 3.12, 3.13 or 3.14; on Windows
+# 3.12 or 3.13 only - see the pywin32 pin below).
 # Cross-platform: the engine, audio, hotkey and tray deps install everywhere; the
 # OS-native bridges (pyobjc on macOS, pywin32 on Windows) and the MLX homophone LLM
 # (Apple Silicon only) are guarded by environment markers, so `pip install -r
@@ -44,6 +45,9 @@ pyobjc-framework-Quartz==12.2 ; sys_platform == "darwin"
 
 # Windows native APIs: win32clipboard (clipboard save/restore), win32gui/win32process
 # (focused-app detection). Synthetic Unicode typing uses ctypes SendInput (no dep).
+# GOTCHA: this pin is what caps Windows at Python 3.13 - pywin32 308 publishes no cp314 wheel,
+# so 3.14 would fail here at `pip install -r`. Every other pin already has cp314 wheels, so
+# bumping this to >=311 is all that's needed to add '3.14' to $PySupported in setup.ps1.
 pywin32==308 ; sys_platform == "win32"
 
 # Correction-pipeline + test/bench support

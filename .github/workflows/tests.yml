@@ -9,18 +9,37 @@ on:
 jobs:
   unit:
     # macOS (Apple Silicon) is the flagship platform, so that's where the gate runs.
+    # The matrix is what actually PROVES the supported-Python range in `setup`
+    # (PY_SUPPORTED="3.12 3.13 3.14") - keep the two lists in sync. Windows is capped at
+    # 3.13 by the pywin32 pin, but this job is macOS-only so it covers the full range.
     runs-on: macos-14
+    strategy:
+      # One minor failing should still report the others - that's the whole point of the matrix.
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    name: unit (py${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
+          # setup-python's pip cache key already includes the resolved Python version, so the
+          # three matrix legs get three separate caches (no cross-version wheel bleed).
           cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Install test dependencies
         # Unit-test subset only - no models, no LLM (llama-cpp/mlx), no corpus audio. These are
-        # the deps the pure-logic tests import; pins mirror requirements.txt (the source of truth).
+        # the deps the pure-logic tests import.
+        #
+        # NOTE: this list is hand-rolled on purpose - running `./setup` here would download the
+        # ~480MB Parakeet model, which `scripts/test --unit` explicitly doesn't need. The cost of
+        # that shortcut is that these pins MUST MIRROR requirements.txt (the source of truth);
+        # bump a version there and update it here in the same commit, or CI drifts off the real
+        # dependency set. It also means `./setup`'s own version gate isn't exercised by CI - the
+        # matrix above is what covers the supported range instead.
         run: |
           python -m venv .venv
           .venv/bin/pip install --upgrade pip

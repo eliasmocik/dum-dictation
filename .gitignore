@@ -1,5 +1,7 @@
 # Python env + caches
 .venv/
+# Vendored CPython (~66 MB), fetched by ./setup only when the machine has no supported Python.
+.python/
 __pycache__/
 *.pyc
 

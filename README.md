@@ -22,7 +22,8 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 - **macOS** (Apple Silicon, M-series) - primary, best-tested
 - **Windows 10/11** - works, still beta (built and tested by a contributor) ([setup](#on-windows))
 - **Linux** (X11) - experimental, looking for a contributor ([setup](#on-linux))
-- Python 3.12
+- Python 3.12, 3.13 or 3.14 (3.12 or 3.13 on Windows). No Python at all? `./setup` downloads its
+  own private copy into the repo folder - nothing to install first.
 
 ## Install (macOS)
 
@@ -72,7 +73,8 @@ Auto-start re-asks for the three permissions (this time for the venv `python`).
 
 ## On Windows
 
-In **PowerShell** (Python 3.12 on your PATH):
+In **PowerShell** (Python 3.12 or 3.13 on your PATH - 3.14 isn't supported on Windows yet; with no
+Python at all, `setup.ps1` fetches its own):
 
 ```powershell
 git clone https://github.com/eliasmocik/dum-dictation.git
