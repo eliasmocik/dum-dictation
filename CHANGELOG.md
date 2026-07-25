@@ -18,6 +18,18 @@ versions follow [SemVer](https://semver.org).
 - CI runs the unit gate as a matrix over 3.12/3.13/3.14 (`fail-fast: false`) so the widened range
   can't silently regress.
 
+### Fixed
+- `./setup` invoked `.venv/bin/hf`, a console script whose shebang bakes an absolute interpreter
+  path at install time, so renaming or moving the checkout broke the LLM pre-pull with
+  "bad interpreter". Calls `snapshot_download()` through the venv Python instead.
+- Both `curl` downloads now bound connect time and stall (`--connect-timeout 20 --retry 2
+  --speed-limit 1024 --speed-time 60`); curl's 300s default made setup look hung for five
+  minutes behind a captive portal.
+
+### Security
+- pillow 12.2.0 -> 12.3.0, clearing 13 advisories (10 high, 3 moderate). Pillow is only used to
+  render the tray icon, so exposure was low, but the bump is free.
+
 ## [0.1.1] - 2026-07-13
 
 Maintenance: make the project easier to trust and contribute to. No behaviour change.
