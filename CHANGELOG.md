@@ -19,6 +19,18 @@ versions follow [SemVer](https://semver.org).
   can't silently regress.
 
 ### Fixed
+- `./setup` pre-pulled the **wrong** correction LLM. The default backend moved to llama.cpp/GGUF on
+  every OS, but setup still fetched the MLX weights - so a fresh install downloaded ~680MB that
+  nothing ever loads, while the ~770MB GGUF the loader actually wants arrived silently on the
+  consumer thread during the first dictation (the first hotkey press looked like a hang). Setup now
+  asks `llm_backend.default_model_ref()` what the default backend will load, so the pre-pull and the
+  loader share one source of truth and cannot drift again; `tests/test_llm_backend.py` guards it.
+  The pre-pull also now runs on every OS, matching the backend it fetches for.
+- A failed LLM pre-pull no longer aborts `./setup`. The step printed "or skip for now: it also
+  downloads on first --llm dictation" and then ran `exit 1` on the very next line, so one flaky
+  HuggingFace connection threw away an otherwise finished install and the advice was unreachable.
+  It now warns and continues - the model is genuinely optional, since `_build_llm()` already
+  degrades to the phonetic + alias layers when it can't load.
 - `./setup` invoked `.venv/bin/hf`, a console script whose shebang bakes an absolute interpreter
   path at install time, so renaming or moving the checkout broke the LLM pre-pull with
   "bad interpreter". Calls `snapshot_download()` through the venv Python instead.

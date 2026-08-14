@@ -10,7 +10,8 @@ the path that must behave identically on Mac/Win/Linux once a portable backend l
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from llm_backend import LLMBackend, MlxBackend, make_backend, _default_backend_name
+from llm_backend import (LLMBackend, MlxBackend, make_backend, _default_backend_name,
+                         default_model_ref, DEFAULT_GGUF_REPO, DEFAULT_GGUF_FILE)
 from llm_stage import LLMCorrector
 
 TERMS = ["git", "grep", "kubectl", "sudo", "nginx", "PostgreSQL"]
@@ -83,6 +84,50 @@ check("max_tokens forwarded to backend", mt == 48)
 
 # 8) MlxBackend exists and conforms to the interface (don't instantiate - needs Apple Silicon + model)
 check("MlxBackend is an LLMBackend", issubclass(MlxBackend, LLMBackend))
+
+# 9) ./setup's pre-pull target must track the DEFAULT backend, not a hardcoded model id.
+#    This is the drift guard: setup used to pre-pull the MLX weights while the default
+#    backend loaded a GGUF, so ~680MB downloaded that nothing ever read and the ~770MB the
+#    loader DID want arrived silently mid-first-dictation. Flip _default_backend_name()
+#    without teaching default_model_ref() about it and these fail loudly.
+_env_keys = ("DUM_LLM_BACKEND", "DUM_LLM_GGUF_PATH")
+_saved = {k: os.environ.pop(k, None) for k in _env_keys}
+try:
+    kind, repo, fname = default_model_ref()
+    check("pre-pull resolves to a downloadable ref by default", kind in ("hf-file", "hf-repo"))
+    check("pre-pull target matches the default backend's weights",
+          (kind, repo, fname) == ("hf-file", DEFAULT_GGUF_REPO, DEFAULT_GGUF_FILE))
+
+    # the two must agree by construction, whichever way the default is flipped
+    _expected = {"llamacpp": "hf-file", "mlx": "hf-repo"}[_default_backend_name()]
+    check("pre-pull kind agrees with _default_backend_name()", kind == _expected)
+
+    # explicit overrides resolve to each backend's own weights
+    check("mlx override pre-pulls the MLX snapshot",
+          default_model_ref("mlx") == ("hf-repo", MlxBackend.DEFAULT_MODEL, None))
+    check("llamacpp override pre-pulls the single GGUF file",
+          default_model_ref("llamacpp") == ("hf-file", DEFAULT_GGUF_REPO, DEFAULT_GGUF_FILE))
+    check("gguf alias resolves like llamacpp",
+          default_model_ref("gguf") == default_model_ref("llamacpp"))
+
+    # a user-supplied local GGUF needs no download at all
+    os.environ["DUM_LLM_GGUF_PATH"] = "/tmp/some-model.gguf"
+    check("local DUM_LLM_GGUF_PATH short-circuits the download",
+          default_model_ref("llamacpp") == ("local", "/tmp/some-model.gguf", None))
+    os.environ.pop("DUM_LLM_GGUF_PATH")
+
+    # unknown names must not silently fall back to downloading something
+    try:
+        default_model_ref("bogus")
+        check("default_model_ref rejects unknown name", False)
+    except ValueError:
+        check("default_model_ref rejects unknown name", True)
+finally:
+    for k, v in _saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 print("\n" + ("ALL CHECKS PASSED" if not fail else "SOME CHECKS FAILED"))
 sys.exit(fail)

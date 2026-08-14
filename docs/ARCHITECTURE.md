@@ -27,7 +27,12 @@ Flow: capture => VAD => recognize => correct => insert. Optional local telemetry
 6. Protected words: guards canonical forms from being re-mangled.
 7. Sentence capitalization: last, because alias/LLM stages may lowercase a leading word.
 
-LLM stage (`llm_stage.py`): 4-bit Llama-3.2-1B via [`mlx_lm`](https://github.com/ml-explore/mlx), Apple Silicon only. Fixes homophone classes (`grep`/`grab`, `git`/`get`). Only edits when confident; built lazily on the consumer thread. Default model `mlx-community/Llama-3.2-1B-Instruct-4bit`, override with `DUM_LLM_MODEL`.
+LLM stage (`llm_stage.py`): Llama-3.2-1B fixing homophone classes (`grep`/`grab`, `git`/`get`). Only edits when confident; built lazily on the consumer thread. Inference sits behind the `LLMBackend` seam (`llm_backend.py`), which is the only platform-specific part - all gating/validation lives once in `LLMCorrector`:
+
+- **`llamacpp`** (default on **every** OS): `Llama-3.2-1B-Instruct-Q4_K_M.gguf` via `llama-cpp-python`. Metal on macOS, GPU/CPU elsewhere - so dictation behaves identically cross-platform. Override the weights with `DUM_LLM_GGUF_REPO`/`DUM_LLM_GGUF_FILE`, or point at a local file with `DUM_LLM_GGUF_PATH`.
+- **`mlx`** (opt-in, Apple Silicon only): 4-bit `mlx-community/Llama-3.2-1B-Instruct-4bit` via [`mlx_lm`](https://github.com/ml-explore/mlx). Select with `DUM_LLM_BACKEND=mlx`; override the model with `DUM_LLM_MODEL`.
+
+`./setup` pre-pulls whichever of those the *default* backend would load, by asking `llm_backend.default_model_ref()` rather than naming a model - one source of truth, so the pre-pull can't drift from the loader (guarded by `tests/test_llm_backend.py`).
 
 ## Insertion: overlay vs paste
 

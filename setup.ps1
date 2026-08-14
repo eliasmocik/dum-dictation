@@ -3,8 +3,9 @@
 #   .\setup.ps1
 #
 # Creates .venv, installs pinned deps (the Mac-only MLX/pyobjc wheels are skipped via
-# environment markers; pywin32 is installed), downloads the Parakeet speech model, then
-# prints the one permission to grant. After it finishes, run .\dum.ps1.
+# environment markers; pywin32 is installed), downloads the Parakeet speech model and
+# pre-pulls the on-device correction LLM, then prints the one permission to grant.
+# After it finishes, run .\dum.ps1.
 #
 # Windows 10/11. Works with any CPython in $PySupported below; if the machine has none,
 # setup fetches its own into .\.python rather than dead-ending on a version mismatch.
@@ -16,7 +17,7 @@ $ParakeetDir = "models\sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
 $Tarball = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
 $Url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$Tarball"
 
-Write-Host "==> 1/4  Python venv + pinned dependencies"
+Write-Host "==> 1/5  Python venv + pinned dependencies"
 # Which CPython minors we support on Windows. NOTE this is deliberately one SHORT of the
 # mac/Linux list in `setup` (which allows 3.14): pywin32==308 - a Windows-only pin - ships
 # no cp314 wheel, so 3.14 would die at `pip install -r`. Every other pin has cp314 wheels,
@@ -231,7 +232,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "==> 2/4  Parakeet speech model"
+Write-Host "==> 2/5  Parakeet speech model"
 if ((Test-Path "$ParakeetDir\encoder.int8.onnx") -and (Test-Path "$ParakeetDir\tokens.txt")) {
     Write-Host "    already present at $ParakeetDir - skipping download"
 } else {
@@ -250,13 +251,46 @@ if ($missing) { Write-Host "    [!] Parakeet model is incomplete - re-run .\setu
 Write-Host "    ok: 3 .onnx files + tokens.txt in $ParakeetDir"
 
 Write-Host ""
-Write-Host "==> 3/4  Microphone permission"
+Write-Host "==> 3/5  Pre-pull the on-device correction LLM"
+Write-Host "    (avoids a multi-hundred-MB surprise download on first dictation)"
+# Windows runs the SAME llama.cpp/GGUF backend as macOS and Linux, and .\dum.ps1 passes --llm,
+# so without this the ~770MB GGUF lands silently on the consumer thread during the user's first
+# dictation - the first hotkey press just looks like a hang. Ask llm_backend which weights the
+# default backend loads rather than naming a model here; that duplication is exactly what let
+# the macOS pre-pull drift onto the wrong model. See setup (bash) step 3/5 - keep the two in sync.
+$env:PYTHONPATH = (Join-Path $PSScriptRoot "src")
+# EAP relaxed around the call - load-bearing, and the same guard used by Get-PyMinor /
+# Install-VendoredPython above. On stock Windows PowerShell 5.1, a native command writing to
+# stderr under ErrorActionPreference=Stop raises a TERMINATING NativeCommandError. A failed
+# pre-pull prints a Python traceback to stderr, so without this the "continue anyway" branch
+# below would never be reached and setup.ps1 would abort - re-creating, on Windows, the exact
+# hard-fail this step exists to avoid. (PowerShell 7 dropped that behaviour, so it looks fine
+# when tested with pwsh - test the failure path on 5.1, not just 7.)
+# LASTEXITCODE is reset first: if $py resolved to a function/alias rather than a real exe it
+# is never updated, and a stale 0 would read as success.
+$prevEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+$global:LASTEXITCODE = 0
+try { & $py -c "import llm_backend; llm_backend.prefetch_default_model()" | Out-Null }
+finally { $ErrorActionPreference = $prevEap }
+if ($LASTEXITCODE -ne 0) {
+    # NON-FATAL by design: live.py's _build_llm() catches a failed load, disables the stage and
+    # keeps dictating on the phonetic + alias layers. One flaky HuggingFace connection must not
+    # throw away an otherwise finished install.
+    Write-Host "    [!] LLM pre-pull failed (network or HuggingFace access?) - CONTINUING ANYWAY."
+    Write-Host "        Dictation works without it; the phonetic + alias layers still correct terms."
+    Write-Host "        To get it: re-run .\setup.ps1, or just start dictating - it downloads on first use."
+} else {
+    Write-Host "    ok"
+}
+
+Write-Host ""
+Write-Host "==> 4/5  Microphone permission"
 Write-Host "    Settings -> Privacy and security -> Microphone: turn ON 'Let desktop apps access your microphone'."
 Write-Host "    (No Accessibility / Input-Monitoring step like macOS. SendInput typing and the global"
 Write-Host "     double-tap hotkey work without extra grants.)"
 
 Write-Host ""
-Write-Host "==> 4/4  Import sanity check (dependencies + the engine itself)"
+Write-Host "==> 5/5  Import sanity check (dependencies + the engine itself)"
 & $py -c "import sherpa_onnx, sounddevice, pynput, pystray, llama_cpp; print('    ok: dependencies import (incl. llama_cpp)')"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "    [!] dependency import failed (see error above) - re-run .\setup.ps1;"

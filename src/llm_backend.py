@@ -151,3 +151,42 @@ def make_backend(model_id, name=None):
     if name in ("llamacpp", "llama", "gguf"):
         return LlamaCppBackend()
     raise ValueError(f"unknown LLM backend: {name!r} (known: mlx, llamacpp)")
+
+
+def default_model_ref(name=None):
+    """Describe the weights make_backend() would load, WITHOUT loading them.
+
+    Returns (kind, repo_or_path, filename):
+      ("hf-file", repo, filename)  - one GGUF file from the Hub   (llamacpp)
+      ("hf-repo", repo, None)      - a whole Hub snapshot          (mlx)
+      ("local",   path, None)      - already on disk, nothing to fetch (DUM_LLM_GGUF_PATH)
+
+    Exists so `./setup` pre-pulls EXACTLY what the loader will later ask for. Resolving the
+    backend name the same way make_backend() does is the whole point: the pre-pull and the
+    loader read one source of truth, so flipping _default_backend_name() can never again
+    leave setup downloading a model nothing loads. Kept in lockstep by test_llm_backend."""
+    name = (name or os.environ.get("DUM_LLM_BACKEND") or _default_backend_name()).lower()
+    if name == "mlx":
+        return ("hf-repo", MlxBackend.DEFAULT_MODEL, None)
+    if name in ("llamacpp", "llama", "gguf"):
+        local = os.environ.get("DUM_LLM_GGUF_PATH")
+        if local:
+            return ("local", local, None)
+        return ("hf-file", DEFAULT_GGUF_REPO, DEFAULT_GGUF_FILE)
+    raise ValueError(f"unknown LLM backend: {name!r} (known: mlx, llamacpp)")
+
+
+def prefetch_default_model(name=None):
+    """Download (or locate) the model make_backend() would load; return its local path.
+
+    Called by ./setup so the first dictation isn't a silent multi-hundred-MB stall on the
+    consumer thread. Downloads weights only - it never constructs a backend, so it needs no
+    GPU, no Metal device and no Apple Silicon, and is safe to run on any setup host."""
+    kind, ref, filename = default_model_ref(name)
+    if kind == "local":
+        return ref
+    if kind == "hf-file":
+        from huggingface_hub import hf_hub_download
+        return hf_hub_download(repo_id=ref, filename=filename)
+    from huggingface_hub import snapshot_download
+    return snapshot_download(ref)
