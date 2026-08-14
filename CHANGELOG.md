@@ -12,6 +12,15 @@ versions follow [SemVer](https://semver.org).
   `./.python/`. No sudo, nothing written outside the repo folder, no PATH/shell/registry changes.
 
 ### Changed
+- `./setup` now vendors its fallback CPython with **uv** instead of a hand-rolled downloader. Same
+  python-build-standalone builds as before, but the per-triple sha256 table, the URL/triple/variant
+  matrix, the musl guard and the tar extraction are gone - Astral maintains that matrix now, so a
+  version bump is a one-line change instead of re-verifying four checksums. uv is reused from `PATH`
+  when present, otherwise fetched into the gitignored `./.uv/`. The "nothing outside the repo folder"
+  guarantee is preserved and tested: `UV_PYTHON_INSTALL_DIR` + `UV_PYTHON_BIN_DIR` keep the
+  interpreter and its shims in `./.python/`, and `UV_UNMANAGED_INSTALL` stops uv's installer editing
+  PATH or shell rc files. Note this is not a size win (`setup` is ~10 lines longer) - the win is that
+  the part needing hand-maintenance on every bump, a 4-triple sha256 table, is now a version string.
 - Python support widened from "3.12 exactly" to **3.12, 3.13 or 3.14** on macOS/Linux, and **3.12 or
   3.13** on Windows (the Windows-only `pywin32==308` pin publishes no cp314 wheel; every other pin
   does). The full gate + bench ran on all three minors with identical WER and IT-term recall.

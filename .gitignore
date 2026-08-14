@@ -2,6 +2,9 @@
 .venv/
 # Vendored CPython (~66 MB), fetched by ./setup only when the machine has no supported Python.
 .python/
+# uv, fetched by ./setup only when it needs to vendor a CPython and uv isn't already on PATH.
+# Disposable like .venv/ and .python/ - never committed.
+.uv/
 __pycache__/
 *.pyc
 

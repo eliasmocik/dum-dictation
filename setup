@@ -37,12 +37,21 @@ echo "==> 1/5  Python venv + pinned dependencies"
 PY_SUPPORTED="3.12 3.13 3.14"
 # The interpreter we vendor when the machine has no supported Python, so ./setup can never
 # dead-end on "your python is the wrong version" (the #1 fresh-machine failure after the
-# llama-cpp source build). python-build-standalone is the same relocatable CPython that uv
-# ships; pinned by release tag + sha256 so the download is reproducible and verified.
-PBS_TAG=20260718
-PBS_PY=3.12.13
+# llama-cpp source build). uv fetches it: `uv python install` pulls the SAME
+# python-build-standalone CPython this used to download by hand, but Astral maintains the
+# platform matrix and checksums instead of us keeping a per-triple sha256 table in sync on
+# every bump. Version pinned here so the fetch stays reproducible.
+VENDOR_PY_VERSION=3.12.13
 VENDOR_ROOT=".python"
-VENDOR_PY="$VENDOR_ROOT/python/bin/python3"
+UV_ROOT=".uv"
+UV_BIN="$UV_ROOT/uv"
+# Set for every uv call: keeps BOTH uv and the interpreters it installs inside the repo.
+# Without these, uv drops CPython in ~/.local/share/uv/python and a python3.X shim in
+# ~/.local/bin - and "nothing outside the repo folder" is a promise of this installer, not an
+# implementation detail. (BIN_DIR rather than the --no-bin flag on purpose: an older uv that
+# a dev already has on PATH would hard-error on the unknown flag, but honours the env var.)
+export UV_PYTHON_INSTALL_DIR="$PWD/$VENDOR_ROOT"
+export UV_PYTHON_BIN_DIR="$PWD/$VENDOR_ROOT/bin"
 
 py_minor() { "$1" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true; }
 py_supported() {
@@ -56,66 +65,68 @@ py_supported() {
   "$1" -c 'import ensurepip, venv' >/dev/null 2>&1 || return 1
   return 0
 }
-sha256_of() {
-  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
-  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-  else openssl dgst -sha256 "$1" | awk '{print $NF}'; fi
+# Where uv puts an installed CPython: $VENDOR_ROOT/cpython-<version>-<platform>/bin/python3.X
+# (a layout uv owns, so glob for it rather than hard-coding). First match wins; there is only
+# one unless someone hand-installs extras.
+find_vendored_py() {
+  local p
+  for p in "$VENDOR_ROOT"/cpython-*/bin/python3.[0-9]*; do
+    [ -x "$p" ] && { echo "$p"; return 0; }
+  done
+  return 1
 }
 
-# Download a known-good CPython into the repo. Touches nothing outside this folder, needs
-# no sudo, and never edits the user's shell profile or PATH.
-vendor_python() {
-  local triple variant sha url tarball got
-  case "$(uname -s):$(uname -m)" in
-    Darwin:arm64)  triple=aarch64-apple-darwin;  variant=install_only
-      sha=62aeee6161d57303a71a138b75fd5cc6fb8c89c4b1d9c7f0a052d89fa0b6652b ;;
-    Darwin:x86_64) triple=x86_64-apple-darwin;   variant=install_only
-      sha=10b47148de86f9d87ba6e96a3db606ced90a206a3454d7d6d8fa68536a05d81f ;;
-    Linux:x86_64)  triple=x86_64-unknown-linux-gnu;  variant=install_only_stripped
-      sha=5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79 ;;
-    Linux:aarch64|Linux:arm64) triple=aarch64-unknown-linux-gnu; variant=install_only_stripped
-      sha=f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9 ;;
-    *) echo "    [!] no prebuilt CPython for $(uname -s)/$(uname -m)."; return 1 ;;
-  esac
-  # The Linux builds link glibc; musl systems (Alpine) must supply their own Python.
-  if [ "$(uname -s)" = "Linux" ] && ls /lib/ld-musl-* >/dev/null 2>&1; then
-    echo "    [!] musl libc detected - the prebuilt CPython is glibc-only."
+# Locate uv: one already on PATH (a dev who has it), else our repo-local copy, else fetch one.
+# Fetching writes ONLY into ./$UV_ROOT - UV_UNMANAGED_INSTALL sets the install dir and, per
+# uv's installer, also forces NO_MODIFY_PATH and disables uv's self-updater. So no shell rc is
+# edited, no PATH is changed, and uv never rewrites itself behind the user's back.
+find_uv() {
+  if [ -x "$UV_BIN" ]; then echo "$UV_BIN"; return 0; fi
+  local sys; sys="$(command -v uv 2>/dev/null || true)"
+  if [ -n "$sys" ]; then echo "$sys"; return 0; fi
+  return 1
+}
+install_uv() {
+  echo "    fetching uv (a ~35 MB static binary) into ./$UV_ROOT ..."
+  # Same curl hardening as every other download here: bound connect time and stall so a
+  # captive portal fails fast with a real message instead of hanging for curl's 300s default.
+  if ! curl -LsSf --connect-timeout 20 --retry 2 --speed-limit 1024 --speed-time 60 \
+        https://astral.sh/uv/install.sh 2>/dev/null \
+        | UV_UNMANAGED_INSTALL="$PWD/$UV_ROOT" sh >/dev/null 2>&1; then
+    echo "    [!] couldn't download uv - check your network."
     return 1
   fi
-  tarball="cpython-${PBS_PY}+${PBS_TAG}-${triple}-${variant}.tar.gz"
-  url="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/${tarball}"
-  mkdir -p "$VENDOR_ROOT"
-  echo "    downloading CPython $PBS_PY for $triple (~25 MB) ..."
-  # --connect-timeout: curl's default is 300s, so a blackholed route (captive portal, corporate
-  # firewall) makes setup look hung for 5 minutes before the friendly message below.
-  # --speed-limit/--speed-time: bail if the transfer stalls under 1 KB/s for 60s. NOT --max-time,
-  # which would also kill a legitimately slow download on a thin connection.
-  curl -L --fail --connect-timeout 20 --retry 2 --speed-limit 1024 --speed-time 60 \
-       -o "$VENDOR_ROOT/$tarball" "$url" || {
-    echo "    [!] download failed - check your network. URL was:"
-    echo "        $url"
-    return 1
-  }
-  got="$(sha256_of "$VENDOR_ROOT/$tarball")"
-  if [ "$got" != "$sha" ]; then
-    echo "    [!] checksum mismatch on $tarball - refusing to use it."
-    echo "        expected $sha"
-    echo "        got      $got"
-    rm -f "$VENDOR_ROOT/$tarball"
-    return 1
-  fi
-  # Wipe any earlier vendored tree first: tar MERGES over an existing dir, so a leftover
-  # lib/python3.X/ from a different pin would linger next to the new one.
-  rm -rf "$VENDOR_ROOT/python"
-  tar -xzf "$VENDOR_ROOT/$tarball" -C "$VENDOR_ROOT" || {
-    echo "    [!] extract failed (corrupt download?) - clean up and re-run:"
-    echo "        rm -rf $VENDOR_ROOT && ./setup"
-    return 1
-  }
-  rm -f "$VENDOR_ROOT/$tarball"
-  [ -x "$VENDOR_PY" ] || { echo "    [!] vendored CPython missing $VENDOR_PY"; return 1; }
+  [ -x "$UV_BIN" ] || { echo "    [!] uv installer ran but $UV_BIN is missing."; return 1; }
   return 0
 }
+
+# Put a known-good CPython in the repo via uv. Touches nothing outside this folder, needs no
+# sudo, and never edits the user's shell profile or PATH.
+vendor_python() {
+  local uv
+  uv="$(find_uv)" || { install_uv || return 1; uv="$UV_BIN"; }
+  echo "    installing CPython $VENDOR_PY_VERSION into ./$VENDOR_ROOT via uv ..."
+  # uv verifies its own downloads and knows every platform triple, incl. musl vs glibc - the
+  # per-triple sha256 table and the Alpine guard this replaces are now Astral's problem.
+  # -q: we already printed what's happening, and uv's default output ends with a "add this to
+  # your PATH" hint that users should NOT act on here (the interpreter is deliberately private
+  # to this repo). Real errors still print, and a failure still exits non-zero.
+  "$uv" python install -q "$VENDOR_PY_VERSION" || {
+    echo "    [!] uv couldn't install CPython $VENDOR_PY_VERSION (network, or no build for"
+    echo "        $(uname -s)/$(uname -m))."
+    return 1
+  }
+  VENDOR_PY="$(find_vendored_py)" || {
+    echo "    [!] uv reported success but no interpreter appeared under ./$VENDOR_ROOT"
+    return 1
+  }
+  return 0
+}
+
+# Resolve any ALREADY-vendored interpreter up front. uv names the directory after the exact
+# version + platform, so unlike the old fixed path this has to be looked up; empty is the
+# normal "nothing vendored yet" case, and vendor_python() sets it for real when it runs.
+VENDOR_PY="$(find_vendored_py || true)"
 
 # A .venv whose interpreter no longer runs (repo moved/renamed, or the system Python it was
 # built from was upgraded away) is worse than no venv - every later step fails obscurely.
