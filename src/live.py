@@ -1171,7 +1171,11 @@ def main():
     use_double = "--double-cmd" in argv
     use_tray = "--tray" in argv
     use_overlay = "--overlay" in argv
-    is_replay = "--replay" in argv
+    # Either spelling counts. `--replay-fast <wav>` on its own is a documented invocation
+    # (CLAUDE.md, docs/DEV-NOTES.md); testing only for "--replay" made it fall through to the
+    # LIVE path, where it took the single-instance lock and refused to run whenever the daily
+    # driver was open - the one situation you actually want to replay a WAV in.
+    is_replay = "--replay" in argv or "--replay-fast" in argv
     want_config = "--config" in argv
     eager_first = "--eager" in argv or os.environ.get("DUM_EAGER") == "1"
     global VAD_MARGIN_DB
@@ -1230,7 +1234,10 @@ def main():
     if is_replay:
         # headless: push a WAV through the real loop (for bench.py / regression). No mic,
         # no global hotkey - so it needs neither the single-instance guard nor a finally.
-        wav = argv[argv.index("--replay") + 1]
+        # Read the WAV from whichever spelling was used: `--replay-fast <wav>` is a documented
+        # standalone invocation, not only a modifier alongside --replay.
+        flag = "--replay" if "--replay" in argv else "--replay-fast"
+        wav = argv[argv.index(flag) + 1]
         log(f"[replay] {wav}")
         app.replay(wav, realtime="--replay-fast" not in argv)
         tracer.close()
