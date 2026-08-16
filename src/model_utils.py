@@ -16,10 +16,34 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-# Engine code lives in src/; resources (models/, packs/, learn/, terms.txt) live at the
-# repo root, one level up. HERE points at that root so all resource lookups resolve.
-HERE = Path(__file__).parent.parent
-MODELS = HERE / "models"
+# --- the two roots -----------------------------------------------------------------
+# There are TWO kinds of path, and conflating them breaks a bundled .app:
+#
+#   HERE      SHIPPED, READ-ONLY resources (packs/, terms.txt, tests/). From a checkout that's
+#             the repo root, one level above src/. Frozen into a .app, PyInstaller unpacks them
+#             beside the bundled modules and points sys._MEIPASS at that directory - so honour
+#             _MEIPASS first, or every lookup lands one level too high (Contents/ instead of
+#             Contents/Frameworks/).
+#
+#   USER_DATA WRITABLE state (models, and later logs/telemetry). This may NEVER live inside a
+#             signed .app: writing into the bundle invalidates its code signature, which costs
+#             both Gatekeeper approval and - because macOS keys TCC grants to the signature -
+#             the user's Microphone/Accessibility/Input Monitoring permissions. Frozen, it's
+#             ~/.dum (already this app's state dir: config.json, dum.lock live there, so there
+#             is nothing to migrate and one `rm -rf ~/.dum` uninstalls cleanly). From a checkout
+#             it stays the repo root, so ./setup, scripts/test, the bench and --replay are
+#             completely unaffected.
+#
+# Overrides, in both modes: DUM_DATA_DIR (all writable state) and DUM_MODELS_DIR (models only).
+# .resolve() on the roots is deliberate: it canonicalises away the `../` a caller introduces by
+# putting src/ on the path relatively (the tests do exactly that), which keeps "is this path
+# inside the bundle?" answerable by a prefix comparison - the check that stops writable state
+# landing in a signed .app. autostart_base.py resolves its REPO_ROOT for the same reason.
+FROZEN = bool(getattr(sys, "frozen", False))
+HERE = Path(getattr(sys, "_MEIPASS", None) or Path(__file__).parent.parent).resolve()
+USER_DATA = Path(os.environ.get("DUM_DATA_DIR")
+                 or (Path.home() / ".dum" if FROZEN else HERE)).resolve()
+MODELS = Path(os.environ.get("DUM_MODELS_DIR") or (USER_DATA / "models")).resolve()
 
 
 def find_model_dir(pattern):
