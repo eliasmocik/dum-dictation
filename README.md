@@ -10,27 +10,15 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 ## What you need
 
 - **macOS** (Apple Silicon, M-series)
-- **Windows 10/11** - beta (built and tested by a contributor) ([setup](#on-windows))
-- **Linux** (X11) - looking for a contributor ([setup](#on-linux))
+- **Windows 10/11** - beta (built and tested by a contributor)
+- **Linux** (X11) - looking for a contributor
 
-## Install (macOS)
+## Install
 
-Recommended: download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
+Download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
 <details>
-<summary>Or run it from source</summary>
-
-```sh
-git clone https://github.com/eliasmocik/dum-dictation.git
-cd dum-dictation && ./setup && ./dum
-```
-
-Grant the three permissions to your terminal, then quit and reopen it. `./dum --tray` for the
-menu bar, `./dum --config` to redo the mic/hotkey picker.
-
-</details>
-
-## On Windows
+<summary>Windows</summary>
 
 In **PowerShell** (Python 3.12 or 3.13 on your PATH - 3.14 isn't supported on Windows yet; with no
 Python at all, `setup.ps1` fetches its own):
@@ -46,7 +34,10 @@ cd dum-dictation
 - Only permission: **microphone** (Settings => Privacy & security => Microphone).
 - Tray + logon: `.\dum.ps1 --tray`, `.\dum.ps1 --install-autostart`.
 
-## On Linux
+</details>
+
+<details>
+<summary>Linux</summary>
 
 > **Experimental!** Looking for a Linux contributor. Reach out on
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
@@ -60,6 +51,8 @@ cd dum-dictation
 ./dum --tray
 ./dum --install-autostart            # systemd --user service
 ```
+
+</details>
 
 ## Privacy
 

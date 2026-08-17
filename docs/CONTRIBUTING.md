@@ -5,25 +5,17 @@ mis-transcribes.
 
 ## Differentiating between general and personal fixes
 
-- **General** - the recognizer's fault. A word said normally, mis-transcribed by the model
-  ("ten stack query" => `TanStack Query`, "postgress" => `PostgreSQL`). Belongs in the
-  shipped vocab packs; any user speaking standard English hits the same error.
-- **Personal** - your accent or idiolect. The model heard you correctly (you say "JITHUB"
-  but mean GitHub). Does NOT belong in the shipped tool; a global "fix" breaks it for
-  users who don't talk that way.
+- **General** - the recognizer's fault. You said the word normally and the model got it
+  wrong: "ten stack query" for TanStack Query, "postgress" for PostgreSQL. Anyone speaking
+  standard English hits the same error, so the fix belongs in the shipped packs.
+- **Personal** - your accent. The model heard you correctly, you just say the word your own
+  way. Adding it would break the tool for everyone who does not.
 
 The test to apply is this: **would a general user, speaking standard English, produce the
 same error?** If yes, the fix is General and belongs in the packs. If no, it is Personal
 and should be left out.
 
-Note that anyone testing the tool is dictating into it, and is therefore both a tester and
-a speaker with an accent. Two edits can look identical to the machine and still fall on
-opposite sides of the rule:
-
-- `Ugres => PostGres` - a recognizer mishear of "postgres" => General, accept.
-- `the => this` - you changed your wording, not a mishear => Personal / neither, never add.
-
-Only a careful human read tells them apart. When in doubt, leave it out.
+When in doubt, leave it out.
 
 ## Adding a General term
 
