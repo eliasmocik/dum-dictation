@@ -1141,8 +1141,11 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
     run_tray_gui(app, on_quit=_teardown)   # blocks on the main thread until Quit
 
 
-def main():
-    argv = sys.argv[1:]
+def main(argv=None):
+    # argv is a parameter so a frozen .app can supply its own flags: a Finder/launchd launch
+    # passes NO arguments, and without them this falls through to the bare non-tray branch.
+    # Defaults to sys.argv[1:], so every existing caller is unchanged.
+    argv = list(sys.argv[1:] if argv is None else argv)
     # Phase R default-ON for the live daily driver (Decision G): harvest the cwd repo's vocab.
     # The bench never calls main(), so it stays deterministic. Disable with DUM_REPO_VOCAB=0.
     os.environ.setdefault("DUM_REPO_VOCAB", "1")

@@ -38,6 +38,18 @@ results/
 .env
 *.env
 
+# Release build output (scripts/build-app, scripts/release). Two reasons this must never be
+# committed: the .app/.dmg are large regenerable binaries, and dist/cert/ will hold the
+# SELF-SIGNED CODE-SIGNING PRIVATE KEY. This repo is PUBLIC. That key is what makes macOS treat
+# a binary as "the same app" and hand it users' existing Microphone / Accessibility / Input
+# Monitoring grants - leaking it would let anyone inherit those permissions.
+dist/
+build/
+*.dmg
+*.p12
+*.key
+*.crt
+
 # Local-only notes / scratch context (never committed)
 *.local.md
 

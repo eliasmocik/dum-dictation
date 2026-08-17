@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# build-app - build dum.app from dum.spec, dedupe redundant dylibs, and prove it runs.
+#
+#   scripts/build-app [VERSION]
+#
+# Output: dist/dum.app  (unsigned - scripts/release signs it; see dum.spec for why signing
+# must NOT happen inside PyInstaller).
+#
+# This is deliberately separate from signing/DMG so it can be run and re-run cheaply while
+# iterating on the bundle.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PY=.venv/bin/python
+APP=dist/dum.app
+VERSION="${1:-${DUM_VERSION:-0.0.0-dev}}"
+
+command -v "$PY" >/dev/null 2>&1 || [ -x "$PY" ] || {
+  echo "[!] no .venv - run ./setup first"; exit 1; }
+"$PY" -c "import PyInstaller" 2>/dev/null || {
+  echo "[!] PyInstaller not installed. It is a BUILD-only dependency, deliberately kept out of"
+  echo "    requirements.txt so end users never download it:"
+  echo "        $PY -m pip install -r requirements-build.txt"
+  exit 1; }
+
+echo "==> 1/3  PyInstaller ($VERSION)"
+DUM_VERSION="$VERSION" "$PY" -m PyInstaller --noconfirm --distpath dist --workpath build dum.spec \
+  >/tmp/dum-build.log 2>&1 || {
+    echo "    [!] build failed - tail of /tmp/dum-build.log:"; tail -20 /tmp/dum-build.log; exit 1; }
+echo "    built $APP ($(du -sm "$APP" | cut -f1) MB)"
+
+echo ""
+echo "==> 2/3  Dedupe redundant dylibs"
+# Some wheels ship a library twice: once under its versioned SONAME and once under the plain
+# name (sherpa-onnx does this with libonnxruntime, at 33 MB a copy). Everything actually links
+# against the install name recorded in LC_ID_DYLIB, so the other copy is dead weight - but only
+# when the install name really does point at the sibling we're keeping. Verified, then replaced
+# with a relative symlink. Runs BEFORE signing so the symlink is what gets sealed.
+"$PY" - "$APP" <<'PY'
+import os, subprocess, sys
+app = sys.argv[1]
+saved = 0
+for root, _dirs, files in os.walk(app):
+    libs = [f for f in files if f.endswith(".dylib")]
+    for f in libs:
+        p = os.path.join(root, f)
+        if os.path.islink(p):
+            continue
+        try:
+            out = subprocess.run(["otool", "-D", p], capture_output=True, text=True).stdout
+            install = out.strip().splitlines()[-1].strip()
+        except Exception:
+            continue
+        canon = os.path.basename(install)
+        # Only act when this file is NOT the canonical name but its sibling is, and the sibling
+        # is a real file of the same size class. Anything else we leave alone.
+        if not canon or canon == f:
+            continue
+        sib = os.path.join(root, canon)
+        if not (os.path.isfile(sib) and not os.path.islink(sib)):
+            continue
+        sz = os.path.getsize(p)
+        os.remove(p)
+        os.symlink(canon, p)
+        saved += sz
+        print(f"    {f} -> {canon}  (+{sz/1048576:.1f} MB)")
+print(f"    reclaimed {saved/1048576:.1f} MB" if saved else "    nothing to dedupe")
+PY
+echo "    $APP is now $(du -sm "$APP" | cut -f1) MB"
+
+echo ""
+echo "==> 3/3  Selftest (imports + dlopens every native lib)"
+"$APP/Contents/MacOS/dum" --selftest || {
+  echo "    [!] SELFTEST FAILED - do not sign or ship this build"; exit 1; }
+
+echo ""
+echo "Done: $APP"
+echo "Next: scripts/release sign   (never sign inside PyInstaller - see dum.spec)"

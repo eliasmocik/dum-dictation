@@ -1,0 +1,11 @@
+# BUILD-only dependencies - deliberately NOT in requirements.txt.
+#
+# ./setup installs requirements.txt for every user; nothing here is needed to RUN dum, only to
+# package it into dum.app. Keeping them separate means an end user never downloads PyInstaller.
+#
+#   .venv/bin/python -m pip install -r requirements-build.txt
+#   scripts/build-app && scripts/release all
+pyinstaller==6.16.0
+# dmgbuild writes the .DS_Store directly, so DMG creation needs no Finder/AppleScript session
+# (create-dmg drives Finder and hangs headless).
+dmgbuild==1.6.5
