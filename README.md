@@ -56,7 +56,7 @@ cd dum-dictation
 
 ## Privacy
 
-Everything stays on your machine. Optional local-only log (off by default) that remembers dictations
+Data is only saved locally. Optional local-only log (off by default) that remembers dictations
 so misheard words get fixed over time. Details: [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
 
 ## Want to help?
