@@ -10,10 +10,10 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 ## What you need
 
 - **macOS** (Apple Silicon, M-series)
-- **Windows 10/11** - beta (built and tested by a contributor)
-- **Linux** (X11) - looking for a contributor
+- **Windows 10/11** - beta
+- **Linux** (X11) - beta
 
-## Install
+## Installation for Mac
 
 Download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
@@ -56,8 +56,8 @@ cd dum-dictation
 
 ## Privacy
 
-Data is only saved locally. Optional local-only log (off by default) that remembers dictations
-so misheard words get fixed over time. Details: [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
+Data is only saved locally. The tool keeps an optional log, off by default, that remembers
+dictations so misheard words get fixed over time. Details: [`docs/DOGFOOD.md`](docs/DOGFOOD.md).
 
 ## Want to help?
 
