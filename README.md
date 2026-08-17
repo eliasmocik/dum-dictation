@@ -7,18 +7,16 @@ vocabulary right and offers a responsive word-by-word feel directly at your curs
 
 https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
-## What you need
-
-- **macOS** (Apple Silicon, M-series)
-- **Windows 10/11** - beta
-- **Linux** (X11) - beta
-
 ## Installation for Mac
+
+**macOS** (Apple Silicon, M-series)
 
 Download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
+## Other platforms
+
 <details>
-<summary>Windows (beta)</summary>
+<summary><b>Windows 10/11</b> - beta</summary>
 
 In **PowerShell** (Python 3.12 or 3.13 on your PATH - 3.14 isn't supported on Windows yet; with no
 Python at all, `setup.ps1` fetches its own):
@@ -37,7 +35,7 @@ cd dum-dictation
 </details>
 
 <details>
-<summary>Linux (beta)</summary>
+<summary><b>Linux</b> (X11) - beta</summary>
 
 > Looking for a Linux contributor. Reach out on
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
