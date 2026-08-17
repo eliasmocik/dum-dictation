@@ -1,0 +1,12 @@
+# SHA-1 fingerprint of the certificate that signs every released dum.app.
+#
+# NOT a secret: this exact value is embedded in the public certificate inside every signed
+# binary we ship, and anyone can read it with `codesign -d -r- /Applications/dum.app`.
+#
+# It is tracked so `scripts/release verify` fails automatically when a build is signed by a
+# DIFFERENT certificate. That matters because macOS keys the user's Microphone, Accessibility
+# and Input Monitoring grants to this certificate: shipping a build signed by another one
+# forces every existing user to re-grant all three by hand, two behind an admin unlock.
+#
+# Change this ONLY as part of a deliberate, announced key rotation.
+1B92415C96C39DF99477782A21B6F8582B16BD27

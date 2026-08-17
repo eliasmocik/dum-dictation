@@ -110,8 +110,9 @@ cmd_cert(){
   echo "    Losing it means every existing user re-grants Microphone + Accessibility +"
   echo "    Input Monitoring by hand. It is gitignored - this repo is public."
   echo ""
-  echo "    Then pin it so an accidental rotation can never ship:"
-  echo "        export DUM_CERT_SHA1=$sha"
+  echo "    Then pin it so an accidental rotation can never ship - write the fingerprint into"
+  echo "    the TRACKED packaging/cert-sha1.txt (it is public, not a secret):"
+  echo "        $sha"
 }
 
 cert_sha1(){
@@ -196,16 +197,27 @@ cmd_verify(){
     die "hardened runtime is enabled - nested dylibs will fail Library Validation"
   fi
 
-  # The tripwire. Once DUM_CERT_SHA1 is exported, a build signed by any OTHER certificate
-  # fails HERE instead of shipping and silently costing every user their permissions.
-  if [ -n "${DUM_CERT_SHA1:-}" ]; then
-    local want; want="$(tr 'a-f' 'A-F' <<<"$DUM_CERT_SHA1" | tr -d ' :')"
+  # The tripwire. A build signed by any OTHER certificate fails HERE instead of shipping and
+  # silently costing every user their permissions.
+  #
+  # The expected fingerprint is TRACKED in packaging/cert-sha1.txt rather than left to an env
+  # var someone has to remember to export - a tripwire that is off by default protects nobody.
+  # It is not a secret: the SHA-1 of the public certificate is embedded in every signed binary
+  # we ship, and `codesign -d -r-` prints it. DUM_CERT_SHA1 still overrides, for a deliberate
+  # rotation.
+  local pin_file="packaging/cert-sha1.txt"
+  local pinned="${DUM_CERT_SHA1:-}"
+  if [ -z "$pinned" ] && [ -f "$pin_file" ]; then
+    pinned="$(grep -oE '[0-9A-Fa-f]{40}' "$pin_file" | head -1 || true)"
+  fi
+  if [ -n "$pinned" ]; then
+    local want; want="$(tr 'a-f' 'A-F' <<<"$pinned" | tr -d ' :')"
     local got;  got="$(tr 'a-f' 'A-F' <<<"$dr" | grep -oE 'H"[0-9A-F]+"' | tr -d 'H"')"
     [ "$want" = "$got" ] || die "CERT MISMATCH - expected $want, got $got. Shipping this would
     force every existing user to re-grant Microphone, Accessibility and Input Monitoring."
     echo "    cert pin OK ($want)"
   else
-    echo "    (no DUM_CERT_SHA1 set - pin it to guard against accidental cert rotation)"
+    echo "    (no pin found - add the fingerprint to packaging/cert-sha1.txt to guard rotation)"
   fi
   grn "    valid"
 }
