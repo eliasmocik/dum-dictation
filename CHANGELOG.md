@@ -5,13 +5,34 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-17
+
 ### Added
+- **A downloadable macOS app.** `dum.dmg` (45 MB, Apple Silicon, macOS 11+) - drag to Applications
+  and open. No terminal, no Python, no `./setup`. The bundle ships the engine and the vocabulary;
+  the speech model (~490 MB) downloads on first launch with a progress window, resumably.
+  Signed with a project self-signed certificate, so macOS offers **Open Anyway** once (rather than
+  the flat refusal an unsigned app gets) and - because the signing identity is stable across builds
+  - the Microphone / Accessibility / Input Monitoring grants survive updates instead of being
+  revoked on every new version.
+- **Settings in the menu bar.** Microphone, trigger (push-to-talk or double-tap toggle), the two
+  permission panes, autostart at login and Quit. The first-run wizard needs a TTY that a bundled
+  app does not have, so without this a downloaded copy was stuck on defaults permanently. Changes
+  apply live: the hotkey listener is rebuilt in place rather than relaunching the app.
+- `packs/terms.txt` and the vocabulary packs now ship inside the bundle, so a downloaded copy gets
+  the same IT-term recall as a checkout.
+
+### Changed
+- Repository layout: build, install and packaging files moved into `packaging/` and `scripts/`
+  (`dum.spec`, `requirements-build.txt`, `dum_tray.pyw`, `install.sh`, `make-shortcut.ps1`), docs
+  into `docs/`, and `terms.txt` into `packs/`. The root now holds only what you type (`dum`,
+  `setup`, and their `.ps1` mirrors) or what GitHub renders. **`install.sh` moved**, so the old
+  one-line install URL is now
+  `.../main/scripts/install.sh`; the DMG is the recommended path on macOS either way.
 - `./setup` no longer dead-ends when the machine has no supported Python: as a last resort (after an
   existing `.venv`, an already-vendored copy, and any supported system Python) it downloads a pinned,
   sha256-verified CPython (python-build-standalone 20260718, CPython 3.12.13) into a gitignored
   `./.python/`. No sudo, nothing written outside the repo folder, no PATH/shell/registry changes.
-
-### Changed
 - `./setup` now vendors its fallback CPython with **uv** instead of a hand-rolled downloader. Same
   python-build-standalone builds as before, but the per-triple sha256 table, the URL/triple/variant
   matrix, the musl guard and the tar extraction are gone - Astral maintains that matrix now, so a
@@ -28,6 +49,21 @@ versions follow [SemVer](https://semver.org).
   can't silently regress.
 
 ### Fixed
+- The `fn` hotkey option could never have worked. pynput exposes no `Key.function` on macOS, so
+  choosing it raised `AttributeError` while building the listener and killed the app on the spot.
+  Removed from the catalog; a test now fails on any entry the backend cannot resolve.
+- Key and mode were offered independently, so "double-tap + push-to-dictate" was selectable and
+  simply never fired, and a saved config could hold a pair the catalog no longer offers. They are
+  one atomic trigger now, and `load_config` heals stale pairs.
+- "Press right option" was a lie in the menu: toggle mode is hard-wired to a *double* tap in the
+  listener, and the label was the only thing that ever changed. Right option is push-to-talk only.
+- Auto-start silently did nothing from a bundled app: the LaunchAgent pointed at `<repo>/dum` and
+  refused without `<repo>/.venv`, neither of which exists next to a downloaded app. It launches the
+  app itself now, logs outside the bundle (writing inside would invalidate the code signature, and
+  with it the user's permission grants), and registers under the app's name in Login Items.
+- The menu-bar glyph looked upscaled on Retina displays. pystray sizes artwork in *pixels* and hands
+  it to AppKit, which draws in *points* - a 2x stretch no source resolution can fix. The icon is now
+  rasterised at device resolution and declared at logical size.
 - `./setup` pre-pulled the **wrong** correction LLM. The default backend moved to llama.cpp/GGUF on
   every OS, but setup still fetched the MLX weights - so a fresh install downloaded ~680MB that
   nothing ever loads, while the ~770MB GGUF the loader actually wants arrived silently on the
@@ -81,6 +117,7 @@ First public release. Local, live dictation that gets your tech vocab right.
 - Offline test gate (`scripts/test`): unit suite over the deterministic pipeline + a bench that
   replays a golden corpus through the real loop and scores WER / term recall against a baseline.
 
-[Unreleased]: https://github.com/eliasmocik/dum-dictation/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/eliasmocik/dum-dictation/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/eliasmocik/dum-dictation/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/eliasmocik/dum-dictation/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/eliasmocik/dum-dictation/releases/tag/v0.1.0

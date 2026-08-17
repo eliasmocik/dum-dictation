@@ -36,7 +36,7 @@ def main():
     ev_path.unlink(missing_ok=True)
 
     # picks up DUM_VOCAB_DIR if set (None -> falls through to the env var in load_terms)
-    terms = load_terms([HERE / "terms.txt"], None)
+    terms = load_terms([HERE / "packs" / "terms.txt"], None)
     print(f"loaded {len(terms)} IT terms"
           + (f"  (+pack {os.environ['DUM_VOCAB_DIR']})" if os.environ.get("DUM_VOCAB_DIR") else "  (no pack)"))
     print("building model (once)...")

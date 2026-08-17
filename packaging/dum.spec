@@ -2,7 +2,7 @@
 """
 PyInstaller spec for dum.app - arm64, onedir, menu-bar only.
 
-Build:   .venv/bin/pyinstaller --noconfirm dum.spec
+Build:   .venv/bin/pyinstaller --noconfirm packaging/dum.spec
 Verify:  dist/dum.app/Contents/MacOS/dum --selftest      # must print 0 failures
 Sign:    scripts/release sign                            # NOT here - see codesign_identity below
 
@@ -12,7 +12,7 @@ and then failed at runtime. Read the comments before changing any of them.
 import os
 from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, collect_submodules, copy_metadata
 
-REPO = os.path.abspath(SPECPATH)
+REPO = os.path.dirname(os.path.abspath(SPECPATH))   # the spec lives in packaging/
 
 
 # --- what ships inside the bundle (read-only) ---------------------------------------
@@ -20,8 +20,7 @@ REPO = os.path.abspath(SPECPATH)
 # and anything written into a signed bundle invalidates its signature (which on macOS also
 # discards the user's TCC permission grants). They download to ~/.dum/models at first run.
 datas = [
-    (os.path.join(REPO, "terms.txt"), "."),
-    (os.path.join(REPO, "packs"), "packs"),
+    (os.path.join(REPO, "packs"), "packs"),      # aliases + terms.txt
 ]
 
 # huggingface_hub >= 1.19 is a LAZY package: it defines `__getattr__ = _attach(...)` and the

@@ -2,7 +2,7 @@
 # dum dictation one-line installer.
 #
 # Usage (once this file is on main):
-#   curl -fsSL https://raw.githubusercontent.com/eliasmocik/dum-dictation/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/eliasmocik/dum-dictation/main/scripts/install.sh | bash
 #
 # What it does: clones the repo into ./dum-dictation (in whatever directory you're in)
 # and runs ./setup. Nothing else - no sudo, nothing deleted, nothing touched outside

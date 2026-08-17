@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build-app - build dum.app from dum.spec, dedupe redundant dylibs, and prove it runs.
+# build-app - build dum.app from packaging/dum.spec, dedupe redundant dylibs, and prove it runs.
 #
 #   scripts/build-app [VERSION]
 #
-# Output: dist/dum.app  (unsigned - scripts/release signs it; see dum.spec for why signing
+# Output: dist/dum.app  (unsigned - scripts/release signs it; see packaging/dum.spec for why signing
 # must NOT happen inside PyInstaller).
 #
 # This is deliberately separate from signing/DMG so it can be run and re-run cheaply while
@@ -20,11 +20,11 @@ command -v "$PY" >/dev/null 2>&1 || [ -x "$PY" ] || {
 "$PY" -c "import PyInstaller" 2>/dev/null || {
   echo "[!] PyInstaller not installed. It is a BUILD-only dependency, deliberately kept out of"
   echo "    requirements.txt so end users never download it:"
-  echo "        $PY -m pip install -r requirements-build.txt"
+  echo "        $PY -m pip install -r packaging/requirements-build.txt"
   exit 1; }
 
 echo "==> 1/3  PyInstaller ($VERSION)"
-DUM_VERSION="$VERSION" "$PY" -m PyInstaller --noconfirm --distpath dist --workpath build dum.spec \
+DUM_VERSION="$VERSION" "$PY" -m PyInstaller --noconfirm --distpath dist --workpath build packaging/dum.spec \
   >/tmp/dum-build.log 2>&1 || {
     echo "    [!] build failed - tail of /tmp/dum-build.log:"; tail -20 /tmp/dum-build.log; exit 1; }
 echo "    built $APP ($(du -sm "$APP" | cut -f1) MB)"
@@ -75,4 +75,4 @@ echo "==> 3/3  Selftest (imports + dlopens every native lib)"
 
 echo ""
 echo "Done: $APP"
-echo "Next: scripts/release sign   (never sign inside PyInstaller - see dum.spec)"
+echo "Next: scripts/release sign   (never sign inside PyInstaller - see packaging/dum.spec)"

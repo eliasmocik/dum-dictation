@@ -5,35 +5,35 @@
       "name": "script-read-1",
       "wav": "recordings/test.wav",
       "ref": "reference.txt",
-      "terms": "terms.txt",
+      "terms": "packs/terms.txt",
       "note": "Elias reading the 21-IT-term script, take 1"
     },
     {
       "name": "script-read-2",
       "wav": "recordings/test2.wav",
       "ref": "reference.txt",
-      "terms": "terms.txt",
+      "terms": "packs/terms.txt",
       "note": "same script, take 2 with natural sentence pauses"
     },
     {
       "name": "coding",
       "wav": "tests/corpus/coding.wav",
       "ref": "tests/corpus/coding.ref.txt",
-      "terms": "terms.txt",
+      "terms": "packs/terms.txt",
       "note": "natural coding narration, terms sprinkled (refs recognizer-bootstrapped + spot-corrected)"
     },
     {
       "name": "commands",
       "wav": "tests/corpus/commands.wav",
       "ref": "tests/corpus/commands.ref.txt",
-      "terms": "terms.txt",
+      "terms": "packs/terms.txt",
       "note": "short command one-liners"
     },
     {
       "name": "messy",
       "wav": "tests/corpus/messy.wav",
       "ref": "tests/corpus/messy.ref.txt",
-      "terms": "terms.txt",
+      "terms": "packs/terms.txt",
       "note": "ordinary speech, NO tech terms - over-correction test (injected should stay 0)"
     },
     {

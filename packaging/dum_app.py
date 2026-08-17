@@ -101,7 +101,7 @@ def _selftest(deep=False):
     from model_utils import HERE, USER_DATA, MODELS, FROZEN
     print(f"  frozen={FROZEN}\n  HERE={HERE}\n  USER_DATA={USER_DATA}\n  MODELS={MODELS}")
     probe("shipped resources present",
-          lambda: [p for p in (HERE / "terms.txt", HERE / "packs") if not p.exists()] or True)
+          lambda: [p for p in (HERE / "packs" / "terms.txt", HERE / "packs") if not p.exists()] or True)
     # The signature-preserving invariant, asserted at runtime rather than trusted.
     if FROZEN and str(USER_DATA).startswith(str(HERE)):
         failures.append("USER_DATA inside the bundle")

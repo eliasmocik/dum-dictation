@@ -14,7 +14,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 # engine code lives in src/; tests/ import it flat (`import pipeline`), so put src/ on the
-# path. (Resources like terms.txt/models/ stay at the root, found via HERE in the modules.)
+# path. (Resources like packs/ and models/ stay at the root, found via HERE in the modules.)
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 PY=.venv/bin/python
 fail=0

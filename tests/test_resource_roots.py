@@ -4,7 +4,7 @@ Resource-root tests - the guard for shipping dum as a bundled .app.
 
 Two roots, and conflating them is the bug this file exists to prevent:
 
-  HERE       shipped, READ-ONLY (packs/, terms.txt, tests/). Frozen, that's sys._MEIPASS.
+  HERE       shipped, READ-ONLY (packs/ (incl. terms.txt), tests/). Frozen, that's sys._MEIPASS.
   USER_DATA  WRITABLE (models, later logs/telemetry). Frozen, that's ~/.dum - NEVER inside
              the .app, because writing into a signed bundle invalidates its signature, and
              macOS keys TCC permission grants to that signature. A user who loses it re-grants
@@ -69,7 +69,7 @@ check("checkout: not frozen", frozen is False)
 check("checkout: HERE is the repo root", here == REPO)
 check("checkout: USER_DATA is the repo root", user == REPO)
 check("checkout: MODELS is <repo>/models", models == REPO / "models")
-check("checkout: shipped resources resolve", (here / "terms.txt").exists() and (here / "packs").is_dir())
+check("checkout: shipped resources resolve", (here / "packs" / "terms.txt").exists() and (here / "packs").is_dir())
 
 # --- 2) frozen: shipped resources follow _MEIPASS, writable state does NOT -------------
 with tempfile.TemporaryDirectory() as td:
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as td:
     check("frozen: MODELS is not derived from HERE", not str(models).startswith(str(here)))
 
 # --- 5) the real repo still works today -----------------------------------------------
-check("live module: HERE has terms.txt", (model_utils.HERE / "terms.txt").exists())
+check("live module: HERE has packs/terms.txt", (model_utils.HERE / "packs" / "terms.txt").exists())
 check("live module: MODELS points at the real model dir",
       model_utils.MODELS == REPO / "models")
 

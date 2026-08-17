@@ -19,7 +19,7 @@ import soundfile as sf
 # --- the two roots -----------------------------------------------------------------
 # There are TWO kinds of path, and conflating them breaks a bundled .app:
 #
-#   HERE      SHIPPED, READ-ONLY resources (packs/, terms.txt, tests/). From a checkout that's
+#   HERE      SHIPPED, READ-ONLY resources (packs/ (incl. terms.txt), tests/). From a checkout that's
 #             the repo root, one level above src/. Frozen into a .app, PyInstaller unpacks them
 #             beside the bundled modules and points sys._MEIPASS at that directory - so honour
 #             _MEIPASS first, or every lookup lands one level too high (Contents/ instead of

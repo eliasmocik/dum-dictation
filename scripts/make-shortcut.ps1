@@ -1,16 +1,16 @@
-# make-shortcut.ps1 - put a "dum dictation" icon on your Desktop (no PowerShell window).
+# scripts/make-shortcut.ps1 - put a "dum dictation" icon on your Desktop (no PowerShell window).
 #
-# Run once (re-run to refresh):   .\make-shortcut.ps1
+# Run once (re-run to refresh):   .\scripts\make-shortcut.ps1
 #
 # Double-click "dum dictation" on the Desktop -> it starts in the system tray (bottom-right, maybe
 # under the "^" arrow). Double-tap your hotkey (left Ctrl by default) to dictate; Quit from the tray.
-# It launches dum_tray.pyw via the venv pythonw (no console), pastes-at-commit (reliable over remote
+# It launches packaging/dum_tray.pyw via the venv pythonw (no console), pastes-at-commit (reliable over remote
 # desktop), and uses the microphone from ~/.dum/config.json.
 $ErrorActionPreference = "Stop"
-$repo = $PSScriptRoot
+$repo = Split-Path -Parent $PSScriptRoot
 $pythonw = Join-Path $repo ".venv\Scripts\pythonw.exe"
 $python = Join-Path $repo ".venv\Scripts\python.exe"
-$launcher = Join-Path $repo "dum_tray.pyw"
+$launcher = Join-Path $repo "packaging\dum_tray.pyw"
 if (-not (Test-Path $pythonw)) {
     Write-Error "$pythonw not found - run .\setup.ps1 first."
     exit 1

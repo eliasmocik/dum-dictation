@@ -14,7 +14,7 @@ __pycache__/
 # macOS
 .DS_Store
 
-# Generated locally by make-shortcut.ps1 (the Desktop icon image)
+# Generated locally by scripts/make-shortcut.ps1 (the Desktop icon image)
 dum.ico
 
 # Models - downloaded by ./setup, never committed (large)

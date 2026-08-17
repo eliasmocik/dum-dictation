@@ -74,7 +74,7 @@ def run_fixture(rec, fx, realtime, use_llm=False):
     tr_path = OUTDIR / f"{name}.trace.jsonl"
     ev_path.unlink(missing_ok=True); tr_path.unlink(missing_ok=True)
 
-    terms = load_terms([HERE / "terms.txt"], None)
+    terms = load_terms([HERE / "packs" / "terms.txt"], None)
     pipe = build_pipeline(terms)
     bus = EventBus(str(ev_path))
     tracer = Tracer(str(tr_path))

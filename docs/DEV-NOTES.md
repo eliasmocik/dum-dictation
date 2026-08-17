@@ -5,7 +5,7 @@
 Establish a known-good baseline before changing anything. Numbers and feel catch different bugs; run both.
 
 1. Gate: `scripts/test` must end with `ALL GREEN`.
-2. Mic feel-check: launch `./dum`, dictate a couple of sentences into a scratch doc. Read-aloud lines in [`tests/FEEL-CHECK.md`](tests/FEEL-CHECK.md) and [`smoke-test.md`](smoke-test.md). Watch for: snappy word-by-word reveal, no wrong-word flicker, and above all no corrupted or lost text.
+2. Mic feel-check: launch `./dum`, dictate a couple of sentences into a scratch doc. Read-aloud lines in [`tests/FEEL-CHECK.md`](../tests/FEEL-CHECK.md) and [`smoke-test.md`](smoke-test.md). Watch for: snappy word-by-word reveal, no wrong-word flicker, and above all no corrupted or lost text.
 
 ## The gate: `scripts/test`
 

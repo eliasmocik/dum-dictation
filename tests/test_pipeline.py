@@ -103,7 +103,7 @@ for words, at_start, want in DROP_CASES:
     print(f"ok  drop {words!r} -> {got!r}")
 
 # --- phonetic corrector: alias hits + no false positives ---
-_pc = PhoneticCorrector([t.strip() for t in open("terms.txt") if t.strip()])
+_pc = PhoneticCorrector([t.strip() for t in open("packs/terms.txt") if t.strip()])
 PHONETIC_CASES = [
     ("then run sudo cube CTL commit", "then run sudo kubectl commit"),   # cube CTL -> kubectl
     ("run sudo, cube, CTL, commit", "run sudo, kubectl, commit"),        # comma-separated
@@ -122,7 +122,7 @@ for src, want in PHONETIC_CASES:
     print(f"ok  {src!r} -> {got!r}")
 
 # --- G1a: external phrase-alias loading (additive) ---
-_terms = [t.strip() for t in open("terms.txt") if t.strip()]
+_terms = [t.strip() for t in open("packs/terms.txt") if t.strip()]
 
 # no-pack identity: a corrector with no extras is EXACTLY the shipped base (nothing migrated)
 assert PhoneticCorrector(_terms).phrase_aliases == PHRASE_ALIASES, "no-pack identity drifted"

@@ -1300,7 +1300,7 @@ def main(argv=None):
                 else os.environ.get("DUM_DUMP_WAV"))
     tracer = Tracer(trace_path)
 
-    terms = load_terms([HERE / "terms.txt"], os.environ.get("DUM_VOCAB_DIR"))
+    terms = load_terms([HERE / "packs" / "terms.txt"], os.environ.get("DUM_VOCAB_DIR"))
     log(f"loaded {len(terms)} IT terms")
     if trace_path:
         log(f"[trace] -> {trace_path}")

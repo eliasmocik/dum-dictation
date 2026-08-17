@@ -230,7 +230,7 @@ cmd_dmg(){
   local v; v="$(version_of "${1:-}")"
   local dmg="$DIST/dum-dictation-$v.dmg"
   "$PY" -c 'import dmgbuild' 2>/dev/null \
-    || die "dmgbuild missing: $PY -m pip install -r requirements-build.txt"
+    || die "dmgbuild missing: $PY -m pip install -r packaging/requirements-build.txt"
   say "building $dmg"
 
   # dmgbuild over create-dmg: create-dmg drives Finder via AppleScript, so it needs a logged-in
