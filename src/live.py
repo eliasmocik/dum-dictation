@@ -1106,14 +1106,23 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     app.stop()
 
 
-def _listener_is_trusted(listener):
-    """Is the global hotkey tap actually receiving events?
+def _ax_trusted():
+    """Does THIS process hold Accessibility trust right now?
 
-    pynput exposes IS_TRUSTED on its macOS backend (the Accessibility/Input-Monitoring check).
-    Absent on other platforms and on older pynput, where we assume trusted rather than spin a
-    pointless re-arm loop - the guard exists for the macOS first-run case only.
+    Asked directly of macOS rather than by inspecting a listener, because building a listener
+    to find out is ruinously expensive: each one starts a pynput thread and installs a
+    CGEventTap, and rapidly creating and tearing those down gets the process OS-aborted (the
+    same hazard that makes two concurrent hotkey listeners unsafe). This call is free and has
+    no side effects - notably it does NOT prompt, unlike AXIsProcessTrustedWithOptions.
+
+    Non-macOS, or pyobjc missing: report trusted, so the re-arm watcher never spins where the
+    problem does not exist.
     """
-    return bool(getattr(listener, "IS_TRUSTED", True))
+    try:
+        from ApplicationServices import AXIsProcessTrusted
+        return bool(AXIsProcessTrusted())
+    except Exception:
+        return True
 
 
 def run_tray(app, trigger_key="cmd_l", mode="toggle"):
@@ -1134,32 +1143,29 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
     holder = {"listener": listener}
 
     def _rearm():
-        # IS_TRUSTED is a CLASS attribute defaulting to False; pynput only sets the real value
-        # inside the listener thread's _run(). Reading it straight after construction therefore
-        # reports "untrusted" for a perfectly trusted process, so settle first, then decide.
-        time.sleep(1.0)
-        if _listener_is_trusted(holder["listener"]):
+        # POLL macOS, never build a listener to test with. An earlier version created a fresh
+        # listener each tick to read its IS_TRUSTED; on a genuinely ungranted machine that
+        # spawned a new pynput thread and CGEventTap every 0.5s - hundreds of them - which
+        # spammed the log and got the process OS-aborted (EXC_BREAKPOINT). Exactly one
+        # replacement listener is ever created, and only once trust has actually appeared.
+        if _ax_trusted():
             return                               # already granted - nothing to do
         for _ in range(600):                     # ~5 minutes of grace, then give up quietly
             time.sleep(0.5)
+            if not _ax_trusted():
+                continue
             try:
                 fresh = run_double_tap_toggle(app, trigger_key=trigger_key, mode=mode,
                                               block=False)
             except Exception:
                 return
-            time.sleep(0.4)                      # let the new tap publish its own verdict
-            if _listener_is_trusted(fresh):
-                log("[perms] input monitoring granted - hotkey is live")
-                try:
-                    holder["listener"].stop()
-                except Exception:
-                    pass
-                holder["listener"] = fresh
-                return
+            log("[perms] accessibility granted - hotkey is live")
+            old, holder["listener"] = holder["listener"], fresh
             try:
-                fresh.stop()                     # still untrusted; don't leak taps
+                old.stop()                       # only now, so there is never a gap with none
             except Exception:
                 pass
+            return
     threading.Thread(target=_rearm, name="dum-perm-rearm", daemon=True).start()
 
     def _teardown():
