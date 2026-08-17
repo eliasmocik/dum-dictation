@@ -29,7 +29,7 @@ if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" != "arm64" ]; then
 fi
 
 echo "==> 1/5  Python venv + pinned dependencies"
-# Which CPython minors we support. Every pin in requirements.txt publishes wheels for all
+# Which CPython minors we support. Every pin in packaging/requirements.txt publishes wheels for all
 # of these (sherpa-onnx / numpy / rapidfuzz / jellyfish / pillow / pyobjc ship cp312+cp313+
 # cp314; llama-cpp-python's prebuilt wheel is py3-none, i.e. ABI-independent). This list is
 # the source of truth - KEEP IT IN SYNC with the matrix in .github/workflows/tests.yml,
@@ -206,7 +206,7 @@ fi
   exit 1
 }
 # llama-cpp-python (the portable homophone-LLM backend) is SOURCE-ONLY on PyPI - a plain
-# `-r requirements.txt` tries to compile it, which needs cmake + a C++ toolchain and is the
+# `-r packaging/requirements.txt` tries to compile it, which needs cmake + a C++ toolchain and is the
 # #1 fresh-machine failure. Install it FIRST from the maintainer's prebuilt wheel index so
 # the `-r` step below finds the pin already satisfied and never builds from source.
 # Metal (Apple GPU) wheels on Apple Silicon, CPU wheels everywhere else.
@@ -225,7 +225,7 @@ echo "    installing llama-cpp-python==0.3.30 from prebuilt index ($LLAMA_INDEX)
   echo "        manual retry:  $PY -m pip install 'llama-cpp-python==0.3.30' --only-binary=llama-cpp-python --extra-index-url $LLAMA_INDEX"
   exit 1
 }
-"$PY" -m pip install -r requirements.txt || {
+"$PY" -m pip install -r packaging/requirements.txt || {
   echo "    [!] dependency install failed - scroll up for pip's actual error, fix it, then re-run ./setup"
   exit 1
 }
@@ -307,7 +307,7 @@ fi
 echo ""
 echo "==> 5/5  Import sanity check (dependencies + the engine itself)"
 # mlx_lm is imported only on macOS - it's an Apple-Silicon wheel and is marked darwin-only in
-# requirements.txt, so it isn't installed elsewhere (the LLM stage is lazy + gated regardless).
+# packaging/requirements.txt, so it isn't installed elsewhere (the LLM stage is lazy + gated regardless).
 "$PY" -c "import sys, sherpa_onnx, sounddevice, pynput, pystray, llama_cpp
 if sys.platform == 'darwin':
     import mlx_lm
@@ -324,8 +324,8 @@ PYTHONPATH="$PWD/src" "$PY" -c "import live, pipeline, overlay, config, platform
   exit 1
 }
 
-# Route git hooks through the tracked .githooks/ dir (keeps commit messages tool-agnostic).
-git config core.hooksPath .githooks 2>/dev/null || true
+# Route git hooks through the tracked scripts/hooks/ dir (keeps commit messages tool-agnostic).
+git config core.hooksPath scripts/hooks 2>/dev/null || true
 
 echo ""
 echo "Done. Now run:  ./dum"

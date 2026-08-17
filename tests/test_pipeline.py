@@ -239,16 +239,16 @@ assert PersonalCorrectionStage().run("deploy now", {}) == ("deploy now", []), "n
 os.environ.pop("DUM_PERSONAL_CORRECTIONS", None)
 passed += 1
 print("ok  PersonalCorrectionStage inert in V1 (defined seam, no behaviour)")
-# the learn/ proposer is a defined-but-unbuilt seam
+# learn_proposer is a defined-but-unbuilt seam
 import importlib.util as _ilu
-_spec = _ilu.spec_from_file_location("proposer", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "learn", "proposer.py"))
+_spec = _ilu.spec_from_file_location("proposer", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "learn_proposer.py"))
 _prop = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_prop)
 try:
     _prop.propose_personal_corrections([])
-    raise AssertionError("learn proposer should be unbuilt (NotImplementedError) in V1")
+    raise AssertionError("learn_proposer should be unbuilt (NotImplementedError) in V1")
 except NotImplementedError:
     passed += 1
-    print("ok  learn/proposer.py defined as a seam, raises NotImplementedError in V1")
+    print("ok  src/learn_proposer.py defined as a seam, raises NotImplementedError in V1")
 
 # --- ProtectedWordsStage: common words/names must not be silently rewritten into jargon ---
 # (session theme 2026-06-20; reverts measured over-corrections from dogfood telemetry)

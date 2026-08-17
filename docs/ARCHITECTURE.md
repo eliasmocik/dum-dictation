@@ -60,7 +60,7 @@ Native backends post raw Unicode for typing (not pynput), so dead-key layouts (e
 
 - Off by default at the engine level; the `./dum` launcher turns it on for development.
 - Writes only to the gitignored `dogfood/` tree. No network calls.
-- Optional VS Code extension (`vscode-dum-telemetry/`) reports post-commit edits from the document model. Observes only, never inserts.
+- Optional VS Code extension (`integrations/vscode/`) reports post-commit edits from the document model. Observes only, never inserts.
 - Details and privacy controls: [`DOGFOOD.md`](DOGFOOD.md).
 
 ## Launch & lifecycle

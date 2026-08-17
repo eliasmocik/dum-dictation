@@ -19,7 +19,7 @@ command -v "$PY" >/dev/null 2>&1 || [ -x "$PY" ] || {
   echo "[!] no .venv - run ./setup first"; exit 1; }
 "$PY" -c "import PyInstaller" 2>/dev/null || {
   echo "[!] PyInstaller not installed. It is a BUILD-only dependency, deliberately kept out of"
-  echo "    requirements.txt so end users never download it:"
+  echo "    packaging/requirements.txt so end users never download it:"
   echo "        $PY -m pip install -r packaging/requirements-build.txt"
   exit 1; }
 

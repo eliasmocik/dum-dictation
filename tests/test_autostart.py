@@ -58,6 +58,19 @@ class TestWindowsTaskXml(unittest.TestCase):
         self.assertIn("dum.ps1", arguments)               # the launcher = single source of truth
         self.assertIn("--tray", arguments)
 
+    def test_launcher_path_actually_exists(self):
+        """The substring check above passes even when the path is wrong, so assert the file.
+
+        windows_launcher_command() bakes REPO_ROOT / "dum.ps1" into a Task Scheduler entry that
+        is only ever exercised at the next logon, on Windows. Move or rename the launcher and
+        nothing here fails - the task just points at a file that isn't there, and the user finds
+        out when auto-start silently stops working. This is the assertion that catches it, and
+        it is deliberately OS-independent: it checks the repo, not the running platform."""
+        _xml, _cmd, arguments = self._xml()
+        launcher = autostart.REPO_ROOT / "dum.ps1"
+        self.assertTrue(launcher.exists(), f"{launcher} is gone - update windows_launcher_command()")
+        self.assertIn(str(launcher), arguments)
+
     def test_logon_trigger_and_restart(self):
         xml, *_ = self._xml()
         self.assertIn("<LogonTrigger>", xml)              # start at logon

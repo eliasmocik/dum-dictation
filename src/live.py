@@ -995,7 +995,7 @@ def build_pipeline(terms):
         # SEAM 1: paid external corrector - inert unless DUM_EXTERNAL_CORRECTOR set
         ExternalCorrectorStage(os.environ.get("DUM_EXTERNAL_CORRECTOR")),
         # V2 SEAM: per-user personalization (learned corrections) - defined, inert in V1 (no learner,
-        # no data). Slots in here; gated by DUM_PERSONAL_CORRECTIONS. See learn/proposer.py.
+        # no data). Slots in here; gated by DUM_PERSONAL_CORRECTIONS. See learn_proposer.py.
         PersonalCorrectionStage(),
         # COMMIT-ONLY constrained fuzzy symbol recovery - inert unless DUM_FUZZY_SYMBOLS=1.
         FuzzySymbolStage(load_all_alias_pairs()),

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Keep commit messages tool-agnostic: strip AI-assistant trailers (co-author /
 # "Generated with ...") before they enter history, no matter which editor or
-# assistant produced them. Enabled via `git config core.hooksPath .githooks`
+# assistant produced them. Enabled via `git config core.hooksPath scripts/hooks`
 # (done by ./setup). Human co-authors are unaffected.
 msg_file="$1"
 tmp="$(mktemp)" || exit 0

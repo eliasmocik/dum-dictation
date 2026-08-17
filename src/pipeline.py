@@ -241,7 +241,7 @@ class ExternalCorrectorStage(Stage):
 
 class PersonalCorrectionStage(Stage):
     """V2 SEAM - defined, NOT built. The future per-user personalization layer: applies corrections
-    LEARNED from THIS user's telemetry (the correction_pair stream -> learn/proposer.py -> approved
+    LEARNED from THIS user's telemetry (the correction_pair stream -> learn_proposer.py -> approved
     personal aliases), e.g. this user's "JITHUB" -> "GitHub" (see CONTRIBUTING.md, the General-vs-
     Personal rule). In V1 there is no learner and no data, so this is a strict passthrough - defined
     now so V2 is purely additive: it slots in here, gated by DUM_PERSONAL_CORRECTIONS, and can never

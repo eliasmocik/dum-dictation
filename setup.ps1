@@ -211,10 +211,10 @@ if (-not (Test-Path $py)) {
 }
 & $py -m pip install --upgrade pip | Out-Null
 # llama-cpp-python (the portable homophone-LLM backend) ships NO prebuilt wheel on PyPI, so a
-# plain `-r requirements.txt` would try to COMPILE it from source and fail on Windows (needs MSVC
+# plain `-r packaging/requirements.txt` would try to COMPILE it from source and fail on Windows (needs MSVC
 # + CMake). Install it FIRST from the maintainer's prebuilt index, so the `-r` step below finds it
 # already satisfied. CPU wheels are right for the tiny 1B-4bit model; for an NVIDIA GPU swap
-# whl/cpu -> whl/cu124 (set $LlamaIndex below). See requirements.txt for the full note.
+# whl/cpu -> whl/cu124 (set $LlamaIndex below). See packaging/requirements.txt for the full note.
 $LlamaIndex = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 Write-Host "    installing llama-cpp-python==0.3.30 from prebuilt index ($LlamaIndex)"
 # --only-binary bars any fallback to the PyPI source build (needs MSVC + CMake); if no wheel
@@ -225,7 +225,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "        manual retry:  $py -m pip install 'llama-cpp-python==0.3.30' --extra-index-url $LlamaIndex"
     exit 1
 }
-& $py -m pip install -r requirements.txt
+& $py -m pip install -r packaging/requirements.txt
 if ($LASTEXITCODE -ne 0) {
     Write-Host "    [!] dependency install failed - scroll up for pip's actual error, fix it, then re-run .\setup.ps1"
     exit 1

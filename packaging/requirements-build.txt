@@ -1,6 +1,6 @@
-# BUILD-only dependencies - deliberately NOT in requirements.txt.
+# BUILD-only dependencies - deliberately NOT in packaging/requirements.txt.
 #
-# ./setup installs requirements.txt for every user; nothing here is needed to RUN dum, only to
+# ./setup installs packaging/requirements.txt for every user; nothing here is needed to RUN dum, only to
 # package it into dum.app. Keeping them separate means an end user never downloads PyInstaller.
 #
 #   .venv/bin/python -m pip install -r packaging/requirements-build.txt

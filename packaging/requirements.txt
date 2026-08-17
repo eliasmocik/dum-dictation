@@ -3,7 +3,7 @@
 # Cross-platform: the engine, audio, hotkey and tray deps install everywhere; the
 # OS-native bridges (pyobjc on macOS, pywin32 on Windows) and the MLX homophone LLM
 # (Apple Silicon only) are guarded by environment markers, so `pip install -r
-# requirements.txt` succeeds on macOS, Windows and Linux alike. `./setup` (or
+# packaging/requirements.txt` succeeds on macOS, Windows and Linux alike. `./setup` (or
 # setup.ps1 on Windows) installs these into .venv.
 
 # Speech recognition engine (Parakeet via ONNX) - cross-platform
