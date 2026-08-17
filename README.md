@@ -13,17 +13,13 @@ application you're in. A local, open alternative to Wispr Flow and Superwhisper.
 
 ## Demo
 
-A full walkthrough, with sound:
-
 https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
 ## What you need
 
-- **macOS** (Apple Silicon, M-series) - primary, best-tested
-- **Windows 10/11** - works, still beta (built and tested by a contributor) ([setup](#on-windows))
-- **Linux** (X11) - experimental, looking for a contributor ([setup](#on-linux))
-- Nothing else on macOS - the app is self-contained. From source, or on Windows/Linux, you need
-  Python 3.12-3.14 (3.12 or 3.13 on Windows); `./setup` fetches its own copy if you have none.
+- **macOS** (Apple Silicon, M-series)
+- **Windows 10/11** - beta (built and tested by a contributor) ([setup](#on-windows))
+- **Linux** (X11) - looking for a contributor ([setup](#on-linux))
 
 ## Install (macOS)
 
@@ -58,9 +54,6 @@ cd dum-dictation
 - Only permission: **microphone** (Settings => Privacy & security => Microphone).
 - Tray + logon: `.\dum.ps1 --tray`, `.\dum.ps1 --install-autostart`.
 
-> WSL? The tool needs the real keyboard, mic and screen (Windows owns those), so run the Windows
-> version above.
-
 ## On Linux
 
 > **Experimental!** Looking for a Linux contributor. Reach out on
@@ -75,8 +68,6 @@ cd dum-dictation
 ./dum --tray
 ./dum --install-autostart            # systemd --user service
 ```
-
-Wayland: run under XWayland, or install `ydotool` + `wl-clipboard`.
 
 ## Privacy
 
