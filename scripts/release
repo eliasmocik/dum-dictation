@@ -1,0 +1,283 @@
+#!/usr/bin/env bash
+# release - sign dum.app with the project certificate and package it as a DMG.
+#
+#   scripts/release cert              # ONE TIME: mint + import the signing certificate
+#   scripts/release sign              # sign dist/dum.app inside-out
+#   scripts/release verify            # prove it is valid AND pinned to the expected cert
+#   scripts/release dmg   [VERSION]   # drag-to-Applications DMG + sha256
+#   scripts/release tar   [VERSION]   # .tar.gz of the .app + sha256  (the no-Gatekeeper path)
+#   scripts/release all   [VERSION]   # build -> sign -> verify -> dmg -> tar
+#
+# VERSION defaults to $DUM_VERSION, else the newest `## [x.y.z]` heading in CHANGELOG.md.
+#
+# ---------------------------------------------------------------------------------------
+# WHY SELF-SIGNED, AND WHY THE CERTIFICATE IS THE CROWN JEWEL
+# ---------------------------------------------------------------------------------------
+# We deliberately don't pay for an Apple Developer ID. A SELF-SIGNED certificate (not ad-hoc)
+# is the sweet spot, verified end-to-end on macOS 26.5.2:
+#
+#   * A quarantined self-signed .app IS recoverable by the user: Gatekeeper offers "Open Anyway"
+#     in System Settings > Privacy & Security. An AD-HOC signed app offers Move to Bin only.
+#   * The designated requirement becomes
+#         identifier "sk.zaprazny.dum" and certificate leaf = H"<sha1>"
+#     - keyed to the CERTIFICATE, containing no cdhash. Apple's TN3127 documents this using the
+#     microphone as its own example: macOS records the DR and re-checks each access against it.
+#     So as long as the SAME cert signs every build, the user's Microphone, Accessibility and
+#     Input Monitoring grants SURVIVE updates. Ad-hoc breaks them silently on every release.
+#   * The public certificate is embedded in the signature, so it verifies on machines that have
+#     never seen it. Users install nothing.
+#
+# Therefore: LOSE THIS KEY AND EVERY EXISTING USER MUST RE-GRANT ALL THREE PERMISSIONS BY HAND,
+# two of them behind an admin unlock. Rotation is the expensive event - expiry is not (see cert).
+# Back up $CERT_DIR off this machine. It is gitignored; this repo is public.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+APP=dist/dum.app
+DIST=dist
+PY=.venv/bin/python
+SIGN_ID="${DUM_SIGN_ID:-dum dictation self-signed}"
+CERT_DIR="${DUM_CERT_DIR:-dist/cert}"
+# ABSOLUTE, deliberately: `security create-keychain` resolves a RELATIVE path against
+# ~/Library/Keychains, so "dist/cert/x.keychain-db" silently creates
+# ~/Library/Keychains/dist/cert/x.keychain-db - outside the repo, unignored by git, and not
+# where the next command looks for it.
+KEYCHAIN="$PWD/$CERT_DIR/dum-signing.keychain-db"
+KEYCHAIN_PASS="${DUM_KEYCHAIN_PASS:-dum-build}"
+
+red(){ printf '\033[31m%s\033[0m\n' "$*"; }
+grn(){ printf '\033[32m%s\033[0m\n' "$*"; }
+say(){ printf '\033[1m==> %s\033[0m\n' "$*"; }
+die(){ red "ERROR: $*"; exit 1; }
+
+version_of(){
+  if [ -n "${DUM_VERSION:-}" ]; then echo "$DUM_VERSION"; return; fi
+  if [ -n "${1:-}" ]; then echo "$1"; return; fi
+  local v; v="$(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md 2>/dev/null | head -1 \
+                | tr -d '#[] ' || true)"
+  echo "${v:-0.0.0-dev}"
+}
+
+# ---------------------------------------------------------------------------------------
+# cert - one time, fully non-interactive
+# ---------------------------------------------------------------------------------------
+cmd_cert(){
+  if security find-identity -p codesigning "$KEYCHAIN" 2>/dev/null | grep -q "$SIGN_ID"; then
+    grn "certificate '$SIGN_ID' already exists in $KEYCHAIN - nothing to do."
+    echo "    (to rotate deliberately: rm -rf $CERT_DIR, then re-run. READ THE WARNING ABOVE.)"
+    return 0
+  fi
+  mkdir -p "$CERT_DIR"
+  say "minting a 10-year self-signed code-signing certificate"
+  # 3650 days: the 398-day cap is a CA/Browser Forum rule for TLS SERVER certs and does not
+  # apply to code signing; no macOS-enforced maximum exists. Not 100 years - a notAfter past
+  # 2050 forces GeneralizedTime instead of UTCTime (RFC 5280), a rarely-travelled path through
+  # third-party parsers for zero upside.
+  # Expiry is a non-event regardless: TN2206 - "the code signing and validation engines accept
+  # signatures made with expired certificates". It is only ever evaluated when a secure
+  # timestamp exists, and even then against SIGNING time. We sign with --timestamp=none.
+  openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+    -keyout "$CERT_DIR/dum.key" -out "$CERT_DIR/dum.crt" \
+    -subj "/CN=$SIGN_ID/O=dum dictation" \
+    -addext "keyUsage=critical,digitalSignature" \
+    -addext "extendedKeyUsage=codeSigning" 2>/dev/null || die "openssl req failed"
+
+  # -legacy is MANDATORY: OpenSSL 3.x defaults to AES-256/PBKDF2, which the macOS keychain
+  # importer cannot read. Without it the import APPEARS to succeed and the identity is then
+  # unusable for signing - a confusing failure worth avoiding by construction.
+  openssl pkcs12 -export -legacy -out "$CERT_DIR/dum.p12" \
+    -inkey "$CERT_DIR/dum.key" -in "$CERT_DIR/dum.crt" \
+    -passout "pass:$KEYCHAIN_PASS" 2>/dev/null || die "openssl pkcs12 failed"
+
+  say "importing into a dedicated keychain (never your login keychain)"
+  rm -f "$KEYCHAIN"
+  security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN" || die "create-keychain failed"
+  security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+  security set-keychain-settings -lut 21600 "$KEYCHAIN"      # no auto-lock mid-build
+  security import "$CERT_DIR/dum.p12" -k "$KEYCHAIN" -P "$KEYCHAIN_PASS" \
+    -A -T /usr/bin/codesign >/dev/null 2>&1 || die "keychain import failed"
+  # THIS IS LOAD-BEARING. Without a partition list, every codesign call raises a GUI dialog
+  # ("codesign wants to access key ... in your keychain") and the build blocks forever - fatal
+  # for any unattended or CI build. Observed twice during development.
+  security set-key-partition-list -S apple-tool:,apple:,unsigned: \
+    -s -k "$KEYCHAIN_PASS" "$KEYCHAIN" >/dev/null 2>&1 || die "set-key-partition-list failed"
+
+  local sha; sha="$(cert_sha1)"
+  grn "certificate ready: $SIGN_ID"
+  echo "    SHA-1: $sha"
+  echo ""
+  red "    BACK UP $CERT_DIR NOW, somewhere off this machine."
+  echo "    Losing it means every existing user re-grants Microphone + Accessibility +"
+  echo "    Input Monitoring by hand. It is gitignored - this repo is public."
+  echo ""
+  echo "    Then pin it so an accidental rotation can never ship:"
+  echo "        export DUM_CERT_SHA1=$sha"
+}
+
+cert_sha1(){
+  security find-certificate -c "$SIGN_ID" -Z "$KEYCHAIN" 2>/dev/null \
+    | awk '/SHA-1 hash:/ {print $3; exit}'
+}
+
+with_keychain(){
+  [ -f "$KEYCHAIN" ] || die "no signing keychain - run: scripts/release cert"
+  security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+  local orig; orig="$(security list-keychains -d user | sed 's/[" ]//g' | tr '\n' ' ')"
+  security list-keychains -d user -s $orig "$KEYCHAIN"
+}
+
+# ---------------------------------------------------------------------------------------
+# sign - inside-out, deepest first. NOT --deep. NO hardened runtime.
+# ---------------------------------------------------------------------------------------
+cmd_sign(){
+  [ -d "$APP" ] || die "no $APP - run: scripts/build-app"
+  with_keychain
+  say "signing $APP as '$SIGN_ID'"
+
+  # --deep is DEPRECATED for signing (macOS 13+) and Apple's own guidance is against it: it
+  # applies one option set to every nested item and silently misses code it cannot discover.
+  # We walk deepest-first instead, which is the documented correct order.
+  #
+  # NO `-o runtime`. This is the single biggest trap for a self-signed app, and it is verified
+  # rather than theoretical: a self-signed cert has no Team ID, and under the hardened runtime
+  # Library Validation then refuses to load ANY nested dylib - even one signed with the very
+  # same certificate ("mapping process and mapped file (non-platform) have different Team IDs").
+  # sherpa-onnx, numpy and llama.cpp would all fail at launch. The hardened runtime exists to
+  # satisfy notarization, which we are not doing.
+  #
+  # --timestamp=none: without a secure timestamp macOS never evaluates certificate expiry at
+  # all (TN2206), so the signature outlives the cert. Never pass `-o expires`.
+  local n=0
+  while IFS= read -r -d '' f; do
+    codesign --force --timestamp=none --keychain "$KEYCHAIN" --sign "$SIGN_ID" "$f" \
+      >/dev/null 2>&1 || die "failed signing $f"
+    n=$((n+1))
+  done < <(find "$APP" -type f \( -name '*.dylib' -o -name '*.so' \) -not -type l -print0 | sort -zr)
+  echo "    signed $n nested libraries"
+
+  while IFS= read -r -d '' b; do
+    codesign --force --timestamp=none --keychain "$KEYCHAIN" --sign "$SIGN_ID" "$b" \
+      >/dev/null 2>&1 || die "failed signing $b"
+  done < <(find "$APP" -mindepth 1 -type d \( -name '*.framework' -o -name '*.app' \) -print0 | sort -zr)
+
+  # Every remaining Mach-O (Python.framework helpers, the launcher itself).
+  while IFS= read -r -d '' f; do
+    file "$f" 2>/dev/null | grep -q 'Mach-O' || continue
+    codesign --force --timestamp=none --keychain "$KEYCHAIN" --sign "$SIGN_ID" "$f" \
+      >/dev/null 2>&1 || true
+  done < <(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f -not -type l -print0 2>/dev/null)
+
+  # Finally the bundle itself.
+  codesign --force --timestamp=none --keychain "$KEYCHAIN" --sign "$SIGN_ID" "$APP" \
+    || die "failed signing the bundle"
+  grn "    signed"
+}
+
+# ---------------------------------------------------------------------------------------
+# verify
+# ---------------------------------------------------------------------------------------
+cmd_verify(){
+  [ -d "$APP" ] || die "no $APP"
+  say "verifying $APP"
+  codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | sed 's/^/    /' \
+    || die "signature invalid"
+
+  local dr; dr="$(codesign -d -r- "$APP" 2>/dev/null | sed -n 's/^designated => //p')"
+  echo "    DR: $dr"
+  case "$dr" in
+    *adhoc*|"") die "bundle is ad-hoc signed or has no DR - TCC grants would break on update" ;;
+    *certificate*) ;;
+    *) die "unexpected designated requirement" ;;
+  esac
+  grep -q "sk.zaprazny.dum" <<<"$dr" || die "DR does not pin the expected bundle identifier"
+
+  # Hardened runtime must NOT be on - it would break dylib loading under a self-signed cert.
+  if codesign -d -vvv "$APP" 2>&1 | grep -q "flags=.*runtime"; then
+    die "hardened runtime is enabled - nested dylibs will fail Library Validation"
+  fi
+
+  # The tripwire. Once DUM_CERT_SHA1 is exported, a build signed by any OTHER certificate
+  # fails HERE instead of shipping and silently costing every user their permissions.
+  if [ -n "${DUM_CERT_SHA1:-}" ]; then
+    local want; want="$(tr 'a-f' 'A-F' <<<"$DUM_CERT_SHA1" | tr -d ' :')"
+    local got;  got="$(tr 'a-f' 'A-F' <<<"$dr" | grep -oE 'H"[0-9A-F]+"' | tr -d 'H"')"
+    [ "$want" = "$got" ] || die "CERT MISMATCH - expected $want, got $got. Shipping this would
+    force every existing user to re-grant Microphone, Accessibility and Input Monitoring."
+    echo "    cert pin OK ($want)"
+  else
+    echo "    (no DUM_CERT_SHA1 set - pin it to guard against accidental cert rotation)"
+  fi
+  grn "    valid"
+}
+
+# ---------------------------------------------------------------------------------------
+# dmg
+# ---------------------------------------------------------------------------------------
+cmd_dmg(){
+  [ -d "$APP" ] || die "no $APP"
+  local v; v="$(version_of "${1:-}")"
+  local dmg="$DIST/dum-dictation-$v.dmg"
+  "$PY" -c 'import dmgbuild' 2>/dev/null \
+    || die "dmgbuild missing: $PY -m pip install -r requirements-build.txt"
+  say "building $dmg"
+
+  # dmgbuild over create-dmg: create-dmg drives Finder via AppleScript, so it needs a logged-in
+  # GUI session plus an Automation TCC grant and is a known source of hangs. dmgbuild writes the
+  # .DS_Store directly and needs no Finder at all.
+  # ULFO (lzfse) over UDZO: smaller and mounts faster. Its floor is macOS 10.11 - irrelevant for
+  # an arm64-only app (11.0+).
+  # NOTE we do NOT sign the DMG. A DMG signature exists to pass Gatekeeper's open-context
+  # assessment and to anchor a stapled notarization ticket; both need an Apple-issued chain, so
+  # a self-signed DMG signature buys neither.
+  local tmpd; tmpd="$(mktemp -d)"; trap 'rm -rf "$tmpd"' RETURN
+  cat > "$tmpd/settings.py" <<EOF
+import os.path
+application = os.path.abspath("$APP")
+appname = os.path.basename(application)
+format = "ULFO"
+size = None
+files = [application]
+symlinks = {"Applications": "/Applications"}
+icon_locations = {appname: (150, 130), "Applications": (490, 130)}
+window_rect = ((200, 200), (640, 320))
+default_view = "icon-view"
+icon_size = 128
+text_size = 14
+label_pos = "bottom"
+show_status_bar = show_tab_view = show_toolbar = show_pathbar = show_sidebar = False
+EOF
+  rm -f "$dmg"
+  "$PY" -m dmgbuild -s "$tmpd/settings.py" -D app="$APP" "dum dictation" "$dmg" \
+    >/dev/null 2>&1 || die "dmgbuild failed"
+  ( cd "$DIST" && shasum -a 256 "$(basename "$dmg")" > "$(basename "$dmg").sha256" )
+  grn "    $dmg ($(du -m "$dmg" | cut -f1) MB)"
+}
+
+# ---------------------------------------------------------------------------------------
+# tar - the zero-Gatekeeper path
+# ---------------------------------------------------------------------------------------
+cmd_tar(){
+  [ -d "$APP" ] || die "no $APP"
+  local v; v="$(version_of "${1:-}")"
+  local tgz="$DIST/dum-dictation-$v-macos-arm64.tar.gz"
+  say "building $tgz"
+  # Why ship this alongside the DMG: curl does not set com.apple.quarantine, and tar does not
+  # propagate it. An app extracted this way is never assessed by Gatekeeper - no warning, no
+  # System Settings trip, no admin password. It needs a terminal, so it is NOT the headline
+  # path, but it is the honest answer to "I'm stuck on the scary dialog".
+  # -h is deliberate: NO. We keep symlinks (the dylib dedupe depends on them).
+  tar -czf "$tgz" -C "$DIST" "$(basename "$APP")" || die "tar failed"
+  ( cd "$DIST" && shasum -a 256 "$(basename "$tgz")" > "$(basename "$tgz").sha256" )
+  grn "    $tgz ($(du -m "$tgz" | cut -f1) MB)"
+}
+
+case "${1:-}" in
+  cert)   cmd_cert ;;
+  sign)   cmd_sign ;;
+  verify) cmd_verify ;;
+  dmg)    cmd_dmg "${2:-}" ;;
+  tar)    cmd_tar "${2:-}" ;;
+  all)    scripts/build-app "$(version_of "${2:-}")" && cmd_sign && cmd_verify \
+          && cmd_dmg "${2:-}" && cmd_tar "${2:-}" ;;
+  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ; exit 1 ;;
+esac
