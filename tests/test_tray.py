@@ -133,13 +133,35 @@ class TestTraySettings(unittest.TestCase):
         # Never raise from a menu callback: an exception there leaves the user with no menu.
         self.assertFalse(TrayController(FakeApp()).restart())
 
-    def test_both_permission_panes_are_reachable(self):
-        # Two separate entry points: Accessibility is what lets dum TYPE, Microphone is what
-        # lets it HEAR. Each deep-links to a pane with a live toggle, so the user can revoke
-        # from here as well as grant.
+    def test_all_three_permissions_are_reachable(self):
+        """One entry point per permission, because each fails differently and silently:
+        Accessibility lets dum TYPE, Microphone lets it HEAR, Input Monitoring lets it SEE
+        the hotkey. Input Monitoring had no item at all until a fresh-install test showed
+        the hotkey dead with no way to fix it from the menu.
+
+        permissions.ensure is stubbed: unstubbed, this test would fire real macOS prompts
+        and open System Settings on the machine running the gate.
+        """
+        import permissions
+        seen = []
+        real, permissions.ensure = permissions.ensure, lambda kind, **kw: seen.append(kind)
+        try:
+            c = TrayController(FakeApp())
+            c.open_accessibility_permissions()
+            c.open_microphone_permissions()
+            c.open_input_monitoring_permissions()
+        finally:
+            permissions.ensure = real
+        self.assertEqual(seen, ["accessibility", "microphone", "input_monitoring"])
+
+    def test_permission_status_never_raises(self):
+        # Read on every menu open to draw the tick. A raise here means no menu at all.
         c = TrayController(FakeApp())
-        for fn in (c.open_accessibility_permissions, c.open_microphone_permissions):
-            self.assertIn(fn(), (True, False))   # must return, never raise
+        for kind in ("accessibility", "microphone", "input_monitoring", "nonsense"):
+            try:
+                c.permission_status(kind)
+            except Exception as e:
+                self.fail(f"permission_status({kind!r}) raised: {type(e).__name__}: {e}")
 
     def test_accessors_never_raise(self):
         # Every one of these runs inside a pystray callback. A raise means a broken menu.

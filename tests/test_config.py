@@ -73,7 +73,10 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
             config.save_config({"mic": None, "hotkey_key": "cmd_l",
                                 "hotkey_mode": "toggle", "junk": 1}, p)
             data = json.loads(p.read_text())
-            self.assertEqual(set(data.keys()), {"mic", "hotkey_key", "hotkey_mode"})
+            # autostart_offered is the one-time latch for enabling auto-start on a new
+             # install; it must survive a save or turning auto-start off would not stick.
+            self.assertEqual(set(data.keys()),
+                             {"mic", "hotkey_key", "hotkey_mode", "autostart_offered"})
 
     def test_mic_index_persists(self):
         with tempfile.TemporaryDirectory() as d:
@@ -198,6 +201,7 @@ class TestWizardNoRegression(unittest.TestCase):
                 "mic": "MacBook Air Microphone",
                 "hotkey_key": config.DEFAULT_KEY,
                 "hotkey_mode": "toggle",
+                "autostart_offered": False,   # the wizard does not consume the one-time offer
             })
 
     def test_wizard_custom_choices(self):

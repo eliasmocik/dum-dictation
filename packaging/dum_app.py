@@ -96,7 +96,8 @@ def _selftest(deep=False):
     probe("engine modules", lambda: [__import__(m) for m in
                                      ("live", "pipeline", "overlay", "config", "platform_io",
                                       "model_utils", "llm_backend", "tray",
-                                      "first_run", "model_download", "icon")])
+                                      "first_run", "model_download", "icon",
+                                      "permissions", "keylayout")])
 
     from model_utils import HERE, USER_DATA, MODELS, FROZEN
     print(f"  frozen={FROZEN}\n  HERE={HERE}\n  USER_DATA={USER_DATA}\n  MODELS={MODELS}")
@@ -130,11 +131,38 @@ def _selftest(deep=False):
     return 1 if failures else 0
 
 
+def _permissions_report(do_request=False):
+    """Print the three grants, and optionally exercise the request path IN THE BUNDLE.
+
+    This exists because the request path cannot be trusted from a plain `python`: macOS
+    SIGKILLs any process that touches the microphone without NSMicrophoneUsageDescription
+    in its Info.plist, and a bare interpreter has no Info.plist at all. Only the signed
+    bundle can prove the call is survivable, so the bundle gets a way to try it.
+
+    Doubles as the first thing to ask a user for when they report "it types nothing" -
+    one line of output names the missing grant.
+    """
+    import permissions
+    print("dum permissions")
+    for kind, status in permissions.summary().items():
+        print(f"  {kind:<18} {status}")
+    if do_request:
+        for kind in ("microphone", "accessibility", "input_monitoring"):
+            print(f"  request {kind:<10} -> {permissions.ensure(kind)}")
+        print("  (survived the request path - no TCC kill)")
+    errs = permissions.last_errors()
+    print(f"  errors: {errs or 'none'}")
+    return 1 if errs else 0
+
+
 def main():
     argv = sys.argv[1:]
     if "--selftest" in argv:
         _bootstrap_env()
         return _selftest(deep="--deep" in argv)
+    if "--permissions" in argv:
+        _bootstrap_env()
+        return _permissions_report(do_request="--request" in argv)
 
     _bootstrap_env()
 

@@ -135,8 +135,15 @@ BUILTIN_MIC_HINTS = ("macbook", "built-in", "built in", "imac", "mac studio", "s
 def default_config():
     """The built-in defaults: the platform's default trigger (double-tap left ⌘ on macOS,
     double-tap right Ctrl on Windows/Linux), toggle mode, system-default mic. Used when no
-    config file exists and as the fallback for any missing/invalid field."""
-    return {"mic": None, "hotkey_key": DEFAULT_KEY, "hotkey_mode": DEFAULT_MODE}
+    config file exists and as the fallback for any missing/invalid field.
+
+    `autostart_offered` records that the one-time "turn auto-start on for a new install"
+    step has already run. It is NOT "is auto-start on" - launchd is the source of truth for
+    that. It exists so switching auto-start OFF sticks: without it, every launch would see
+    "no login item" and helpfully put it back, and the menu toggle would be a lie.
+    """
+    return {"mic": None, "hotkey_key": DEFAULT_KEY, "hotkey_mode": DEFAULT_MODE,
+            "autostart_offered": False}
 
 
 def config_exists(path=CONFIG_PATH):
@@ -172,17 +179,20 @@ def load_config(path=CONFIG_PATH):
     supported = key_descriptor(cfg["hotkey_key"]).get("modes", ("toggle",))
     if cfg["hotkey_mode"] not in supported:
         cfg["hotkey_mode"] = supported[0]
+    if isinstance(data.get("autostart_offered"), bool):
+        cfg["autostart_offered"] = data["autostart_offered"]
     return cfg
 
 
 def save_config(cfg, path=CONFIG_PATH):
-    """Atomically persist the config (only the three known fields)."""
+    """Atomically persist the config (only the known fields)."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     out = {
         "mic": cfg.get("mic"),
         "hotkey_key": cfg.get("hotkey_key", DEFAULT_KEY),
         "hotkey_mode": cfg.get("hotkey_mode", DEFAULT_MODE),
+        "autostart_offered": bool(cfg.get("autostart_offered", False)),
     }
     tmp = p.with_suffix(p.suffix + ".tmp")
     tmp.write_text(json.dumps(out, indent=2) + "\n")

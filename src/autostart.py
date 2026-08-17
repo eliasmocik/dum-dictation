@@ -24,6 +24,71 @@ from autostart_linux import (
     _linux_install, _linux_uninstall, _linux_status)
 
 
+def should_enable_by_default(cfg, frozen, already_installed):
+    """Should a launch turn auto-start ON without being asked? Pure, so it is testable.
+
+    True exactly once, on a downloaded app's first run. Three guards, each earning its keep:
+
+      cfg["autostart_offered"]  - the one-time latch. Without it a user who switches
+                                  auto-start off would find it back on at the next launch,
+                                  because "no login item installed" looks identical to
+                                  "never offered". The menu toggle has to mean something.
+      frozen                    - a .app is something a person installed and expects to keep
+                                  running; a git checkout is a dev tree, and silently adding
+                                  a LaunchAgent pointing into somebody's working copy (which
+                                  they may move, rename or delete) is not ours to do.
+      already_installed         - never fight an existing login item, however it got there.
+
+    Deliberately NOT consulted: whether any permission is granted. Auto-start is about the
+    app coming back after a reboot; it is orthogonal to whether it can hear you yet.
+    """
+    return bool(frozen) and not cfg.get("autostart_offered", False) and not already_installed
+
+
+def enable_by_default(cfg, frozen=None, log=print):
+    """Apply should_enable_by_default(), then LATCH regardless of the outcome.
+
+    The latch is set even when the install fails, on purpose: a launchd that refuses is not
+    going to start agreeing on the next launch, and retrying forever would mean a failing
+    install nags at every single start. One attempt, then the menu toggle owns it.
+
+    Returns True only if a login item was actually installed.
+    """
+    import sys as _sys
+    if frozen is None:
+        frozen = bool(getattr(_sys, "frozen", False))
+    try:
+        installed, _loaded = status_quiet()
+    except Exception:
+        installed = False
+    if not should_enable_by_default(cfg, frozen, installed):
+        return False
+    ok = False
+    try:
+        ok = bool(install())
+        if ok:
+            log("[autostart] enabled by default for a new install - "
+                "turn it off any time from the menu bar.")
+    except Exception as e:
+        log(f"[autostart] could not enable by default: {type(e).__name__}: {e}")
+    cfg["autostart_offered"] = True
+    try:
+        import config
+        config.save_config(cfg)
+    except Exception:
+        pass
+    return ok
+
+
+def status_quiet():
+    """(installed, loaded) without printing - status() is chatty by design."""
+    import io
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        return status()
+
+
 def install(args=None):
     if sys.platform == "darwin":
         return _mac_install(args)

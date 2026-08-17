@@ -5,6 +5,47 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-17
+
+Everything here was found by wiping a Mac to a genuine first-run state and installing the
+shipped DMG. None of it was visible on a machine that had run dum before, which is exactly
+why it shipped.
+
+### Fixed
+- **The permission menu items were a dead end on the machines that needed them most.** They
+  only deep-linked to System Settings - but macOS lists an app under Microphone /
+  Accessibility / Input Monitoring only once the app has *asked* for that permission. Never
+  having asked, dum was in none of those lists, so the menu opened a pane with nothing to
+  toggle. They now ASK when a permission has never been decided (the prompt is what creates
+  the row) and open Settings only once it has, since a denial can only be reversed there.
+- **The microphone request could never have worked.** `objc.loadBundle` brings a framework's
+  classes but none of its BridgeSupport metadata, so pyobjc had no signature for the
+  completion-handler block and every call raised "Argument 3 is a block, but no signature
+  available". The caller caught it and quietly opened System Settings - the same dead end,
+  one layer down. The block signature is now declared explicitly, with opening a real input
+  stream as a fallback, since the prompt is a side effect of access.
+- **No Input Monitoring item existed at all**, though it is one of the three grants the app
+  cannot work without - and the one whose absence is least obvious, because pynput's event
+  tap is born dead without it and the hotkey then does nothing at all, silently.
+- **The app crash-looped on a cold machine** (EXC_BREAKPOINT / SIGTRAP). pynput asks Carbon
+  for the keyboard layout from its listener thread; answering can require rebuilding the
+  input-source list, which asserts it is on the main queue. The layout is now resolved once
+  on the main thread and served from cache, so that call never happens off-main again.
+  Reproducing it in isolation failed three ways, so the call was removed rather than made
+  conditionally safe.
+
+### Added
+- **Auto-start is on by default for a downloaded app** - it now comes back after a reboot
+  without anyone needing to know a login item exists. Exactly once, latched in the config:
+  switching it off in the menu sticks, because "no login item" and "never offered" would
+  otherwise look identical and every launch would put it back. Never applied to a git
+  checkout - a LaunchAgent pointing into a working copy breaks the moment it moves.
+- Each permission menu item shows a tick with its live grant state, so the menu answers
+  "why isn't it working" without leaving it.
+- `dum --permissions [--request]`, a diagnostic the signed bundle can run. The request path
+  cannot be tested from a plain `python`: macOS SIGKILLs any process touching the microphone
+  without `NSMicrophoneUsageDescription`, and an interpreter has no Info.plist.
+
 ## [0.2.0] - 2026-08-17
 
 ### Added
@@ -117,7 +158,8 @@ First public release. Local, live dictation that gets your tech vocab right.
 - Offline test gate (`scripts/test`): unit suite over the deterministic pipeline + a bench that
   replays a golden corpus through the real loop and scores WER / term recall against a baseline.
 
-[Unreleased]: https://github.com/eliasmocik/dum-dictation/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/eliasmocik/dum-dictation/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/eliasmocik/dum-dictation/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/eliasmocik/dum-dictation/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/eliasmocik/dum-dictation/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/eliasmocik/dum-dictation/releases/tag/v0.1.0

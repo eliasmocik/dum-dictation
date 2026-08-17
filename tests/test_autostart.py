@@ -7,6 +7,7 @@ Both builders are PURE (no launchctl / no schtasks), so they're tested on any OS
 The install/uninstall/status verbs shell out to the OS scheduler; macOS + Windows are
 implemented, so only Linux still raises NotImplementedError (asserted on Linux).
 """
+import os
 import plistlib
 import unittest
 from pathlib import Path
@@ -191,6 +192,74 @@ class TestMacBundledAutostart(unittest.TestCase):
         with self._frozen():
             prog, _wd, _o, _e = autostart_mac._mac_job_paths()
             self.assertNotIn("--tray", prog)
+
+
+class TestEnableByDefault(unittest.TestCase):
+    """Auto-start is ON by default for a downloaded app - but exactly once.
+
+    The whole risk of a default-on login item is that it stops being a default and becomes
+    an override: switch it off, relaunch, and it is back. These tests pin the latch that
+    stops that, because the failure is invisible until a user complains that the menu
+    toggle does not work.
+    """
+
+    def test_fresh_frozen_install_enables(self):
+        self.assertTrue(autostart.should_enable_by_default({}, frozen=True,
+                                                           already_installed=False))
+
+    def test_turning_it_off_sticks(self):
+        # The regression this latch exists for: once offered, a missing login item means the
+        # USER removed it, not that we never tried. Re-enabling would overrule them.
+        self.assertFalse(autostart.should_enable_by_default(
+            {"autostart_offered": True}, frozen=True, already_installed=False))
+
+    def test_git_checkout_is_never_touched(self):
+        # A LaunchAgent pointing into a working copy breaks the moment it is moved or renamed,
+        # and a dev did not ask for a login item by running ./dum.
+        self.assertFalse(autostart.should_enable_by_default({}, frozen=False,
+                                                            already_installed=False))
+
+    def test_existing_login_item_is_left_alone(self):
+        self.assertFalse(autostart.should_enable_by_default({}, frozen=True,
+                                                            already_installed=True))
+
+    def test_latch_is_set_even_when_the_install_fails(self):
+        """A launchd that refuses now will refuse next time too. Retrying every launch would
+        turn one failure into a permanent nag."""
+        cfg = {}
+        saved = {}
+        real_install, real_status = autostart.install, autostart.status_quiet
+        import config as _config
+        real_save = _config.save_config
+        autostart.install = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("launchctl said no"))
+        autostart.status_quiet = lambda: (False, False)
+        _config.save_config = lambda c, **k: saved.update(c)
+        try:
+            ok = autostart.enable_by_default(cfg, frozen=True, log=lambda *_: None)
+        finally:
+            autostart.install, autostart.status_quiet = real_install, real_status
+            _config.save_config = real_save
+        self.assertFalse(ok)                              # nothing was installed
+        self.assertTrue(cfg["autostart_offered"])         # but we do not try again
+        self.assertTrue(saved.get("autostart_offered"))   # and it was persisted
+
+
+class TestConfigCarriesTheLatch(unittest.TestCase):
+    def test_save_then_load_round_trips_the_flag(self):
+        import json
+        import tempfile
+        import config as _config
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "config.json")
+            _config.save_config({"mic": None, "hotkey_key": "cmd_l", "hotkey_mode": "toggle",
+                                 "autostart_offered": True}, path=p)
+            with open(p) as fh:
+                self.assertTrue(json.loads(fh.read())["autostart_offered"])
+            self.assertTrue(_config.load_config(path=p)["autostart_offered"])
+
+    def test_absent_flag_defaults_to_not_yet_offered(self):
+        import config as _config
+        self.assertFalse(_config.default_config()["autostart_offered"])
 
 
 if __name__ == "__main__":

@@ -224,34 +224,47 @@ class TrayController:
         except Exception:
             return False
 
-    def _open_privacy_pane(self, anchor):
-        """Deep-link straight to one Privacy & Security pane.
+    def _permission(self, kind):
+        """Ask for a permission if it has never been decided; else open System Settings.
 
-        These exist because of a real failure mode: with Accessibility ungranted the app
-        starts, plays its start cue and types nothing, which reads as "broken app" rather than
-        "missing permission". Two menu items turn a dead end into two clicks - and because the
-        panes hold live toggles, the user can revoke from here too, not only grant.
+        These items exist because of a real failure mode: with Accessibility ungranted the
+        app starts, plays its start cue and types nothing, which reads as "broken app"
+        rather than "missing permission".
+
+        They used to ONLY open the pane, and that was wrong on the machines that need them
+        most. macOS lists an app under Microphone / Accessibility / Input Monitoring only
+        after the app has ASKED, so on a fresh install the pane opened with no dum row in it
+        - a dead end. Asking first is what creates the row. See permissions.py.
         """
-        import subprocess
-        urls = (f"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?{anchor}",
-                f"x-apple.systempreferences:com.apple.preference.security?{anchor}")
-        for candidate in urls:
-            try:
-                subprocess.run(["open", candidate], check=True,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return True
-            except Exception:
-                continue
-        return False
+        try:
+            import permissions
+            return permissions.ensure(kind)
+        except Exception:
+            return None
+
+    def permission_status(self, kind):
+        """Status of one permission, for the menu label. Never raises - a menu that cannot
+        render is worse than a label that says nothing."""
+        try:
+            import permissions
+            return permissions.summary().get(kind, permissions.UNKNOWN)
+        except Exception:
+            return None
 
     def open_accessibility_permissions(self):
         # Accessibility is what lets dum TYPE the text it recognised.
-        return self._open_privacy_pane("Privacy_Accessibility")
+        return self._permission("accessibility")
 
     def open_microphone_permissions(self):
         # Microphone is what lets dum HEAR you. Without it macOS hands the app silent
         # samples rather than an error, so dictation looks broken rather than unpermitted.
-        return self._open_privacy_pane("Privacy_Microphone")
+        return self._permission("microphone")
+
+    def open_input_monitoring_permissions(self):
+        # Input Monitoring is what lets dum SEE the hotkey. pynput's CGEventTap is born dead
+        # without it and never revives, so the double-tap silently does nothing - the single
+        # most confusing way this app can fail, and it had no menu item at all before.
+        return self._permission("input_monitoring")
 
     def restart(self):
         """Relaunch, so a new trigger key or mode actually takes effect.
@@ -509,10 +522,18 @@ def run(app, on_quit=None, on_hotkey_change=None, on_mic_change=None):
         pystray.MenuItem("Microphone", _mic_menu()),
         pystray.MenuItem("Trigger", _trigger_menu()),
         pystray.Menu.SEPARATOR,
+        # All three are required, and each fails differently and silently when missing, so
+        # each gets its own item. The tick is the live grant state, read from macOS every
+        # time the menu opens - so this list doubles as the answer to "why isn't it working".
         pystray.MenuItem("Accessibility permissions",
-                         lambda _i, _it=None: controller.open_accessibility_permissions()),
+                         lambda _i, _it=None: controller.open_accessibility_permissions(),
+                         checked=lambda _i: controller.permission_status("accessibility") == "granted"),
         pystray.MenuItem("Microphone permissions",
-                         lambda _i, _it=None: controller.open_microphone_permissions()),
+                         lambda _i, _it=None: controller.open_microphone_permissions(),
+                         checked=lambda _i: controller.permission_status("microphone") == "granted"),
+        pystray.MenuItem("Input monitoring permissions",
+                         lambda _i, _it=None: controller.open_input_monitoring_permissions(),
+                         checked=lambda _i: controller.permission_status("input_monitoring") == "granted"),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Autostart at login",
                          lambda _i, _it=None: controller.toggle_autostart(),

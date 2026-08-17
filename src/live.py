@@ -1228,6 +1228,16 @@ def main(argv=None):
     # Phase R default-ON for the live daily driver (Decision G): harvest the cwd repo's vocab.
     # The bench never calls main(), so it stays deterministic. Disable with DUM_REPO_VOCAB=0.
     os.environ.setdefault("DUM_REPO_VOCAB", "1")
+
+    # Resolve the macOS keyboard layout HERE, because here is the main thread. pynput would
+    # otherwise do it from its listener thread, where Carbon's input-source rebuild trips a
+    # main-queue assertion and SIGTRAPs the whole app - see keylayout.py. Must happen before
+    # any Listener or Controller is constructed, so it is the first thing main() does.
+    try:
+        import keylayout
+        keylayout.prewarm()
+    except Exception:
+        pass                                     # never let a warm-up failure stop dictation
     if "--list-devices" in argv:
         import sounddevice as sd
         for i, dv in enumerate(sd.query_devices()):
@@ -1339,6 +1349,14 @@ def main(argv=None):
         return
     try:
         if use_tray:
+            # A downloaded app should come back after a reboot without anyone having to know
+            # a login item exists. Once only, and never for a git checkout - see
+            # autostart.should_enable_by_default() for why each guard is there.
+            try:
+                import autostart
+                autostart.enable_by_default(user_cfg, log=log)
+            except Exception:
+                pass                    # a login item is a nicety; never block dictation on it
             run_tray(app, trigger_key=hotkey_key, mode=hotkey_mode)
         elif use_double:
             run_double_tap_toggle(app, trigger_key=hotkey_key, mode=hotkey_mode)
