@@ -74,6 +74,25 @@ check("plan: installed ASR shows NO window", not p2.needs_window)
 check("plan: LLM alone never blocks with a window",
       not fr.FirstRunPlan("/tmp/x", llm_wanted=True, asr_installed=True).needs_window)
 
+# --- the correction model downloads WITHOUT asking -------------------------------------------
+# It used to open a modal on first launch. That question interrupted someone who had just
+# installed the app, about a component they had no way to evaluate, and "no" only made the
+# product worse - the model is what fixes git/get and grep/grab. It fetches on a daemon
+# thread while dictation already works, so there is nothing to consent to but bandwidth.
+import os as _os
+_saved = _os.environ.pop("DUM_FETCH_LLM", None)
+check("no prompt: the optional model is fetched by default", fr.llm_wanted_by_default())
+_os.environ["DUM_FETCH_LLM"] = "0"
+check("metered connections can still refuse it (DUM_FETCH_LLM=0)", not fr.llm_wanted_by_default())
+for _v in ("false", "no", "0"):
+    _os.environ["DUM_FETCH_LLM"] = _v
+    check(f"DUM_FETCH_LLM={_v} refuses too", not fr.llm_wanted_by_default())
+_os.environ["DUM_FETCH_LLM"] = "1"
+check("DUM_FETCH_LLM=1 fetches", fr.llm_wanted_by_default())
+_os.environ.pop("DUM_FETCH_LLM", None)
+if _saved is not None:
+    _os.environ["DUM_FETCH_LLM"] = _saved
+
 # --- already installed: no prompt, no window, straight through ------------------------------
 with tempfile.TemporaryDirectory() as td:
     installed_dir(td)

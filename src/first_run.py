@@ -19,6 +19,7 @@ is right for the steady state and wrong for a modal first run, so we switch to .
 window is up and back to .accessory afterwards - the pattern Ollama uses. LSUIElement is a
 starting position, not a constraint.
 """
+import os
 import threading
 
 # Progress phases, in the order a user sees them. Two of the three are NOT downloads, which is
@@ -81,12 +82,28 @@ class FirstRunPlan:
         return s
 
 
-def ask_llm_consent(default=True):
-    """Ask once, on first launch, whether to also fetch the optional correction model.
+def llm_wanted_by_default():
+    """Should the optional correction model be fetched? Yes, unless explicitly refused.
 
-    Defaults to YES: it is the layer that fixes git/get and grep/grab, which is most of why
-    dum exists. But it is 808 MB, so we say so rather than spending a user's bandwidth silently.
-    Falls back to the default on any failure - a broken dialog must not block startup.
+    This used to be a modal asking permission. It is not one any more, because the question
+    was worse than useless: it is the layer that fixes git/get and grep/grab, which is most
+    of why dum exists, so "no" produces a worse product for no benefit the user can see. And
+    it arrived at the worst possible moment - a dialog in front of someone who has just
+    installed an app and has not yet dictated a word, about a component they have no way to
+    evaluate. It downloads on a daemon thread and dictation is fully usable throughout, so
+    there is nothing to consent to except bandwidth.
+
+    Bandwidth is a real concern on a metered connection, so it stays refusable - just not by
+    interrupting everyone. DUM_FETCH_LLM=0 skips it; the model is fetched lazily on first use
+    afterwards, exactly as it always was.
+    """
+    return os.environ.get("DUM_FETCH_LLM", "1").strip().lower() not in ("0", "false", "no")
+
+
+def ask_llm_consent(default=True):
+    """The old consent modal. No longer called on any default path - kept because the `ask`
+    seam in run_first_run() is still how the tests drive the "declined" branch, and because
+    a future preferences UI may want to offer this deliberately rather than on launch.
     """
     try:
         from AppKit import NSAlert, NSApplication, NSAlertFirstButtonReturn
@@ -189,9 +206,10 @@ def run_first_run(models_dir, log=print, ask=None, window_factory=None):
     installed = md.is_installed(models_dir)
     plan = FirstRunPlan(models_dir, asr_installed=installed)
 
-    llm_wanted = True
-    if not installed:                       # only ask on a genuine first run
-        llm_wanted = (ask or ask_llm_consent)()
+    # No prompt. The correction model is fetched silently on a daemon thread while the user
+    # is already dictating - see llm_wanted_by_default() for why asking was dropped. `ask` is
+    # honoured when a caller passes one, which is how the tests exercise the declined branch.
+    llm_wanted = ask() if (ask and not installed) else llm_wanted_by_default()
     plan.llm_wanted = llm_wanted
 
     win = None

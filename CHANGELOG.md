@@ -42,6 +42,14 @@ why it shipped.
   checkout - a LaunchAgent pointing into a working copy breaks the moment it moves.
 - Each permission menu item shows a tick with its live grant state, so the menu answers
   "why isn't it working" without leaving it.
+- The correction model now downloads **without asking**. A modal used to interrupt first
+  launch to request permission to fetch it; the question was worse than useless, since it
+  arrived in front of someone who had just installed the app and had not yet dictated a
+  word, about a component they had no way to evaluate - and answering "no" only produced a
+  worse product, because that model is the layer that fixes git/get and grep/grab. It has
+  always downloaded on a daemon thread with dictation fully usable throughout, so there was
+  never anything to consent to except bandwidth. Metered connections can still refuse it
+  with `DUM_FETCH_LLM=0`, without a dialog in everyone else's way.
 - `dum --permissions [--request]`, a diagnostic the signed bundle can run. The request path
   cannot be tested from a plain `python`: macOS SIGKILLs any process touching the microphone
   without `NSMicrophoneUsageDescription`, and an interpreter has no Info.plist.
