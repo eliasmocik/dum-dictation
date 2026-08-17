@@ -22,20 +22,18 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 - **macOS** (Apple Silicon, M-series) - primary, best-tested
 - **Windows 10/11** - works, still beta (built and tested by a contributor) ([setup](#on-windows))
 - **Linux** (X11) - experimental, looking for a contributor ([setup](#on-linux))
-- Nothing else on macOS - the app is self-contained. Building from source or on Windows/Linux
-  needs Python 3.12-3.14 (3.12 or 3.13 on Windows); `./setup` fetches its own copy if you have none.
+- Nothing else on macOS - the app is self-contained. From source, or on Windows/Linux, you need
+  Python 3.12-3.14 (3.12 or 3.13 on Windows); `./setup` fetches its own copy if you have none.
 
 ## Install (macOS)
 
-**[Download dum.dmg](https://github.com/eliasmocik/dum-dictation/releases/latest)** - Apple Silicon, macOS 11+.
+### **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
-Drag it to Applications and open it. macOS says it can't verify the app: click **Done**, then
-System Settings > Privacy & Security > **Open Anyway**. Once, not every launch.
+Apple Silicon, macOS 11+. That page has the whole thing with screenshots: drag to Applications,
+click past one Gatekeeper warning (the app isn't signed by Apple), tick three permissions in the
+menu bar. Two minutes, no terminal, no Python.
 
-Say yes to **Microphone**, **Accessibility** and **Input Monitoring** when asked - dum can't hear
-you or type without all three. First launch pulls the speech model (~490 MB).
-
-Double-tap **left ⌘** to start and stop. Mic, hotkey and auto-start live in the menu-bar icon.
+Then double-tap **left ⌘** to start and stop.
 
 <details>
 <summary>Or run it from source</summary>
