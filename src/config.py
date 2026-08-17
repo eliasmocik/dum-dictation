@@ -40,12 +40,31 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 # offer the Ctrl keys (default: double-tap RIGHT Ctrl - rarely pressed alone, the natural
 # analog of the Mac right-Command choice). `_ALL_KEYS` is the full union; `CURATED_KEYS`
 # is the subset offered on THIS OS (what the wizard shows).
+# `modes` is which dictation modes the key can actually drive, and it is NOT cosmetic:
+#   "double" gesture -> toggle ONLY. "Double-tap and then hold" is not a coherent gesture, and
+#            offering push-to-dictate on a double-tap key produced a trigger that simply never
+#            fired - the original reason this catalog grew a modes field.
+#   "single" gesture -> both. A bare press toggles; a bare hold is push-to-dictate.
+#
+# Only right ⌥ offers push-to-dictate, and it offers ONLY that. Holding ⌘/⌃/⇧ bare would
+# swallow every shortcut using them for as long as you talk, so those are toggle-only.
+#
+# Right ⌥ is push-only because toggle mode is hard-wired to a DOUBLE tap in the listener
+# (live.run_double_tap_toggle) - the `gesture` field shapes the label, never the behaviour.
+# A "Press right ⌥" entry therefore promised a single press and silently required a double
+# one. Making it genuinely single-press would be worse: right ⌥ is AltGr on most non-US
+# layouts, so it fires constantly while typing.
+#
+# THERE IS NO fn ENTRY, deliberately. pynput exposes no Key.function on macOS, so a trigger
+# bound to it raised AttributeError while the listener was being built and killed the app on
+# the spot. test_config asserts every pynput name here resolves, so it cannot come back.
 _ALL_KEYS = [
-    {"key": "cmd_l",  "label": "double-tap left ⌘ (Command)",  "gesture": "double", "pynput": "cmd_l",    "platforms": ("darwin",)},
-    {"key": "cmd_r",  "label": "double-tap right ⌘ (Command)", "gesture": "double", "pynput": "cmd_r",    "platforms": ("darwin",)},
-    {"key": "fn",     "label": "fn key",                       "gesture": "single", "pynput": "function", "platforms": ("darwin",)},
-    {"key": "ctrl_r", "label": "double-tap right Ctrl",        "gesture": "double", "pynput": "ctrl_r",   "platforms": ("win32", "linux")},
-    {"key": "ctrl_l", "label": "double-tap left Ctrl",         "gesture": "double", "pynput": "ctrl_l",   "platforms": ("win32", "linux")},
+    {"key": "cmd_l",     "label": "left ⌘ (Command)",  "gesture": "double", "pynput": "cmd_l",     "platforms": ("darwin",),          "modes": ("toggle",)},
+    {"key": "cmd_r",     "label": "right ⌘ (Command)", "gesture": "double", "pynput": "cmd_r",     "platforms": ("darwin",),          "modes": ("toggle",)},
+    {"key": "ctrl_l",    "label": "left ⌃ (Control)",  "gesture": "double", "pynput": "ctrl_l",    "platforms": ("darwin", "win32", "linux"), "modes": ("toggle",)},
+    {"key": "ctrl_r",    "label": "right ⌃ (Control)", "gesture": "double", "pynput": "ctrl_r",    "platforms": ("darwin", "win32", "linux"), "modes": ("toggle",)},
+    {"key": "shift_r",   "label": "right ⇧ (Shift)",   "gesture": "double", "pynput": "shift_r",   "platforms": ("darwin", "win32", "linux"), "modes": ("toggle",)},
+    {"key": "alt_r",     "label": "right ⌥ (Option)",  "gesture": "single", "pynput": "alt_r",     "platforms": ("darwin", "win32", "linux"), "modes": ("push",)},
 ]
 
 
@@ -61,6 +80,35 @@ def curated_keys(platform=None):
 
 
 CURATED_KEYS = curated_keys()
+
+
+# --- Triggers: key + mode as ONE choice ------------------------------------------
+# Presenting key and mode as two independent menus let the user build a combination that
+# cannot work (double-tap + push-to-dictate), and the app silently never triggered. A trigger
+# is therefore atomic: pick "Double-tap left ⌘" or "Hold right ⌥", never a key and a mode
+# separately. Invalid states stop being something to validate and start being unrepresentable.
+
+def _trigger_label(entry, mode):
+    if entry["gesture"] == "double":
+        return f"Double-tap {entry['label']}"
+    return f"Hold {entry['label']}" if mode == "push" else f"Press {entry['label']}"
+
+
+def triggers(platform=None):
+    """Every valid (key, mode) pairing on this OS, in menu order.
+
+    Returns dicts: key, mode, label, group ("tap" = start/stop, "hold" = push-to-dictate).
+    """
+    out = []
+    for entry in curated_keys(platform):
+        for mode in entry.get("modes", ("toggle",)):
+            out.append({"key": entry["key"], "mode": mode,
+                        "label": _trigger_label(entry, mode),
+                        "group": "hold" if mode == "push" else "tap"})
+    # HOLDS FIRST: push-to-dictate is the headline trigger, so it leads the menu.
+    return sorted(out, key=lambda t: (t["group"] != "hold",))
+
+
 _DEFAULT_KEY_BY_PLATFORM = {"darwin": "cmd_l", "win32": "ctrl_r", "linux": "ctrl_r"}
 DEFAULT_KEY = _DEFAULT_KEY_BY_PLATFORM[_platform_tag()]
 
@@ -116,6 +164,14 @@ def load_config(path=CONFIG_PATH):
         cfg["hotkey_key"] = data["hotkey_key"]
     if data.get("hotkey_mode") in _VALID_MODES:
         cfg["hotkey_mode"] = data["hotkey_mode"]
+    # Key and mode are each valid on their own but the PAIR may not be - e.g. alt_r with
+    # "toggle" after right ⌥ became push-only. Left alone that config still drives the app
+    # (toggle is hard-wired to a double tap) while matching nothing in the menu, so no option
+    # appears selected and the user cannot tell what they are on. Heal to a mode the key
+    # actually supports.
+    supported = key_descriptor(cfg["hotkey_key"]).get("modes", ("toggle",))
+    if cfg["hotkey_mode"] not in supported:
+        cfg["hotkey_mode"] = supported[0]
     return cfg
 
 

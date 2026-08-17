@@ -9,9 +9,11 @@ implemented, so only Linux still raises NotImplementedError (asserted on Linux).
 """
 import plistlib
 import unittest
+from pathlib import Path
 import xml.dom.minidom as minidom
 
 import autostart
+import autostart_mac
 
 
 class TestPlistBuilder(unittest.TestCase):
@@ -100,6 +102,82 @@ class TestUnsupportedPlatformGuard(unittest.TestCase):
     def test_status_refuses_on_unknown(self):
         with self.assertRaises(NotImplementedError):
             self._on_platform("freebsd13", autostart.status)
+
+
+class TestMacBundledAutostart(unittest.TestCase):
+    """Auto-start from a bundled .app targets the APP, not the repo's shell script.
+
+    Shipped broken once: the LaunchAgent pointed at <REPO_ROOT>/dum and refused to install
+    unless <REPO_ROOT>/.venv/bin/python existed. Inside a downloaded .app neither exists, so
+    install() raised, the tray swallowed it, and "Open at login" silently did nothing - a menu
+    item that could never work.
+    """
+
+    def _frozen(self, app="/Applications/dum.app"):
+        """Fake a frozen bundle the way PyInstaller sets it up."""
+        import sys, contextlib
+        @contextlib.contextmanager
+        def ctx():
+            old_frozen = getattr(sys, "frozen", None)
+            old_exe = sys.executable
+            sys.frozen = True
+            sys.executable = f"{app}/Contents/MacOS/dum"
+            try:
+                yield
+            finally:
+                sys.executable = old_exe
+                if old_frozen is None:
+                    del sys.frozen
+                else:
+                    sys.frozen = old_frozen
+        return ctx()
+
+    def test_bundle_is_detected_from_sys_executable(self):
+        with self._frozen():
+            self.assertEqual(str(autostart_mac.app_bundle_path()), "/Applications/dum.app")
+
+    def test_checkout_reports_no_bundle(self):
+        self.assertIsNone(autostart_mac.app_bundle_path())
+
+    def test_bundled_job_launches_the_app_not_a_script(self):
+        # Apple: a SCRIPT as the main executable causes TCC problems. Launch via LaunchServices
+        # so the login copy is a real app with the same identity - and therefore the same
+        # already-granted permissions.
+        with self._frozen():
+            prog, _wd, out, _err = autostart_mac._mac_job_paths()
+            self.assertEqual(prog[0], "/usr/bin/open")
+            self.assertIn(autostart_mac.LABEL, prog)
+            self.assertFalse(any(str(p).endswith("/dum") and "open" not in str(p)
+                                 for p in prog[:1]))
+
+    def test_bundled_logs_never_land_inside_the_app(self):
+        # Writing into the bundle invalidates its signature, and macOS keys the user's
+        # Microphone / Accessibility / Input Monitoring grants to that signature.
+        with self._frozen():
+            _prog, _wd, out, err = autostart_mac._mac_job_paths()
+            for p in (out, err):
+                self.assertNotIn(".app/", str(p))
+                self.assertTrue(str(p).startswith(str(Path.home())))
+
+    def test_bundled_plist_declares_its_bundle_id(self):
+        # Without this macOS lists the job as an anonymous background item the user cannot
+        # identify, instead of "dum" under Login Items.
+        d = autostart_mac.build_plist_dict(["/usr/bin/open", "-b", autostart_mac.LABEL],
+                                           "/tmp", "/tmp/o.log", "/tmp/e.log",
+                                           bundle_id=autostart_mac.LABEL)
+        self.assertEqual(d["AssociatedBundleIdentifiers"], [autostart_mac.LABEL])
+
+    def test_checkout_plist_omits_the_bundle_id(self):
+        d = autostart_mac.build_plist_dict(["/repo/dum", "--tray"], "/repo",
+                                           "/repo/o.log", "/repo/e.log")
+        self.assertNotIn("AssociatedBundleIdentifiers", d)
+
+    def test_bundled_job_passes_no_dictation_flags(self):
+        # `open -b` would treat trailing flags as FILES to open and fail. The frozen entry
+        # point supplies its own defaults when launched with no argv.
+        with self._frozen():
+            prog, _wd, _o, _e = autostart_mac._mac_job_paths()
+            self.assertNotIn("--tray", prog)
 
 
 if __name__ == "__main__":

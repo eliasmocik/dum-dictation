@@ -96,7 +96,7 @@ def _selftest(deep=False):
     probe("engine modules", lambda: [__import__(m) for m in
                                      ("live", "pipeline", "overlay", "config", "platform_io",
                                       "model_utils", "llm_backend", "tray",
-                                      "first_run", "model_download")])
+                                      "first_run", "model_download", "icon")])
 
     from model_utils import HERE, USER_DATA, MODELS, FROZEN
     print(f"  frozen={FROZEN}\n  HERE={HERE}\n  USER_DATA={USER_DATA}\n  MODELS={MODELS}")

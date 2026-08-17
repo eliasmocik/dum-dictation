@@ -22,54 +22,33 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 - **macOS** (Apple Silicon, M-series) - primary, best-tested
 - **Windows 10/11** - works, still beta (built and tested by a contributor) ([setup](#on-windows))
 - **Linux** (X11) - experimental, looking for a contributor ([setup](#on-linux))
-- Python 3.12, 3.13 or 3.14 (3.12 or 3.13 on Windows). No Python at all? `./setup` downloads its
-  own private copy into the repo folder - nothing to install first.
+- Nothing else on macOS - the app is self-contained. Building from source or on Windows/Linux
+  needs Python 3.12-3.14 (3.12 or 3.13 on Windows); `./setup` fetches its own copy if you have none.
 
 ## Install (macOS)
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/eliasmocik/dum-dictation/main/install.sh | bash
-```
+**[Download dum.dmg](https://github.com/eliasmocik/dum-dictation/releases/latest)** - Apple Silicon, macOS 11+.
 
-Clones into `./dum-dictation`, runs `./setup` (venv + deps + speech/correction models), then asks
-for [permissions](#permissions-macos-one-time). By hand instead:
+Drag it to Applications and open it. macOS says it can't verify the app: click **Done**, then
+System Settings > Privacy & Security > **Open Anyway**. Once, not every launch.
+
+Say yes to **Microphone**, **Accessibility** and **Input Monitoring** when asked - dum can't hear
+you or type without all three. First launch pulls the speech model (~490 MB).
+
+Double-tap **left ⌘** to start and stop. Mic, hotkey and auto-start live in the menu-bar icon.
+
+<details>
+<summary>Or run it from source</summary>
 
 ```sh
 git clone https://github.com/eliasmocik/dum-dictation.git
-cd dum-dictation
-./setup
+cd dum-dictation && ./setup && ./dum
 ```
 
-The one-liner is macOS-only. Windows and Linux: see below.
+Grant the three permissions to your terminal, then quit and reopen it. `./dum --tray` for the
+menu bar, `./dum --config` to redo the mic/hotkey picker.
 
-## Permissions (macOS, one time)
-
-Grant these to the app you ran `./dum` from (Terminal, iTerm, or VS Code), then **quit and reopen it**:
-
-1. **Microphone**
-2. **Accessibility**
-3. **Input Monitoring**
-
-macOS usually prompts on first run. Otherwise: System Settings => Privacy & Security.
-
-## Using it
-
-```sh
-./dum
-```
-
-- Double-tap **LEFT ⌘** to start/stop. Words appear live; a pause locks the sentence in. Ctrl+C quits.
-- Pick a mic: `DUM_MIC="MacBook Air" ./dum` (by name) or `./dum --mic 1` (by index; list them with
-  `.venv/bin/python src/live.py --list-devices`).
-
-### Menu bar + auto-start
-
-```sh
-./dum --tray                 # menu-bar icon (green = listening, grey = idle)
-./dum --install-autostart    # start at login, relaunch on crash (--autostart-status, --uninstall-autostart)
-```
-
-Auto-start re-asks for the three permissions (this time for the venv `python`).
+</details>
 
 ## On Windows
 

@@ -1190,7 +1190,34 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
-    run_tray_gui(app, on_quit=_teardown)   # blocks on the main thread until Quit
+    def _swap_hotkey(key, mode):
+        """Rebuild the global hotkey listener in place - no relaunch.
+
+        Build-then-adopt-then-stop, the same order the permission re-arm watcher uses: there
+        is never a gap with no listener, and never two live pynput taps at once (two taps can
+        get the process OS-aborted on macOS)."""
+        fresh = run_double_tap_toggle(app, trigger_key=key, mode=mode, block=False)
+        old_l, holder["listener"] = holder["listener"], fresh
+        try:
+            old_l.stop()
+        except Exception:
+            pass
+        log(f"[settings] hotkey now {key} ({mode})")
+
+    def _swap_mic(name):
+        """Point the app at a different input device.
+
+        LiveDictation reads self.device inside start(), so this lands on the next start. If
+        dictation is running right now, cycle it so the change is immediate rather than
+        mysteriously deferred."""
+        app.device = name
+        if app.running.is_set():
+            app.stop()
+            app.start()
+        log(f"[settings] microphone now {name or 'system default'}")
+
+    run_tray_gui(app, on_quit=_teardown,
+                 on_hotkey_change=_swap_hotkey, on_mic_change=_swap_mic)   # blocks until Quit
 
 
 def main(argv=None):
