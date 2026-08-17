@@ -27,13 +27,7 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
 ## Install (macOS)
 
-### **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
-
-Apple Silicon, macOS 11+. That page has the whole thing with screenshots: drag to Applications,
-click past one Gatekeeper warning (the app isn't signed by Apple), tick three permissions in the
-menu bar. Two minutes, no terminal, no Python.
-
-Then double-tap **left ⌘** to start and stop.
+Recommended: download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
 <details>
 <summary>Or run it from source</summary>
