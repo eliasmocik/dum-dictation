@@ -1,7 +1,7 @@
 # Contributing
 
-Most contributions are vocabulary fixes: teaching the tool a technical term it
-mis-transcribes.
+Most contributions are vocabulary fixes, which involve teaching the tool a new
+technical term.
 
 ## Differentiating between general and personal fixes
 
