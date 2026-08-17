@@ -4,8 +4,6 @@
 
 Local, real-time dictation that gets your technical vocabulary right.
 
-![dum dictation demo](docs/demo.gif)
-
 https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
 ## What you need
