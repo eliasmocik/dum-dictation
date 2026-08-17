@@ -1106,6 +1106,16 @@ def run_double_tap_toggle(app, trigger_key="cmd_l", mode="toggle", block=True):
     app.stop()
 
 
+def _listener_is_trusted(listener):
+    """Is the global hotkey tap actually receiving events?
+
+    pynput exposes IS_TRUSTED on its macOS backend (the Accessibility/Input-Monitoring check).
+    Absent on other platforms and on older pynput, where we assume trusted rather than spin a
+    pointless re-arm loop - the guard exists for the macOS first-run case only.
+    """
+    return bool(getattr(listener, "IS_TRUSTED", True))
+
+
 def run_tray(app, trigger_key="cmd_l", mode="toggle"):
     """Menu-bar daily driver: the same global double-tap hotkey listener, but with a
     tray icon instead of a babysat terminal. The hotkey listener runs on its own thread;
@@ -1116,9 +1126,45 @@ def run_tray(app, trigger_key="cmd_l", mode="toggle"):
 
     listener = run_double_tap_toggle(app, trigger_key=trigger_key, mode=mode, block=False)
 
+    # A CGEventTap created while Input Monitoring is NOT yet granted is born dead and never
+    # revives when the grant later lands - pynput's listener IS that tap. Without this, a
+    # first-run user grants the permission, sees the app say nothing, and concludes the hotkey
+    # is broken; only quitting and reopening fixes it. So watch for trust appearing and swap in
+    # a fresh listener in place. No relaunch, no user action.
+    holder = {"listener": listener}
+
+    def _rearm():
+        # IS_TRUSTED is a CLASS attribute defaulting to False; pynput only sets the real value
+        # inside the listener thread's _run(). Reading it straight after construction therefore
+        # reports "untrusted" for a perfectly trusted process, so settle first, then decide.
+        time.sleep(1.0)
+        if _listener_is_trusted(holder["listener"]):
+            return                               # already granted - nothing to do
+        for _ in range(600):                     # ~5 minutes of grace, then give up quietly
+            time.sleep(0.5)
+            try:
+                fresh = run_double_tap_toggle(app, trigger_key=trigger_key, mode=mode,
+                                              block=False)
+            except Exception:
+                return
+            time.sleep(0.4)                      # let the new tap publish its own verdict
+            if _listener_is_trusted(fresh):
+                log("[perms] input monitoring granted - hotkey is live")
+                try:
+                    holder["listener"].stop()
+                except Exception:
+                    pass
+                holder["listener"] = fresh
+                return
+            try:
+                fresh.stop()                     # still untrusted; don't leak taps
+            except Exception:
+                pass
+    threading.Thread(target=_rearm, name="dum-perm-rearm", daemon=True).start()
+
     def _teardown():
         try:
-            listener.stop()
+            holder["listener"].stop()
         finally:
             app.stop()
             try:

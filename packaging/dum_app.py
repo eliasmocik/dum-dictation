@@ -90,9 +90,13 @@ def _selftest(deep=False):
     # breaks the LLM stage and nothing else, so assert it explicitly.
     probe("sqlite3 (via diskcache -> llama_cpp)", lambda: __import__("diskcache").Cache)
 
+    # first_run and model_download are imported LAZILY inside main(), so PyInstaller's static
+    # analysis can miss them and the app would only discover it on a real first launch - on a
+    # user's machine, with no models and no way to recover. Assert them here.
     probe("engine modules", lambda: [__import__(m) for m in
                                      ("live", "pipeline", "overlay", "config", "platform_io",
-                                      "model_utils", "llm_backend", "tray")])
+                                      "model_utils", "llm_backend", "tray",
+                                      "first_run", "model_download")])
 
     from model_utils import HERE, USER_DATA, MODELS, FROZEN
     print(f"  frozen={FROZEN}\n  HERE={HERE}\n  USER_DATA={USER_DATA}\n  MODELS={MODELS}")
@@ -133,13 +137,24 @@ def main():
         return _selftest(deep="--deep" in argv)
 
     _bootstrap_env()
-    import live
 
     # Pass-through flags win; otherwise run the menu-bar daily driver. --tray is required, not a
     # preference: a bundled app has no terminal to babysit, and on macOS the tray must own the
     # main thread for the GUI run loop.
     if not argv:
         argv = ["--double-cmd", "--overlay", "--llm", "--tray"]
+
+    # First run: fetch the models BEFORE live.main() reaches find_model_dir(), which would
+    # otherwise sys.exit() with a message aimed at someone who ran ./setup - advice a
+    # downloaded .app user cannot act on. Skipped for the headless/dev entry points so
+    # --replay and --list-devices behave exactly as they do from a checkout.
+    if not any(a in argv for a in ("--replay", "--replay-fast", "--list-devices")):
+        import first_run
+        from model_utils import MODELS
+        if not first_run.run_first_run(MODELS):
+            return 1
+
+    import live
     return live.main(argv)
 
 
