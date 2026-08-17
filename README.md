@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 Download the app from the DMG, following **[→ Download dum for Mac](https://github.com/eliasmocik/dum-dictation/releases/latest)**
 
 <details>
-<summary>Windows</summary>
+<summary>Windows (beta)</summary>
 
 In **PowerShell** (Python 3.12 or 3.13 on your PATH - 3.14 isn't supported on Windows yet; with no
 Python at all, `setup.ps1` fetches its own):
@@ -37,9 +37,9 @@ cd dum-dictation
 </details>
 
 <details>
-<summary>Linux</summary>
+<summary>Linux (beta)</summary>
 
-> **Experimental!** Looking for a Linux contributor. Reach out on
+> Looking for a Linux contributor. Reach out on
 > [Discussions](https://github.com/eliasmocik/dum-dictation/discussions) or [@eliasmocik](https://github.com/eliasmocik).
 
 ```sh
