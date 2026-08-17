@@ -2,7 +2,8 @@
 
 [![tests](https://github.com/eliasmocik/dum-dictation/actions/workflows/tests.yml/badge.svg)](https://github.com/eliasmocik/dum-dictation/actions/workflows/tests.yml)
 
-Local, real-time dictation that gets your technical vocabulary right.
+Dum dictation is a local, open-source dictation tool primarily for Mac. It gets technical
+vocabulary right and offers a responsive word-by-word feel directly at your cursor.
 
 https://github.com/user-attachments/assets/20cf0b37-7b8b-4586-abd8-e8bac6663766
 
